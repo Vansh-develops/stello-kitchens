@@ -1,4 +1,5 @@
 import { BadRequestException } from "@nestjs/common";
+import { verifyHmacSha256, verifyOndcEd25519, type WebhookHeaders } from "./signatures";
 import type { CanonicalOrder, PlatformAdapter } from "./types";
 
 /**
@@ -8,6 +9,12 @@ import type { CanonicalOrder, PlatformAdapter } from "./types";
  */
 export class SwiggyAdapter implements PlatformAdapter {
   readonly platform = "SWIGGY" as const;
+
+  // Swiggy's partner Order API signs the raw body with HMAC-SHA256 using the
+  // partner secret, delivered in X-Swiggy-Signature.
+  verifySignature(rawBody: Buffer, headers: WebhookHeaders): void {
+    verifyHmacSha256({ platform: this.platform, rawBody, headers, headerName: "X-Swiggy-Signature", secretEnv: "SWIGGY_WEBHOOK_SECRET" });
+  }
 
   parseOrder(payload: unknown): CanonicalOrder {
     const p = payload as {
@@ -40,6 +47,13 @@ export class SwiggyAdapter implements PlatformAdapter {
  */
 export class OndcAdapter implements PlatformAdapter {
   readonly platform = "ONDC" as const;
+
+  // ONDC/Beckn signs a blake2b-512 hash of the body with ed25519 (Authorization
+  // signature block). Live registry key resolution is GATED to onboarding; see
+  // verifyOndcEd25519.
+  verifySignature(rawBody: Buffer, headers: WebhookHeaders): void {
+    verifyOndcEd25519({ rawBody, headers });
+  }
 
   parseOrder(payload: unknown): CanonicalOrder {
     const p = payload as {
@@ -79,6 +93,12 @@ export class OndcAdapter implements PlatformAdapter {
  */
 export class UrbanPiperAdapter implements PlatformAdapter {
   readonly platform = "URBANPIPER" as const;
+
+  // UrbanPiper/Dyno signs webhook bodies with HMAC-SHA256 (per-integration secret)
+  // and sends the hex digest in X-UrbanPiper-Signature.
+  verifySignature(rawBody: Buffer, headers: WebhookHeaders): void {
+    verifyHmacSha256({ platform: this.platform, rawBody, headers, headerName: "X-UrbanPiper-Signature", secretEnv: "URBANPIPER_WEBHOOK_SECRET" });
+  }
 
   parseOrder(payload: unknown): CanonicalOrder {
     const p = payload as {
