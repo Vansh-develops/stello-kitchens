@@ -51,8 +51,8 @@ async function main() {
   ok(dC.igst === 0 && dC.cgst > 0 && near(dC.cgst, dC.sgst), `same-state buyer → CGST ${dC.cgst} + SGST ${dC.sgst}, IGST 0`);
 
   console.log("\n[4] Invoice list reflects the split");
-  const today = new Date().toISOString().slice(0, 10);
-  const rows = await j(await call("GET", `/outlets/${outlet.id}/invoices?from=${today}&to=${today}`, null, token));
+  // Use the server's default date range (avoids UTC/local date-boundary flakiness).
+  const rows = await j(await call("GET", `/outlets/${outlet.id}/invoices`, null, token));
   const rowB = rows.find((r) => r.orderId === idB);
   const rowC = rows.find((r) => r.orderId === idC);
   ok(rowB && rowB.igst > 0 && rowB.cgst === 0 && rowB.sgst === 0, "inter-state order lists as IGST");

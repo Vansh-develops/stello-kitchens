@@ -199,16 +199,17 @@ export class OrdersService {
     order: SyncedOrderInput;
   }): Promise<{ serverId: string; billNumber: string | null; status: "applied" | "duplicate" }> {
     const { tenantId, outletId, deviceId, order } = params;
-    const existing = await this.prisma.order.findFirst({
-      where: { deviceId, clientId: order.clientId },
-    });
-    if (existing) {
-      return { serverId: existing.id, billNumber: existing.billNumber, status: "duplicate" };
-    }
-
     const actor = { tenantId, id: null };
     const settled = order.status === "SETTLED";
-    const orderId = await this.prisma.$transaction(async (tx) => {
+    // Idempotency is enforced by the @@unique([deviceId, clientId]) constraint, not
+    // a pre-check read: we attempt the insert and treat a unique violation as "this
+    // order already synced". A pre-check findFirst has a window where two concurrent
+    // deliveries of the same order both see nothing and both insert; letting the DB
+    // arbitrate means the loser rolls back cleanly (including its bill-number
+    // increment) and is reported as a duplicate.
+    let orderId: string;
+    try {
+      orderId = await this.prisma.$transaction(async (tx) => {
       // The device's number is a provisional reference only. On sync, a settled
       // order is assigned the authoritative GST bill number from the single
       // outlet counter — the same series online settlements draw from — so the
@@ -253,7 +254,17 @@ export class OrdersService {
         },
       });
       return created.id;
-    });
+      });
+    } catch (e) {
+      // Lost the idempotency race, or a re-delivery of an already-synced order: the
+      // (deviceId, clientId) row already exists. Report it as a duplicate instead of
+      // erroring, so the device stops retrying and clears it from the outbox.
+      if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") {
+        const existing = await this.prisma.order.findFirst({ where: { deviceId, clientId: order.clientId } });
+        if (existing) return { serverId: existing.id, billNumber: existing.billNumber, status: "duplicate" };
+      }
+      throw e;
+    }
     this.realtime.notifyOutlet(outletId);
     const saved = await this.prisma.order.findUniqueOrThrow({ where: { id: orderId } });
     return { serverId: orderId, billNumber: saved.billNumber, status: "applied" };
