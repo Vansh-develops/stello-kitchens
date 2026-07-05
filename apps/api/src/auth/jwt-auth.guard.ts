@@ -9,6 +9,7 @@ import { Reflector } from "@nestjs/core";
 import { JwtService } from "@nestjs/jwt";
 import { AuthService } from "./auth.service";
 import { IS_PUBLIC_KEY, PERMISSIONS_KEY } from "../common/decorators";
+import { enterTenant } from "../common/tenant-context";
 
 @Injectable()
 export class JwtAuthGuard implements CanActivate {
@@ -38,6 +39,9 @@ export class JwtAuthGuard implements CanActivate {
     }
     const user = await this.auth.resolveUser(payload.sub);
     request.user = user;
+    // Bind this request to the user's tenant so PrismaService scopes every
+    // tenant-owned query structurally (defence beyond per-query filters).
+    enterTenant(user.tenantId);
 
     const required = this.reflector.getAllAndOverride<string[]>(PERMISSIONS_KEY, [
       context.getHandler(),
