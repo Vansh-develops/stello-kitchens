@@ -1,0 +1,895 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------- Identity & tenancy ----------
+
+model Tenant {
+  id        String   @id @default(cuid())
+  name      String
+  createdAt DateTime @default(now())
+
+  brands Brand[]
+  users  User[]
+  roles  Role[]
+
+  @@map("tenants")
+}
+
+model Brand {
+  id       String @id @default(cuid())
+  tenantId String
+  name     String
+
+  tenant  Tenant   @relation(fields: [tenantId], references: [id])
+  outlets Outlet[]
+
+  @@index([tenantId])
+  @@map("brands")
+}
+
+model Outlet {
+  id             String  @id @default(cuid())
+  tenantId       String
+  brandId        String
+  name           String
+  address        String?
+  gstin          String?
+  nextBillNumber Int     @default(1)
+  nextKotNumber  Int     @default(1)
+  // Loyalty: points earned = round(billTotal * earnRate); 1 point = pointValue rupees.
+  loyaltyEarnRate  Decimal @default(0.1) @db.Decimal(6, 4)
+  loyaltyPointValue Decimal @default(1) @db.Decimal(6, 2)
+  upiVpa           String? // payee VPA for dynamic UPI QR (e.g. spiceroute@okhdfc)
+  placeOfSupply    String? // GST state code, e.g. "29" (Karnataka)
+  isCentralKitchen Boolean @default(false) // commissary that supplies satellite outlets
+  publicToken      String? @unique // opaque token for kiosk / token-display board URLs
+
+  brand       Brand          @relation(fields: [brandId], references: [id])
+  terminals   Terminal[]
+  userOutlets UserOutlet[]
+  categories  MenuCategory[]
+  stations    Station[]
+  channels    Channel[]
+  areas       Area[]
+  tables      DiningTable[]
+  orders      Order[]
+  rawMaterials RawMaterial[]
+  vendors      Vendor[]
+  customers    Customer[]
+  coupons      Coupon[]
+  campaigns    Campaign[]
+  feedback     Feedback[]
+  cashSessions CashSession[]
+  orderRequests OrderRequest[]
+
+  @@index([tenantId])
+  @@map("outlets")
+}
+
+// A managed device in the outlet's fleet: POS counters, KDS screens, printers, etc.
+model Terminal {
+  id          String    @id @default(cuid())
+  tenantId    String
+  outletId    String
+  name        String
+  type        String    @default("POS") // POS | KDS | PRINTER | KIOSK | DISPLAY
+  deviceToken String    @unique @default(cuid())
+  config      Json? // per-type settings (printer paper width, KDS theme, …)
+  isActive    Boolean   @default(true)
+  lastSeenAt  DateTime?
+
+  outlet Outlet @relation(fields: [outletId], references: [id])
+
+  @@index([tenantId, outletId])
+  @@map("terminals")
+}
+
+model Role {
+  id          String @id @default(cuid())
+  tenantId    String
+  name        String
+  permissions Json // string[] of permission keys
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+  users  User[]
+
+  @@unique([tenantId, name])
+  @@map("roles")
+}
+
+model User {
+  id           String  @id @default(cuid())
+  tenantId     String
+  email        String  @unique
+  passwordHash String
+  name         String
+  roleId       String
+  isActive     Boolean @default(true)
+
+  tenant      Tenant       @relation(fields: [tenantId], references: [id])
+  role        Role         @relation(fields: [roleId], references: [id])
+  userOutlets UserOutlet[]
+  auditLogs   AuditLog[]
+
+  @@index([tenantId])
+  @@map("users")
+}
+
+model UserOutlet {
+  userId   String
+  outletId String
+
+  user   User   @relation(fields: [userId], references: [id])
+  outlet Outlet @relation(fields: [outletId], references: [id])
+
+  @@id([userId, outletId])
+  @@map("user_outlets")
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  tenantId  String
+  userId    String?
+  action    String
+  entity    String
+  entityId  String?
+  data      Json?
+  createdAt DateTime @default(now())
+
+  user User? @relation(fields: [userId], references: [id])
+
+  @@index([tenantId, createdAt])
+  @@map("audit_logs")
+}
+
+// ---------- Menu / catalog ----------
+
+model Station {
+  id          String @id @default(cuid())
+  tenantId    String
+  outletId    String
+  name        String
+  sortOrder   Int    @default(0)
+  prepMinutes Int    @default(10) // target prep time; drives KDS ageing colours
+
+  outlet     Outlet         @relation(fields: [outletId], references: [id])
+  categories MenuCategory[]
+
+  @@index([tenantId, outletId])
+  @@map("stations")
+}
+
+model MenuCategory {
+  id        String    @id @default(cuid())
+  tenantId  String
+  outletId  String
+  stationId String?
+  name      String
+  sortOrder Int       @default(0)
+  deletedAt DateTime?
+
+  outlet  Outlet   @relation(fields: [outletId], references: [id])
+  station Station? @relation(fields: [stationId], references: [id])
+  items   Item[]
+  combos  Combo[]
+
+  @@index([tenantId, outletId])
+  @@map("menu_categories")
+}
+
+model Item {
+  id             String    @id @default(cuid())
+  tenantId       String
+  outletId       String
+  categoryId     String
+  name           String
+  shortCode      String?
+  price          Decimal   @db.Decimal(10, 2)
+  isVeg          Boolean   @default(true)
+  inStock        Boolean   @default(true)
+  taxRate        Decimal   @default(5) @db.Decimal(5, 2)
+  hsnCode        String?   @default("996331") // SAC for restaurant service
+  sortOrder      Int       @default(0)
+  availableStart String? // "HH:MM" local; null = all day (e.g. breakfast till 11:00)
+  availableEnd   String?
+  deletedAt      DateTime?
+
+  category      MenuCategory       @relation(fields: [categoryId], references: [id])
+  variations    ItemVariation[]
+  addonGroups   ItemAddonGroup[]
+  channelPrices ItemChannelPrice[]
+  menuMaps      AggregatorMenuMap[]
+  recipe        RecipeIngredient[]
+  comboOptions  ComboSlotOption[]
+
+  @@index([tenantId, outletId])
+  @@map("items")
+}
+
+model Channel {
+  id        String  @id @default(cuid())
+  tenantId  String
+  outletId  String
+  name      String // "Dine-in", "Zomato", "Swiggy"
+  kind      String  @default("DIRECT") // DIRECT | AGGREGATOR
+  isActive  Boolean @default(true)
+  sortOrder Int     @default(0)
+
+  outlet   Outlet              @relation(fields: [outletId], references: [id])
+  prices   ItemChannelPrice[]
+  menuMaps AggregatorMenuMap[]
+
+  @@index([tenantId, outletId])
+  @@map("channels")
+}
+
+// Per-channel price override + listing flag (absorb aggregator commission).
+model ItemChannelPrice {
+  id        String  @id @default(cuid())
+  itemId    String
+  channelId String
+  price     Decimal @db.Decimal(10, 2)
+  isListed  Boolean @default(true)
+
+  item    Item    @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  channel Channel @relation(fields: [channelId], references: [id], onDelete: Cascade)
+
+  @@unique([itemId, channelId])
+  @@map("item_channel_prices")
+}
+
+// Internal item ↔ external (Zomato/Swiggy) item id, for later menu push.
+model AggregatorMenuMap {
+  id         String @id @default(cuid())
+  itemId     String
+  channelId  String
+  externalId String
+
+  item    Item    @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  channel Channel @relation(fields: [channelId], references: [id], onDelete: Cascade)
+
+  @@unique([itemId, channelId])
+  @@map("aggregator_menu_maps")
+}
+
+model ItemVariation {
+  id     String  @id @default(cuid())
+  itemId String
+  name   String
+  price  Decimal @db.Decimal(10, 2)
+
+  item Item @relation(fields: [itemId], references: [id])
+
+  @@map("item_variations")
+}
+
+model AddonGroup {
+  id        String @id @default(cuid())
+  tenantId  String
+  outletId  String
+  name      String
+  minSelect Int    @default(0)
+  maxSelect Int    @default(1)
+
+  addons Addon[]
+  items  ItemAddonGroup[]
+
+  @@map("addon_groups")
+}
+
+model Addon {
+  id      String  @id @default(cuid())
+  groupId String
+  name    String
+  price   Decimal @db.Decimal(10, 2)
+
+  group AddonGroup @relation(fields: [groupId], references: [id])
+
+  @@map("addons")
+}
+
+model ItemAddonGroup {
+  itemId       String
+  addonGroupId String
+
+  item  Item       @relation(fields: [itemId], references: [id])
+  group AddonGroup @relation(fields: [addonGroupId], references: [id])
+
+  @@id([itemId, addonGroupId])
+  @@map("item_addon_groups")
+}
+
+// ---------- Combos (bundled meals) ----------
+
+// A sellable bundle priced as one line; explodes into component items for the
+// kitchen and inventory. Appears in the menu alongside items.
+model Combo {
+  id         String    @id @default(cuid())
+  tenantId   String
+  outletId   String
+  categoryId String
+  name       String
+  price      Decimal   @db.Decimal(10, 2)
+  isVeg      Boolean   @default(true)
+  inStock    Boolean   @default(true)
+  taxRate    Decimal   @default(5) @db.Decimal(5, 2)
+  hsnCode    String?   @default("996331")
+  sortOrder  Int       @default(0)
+  deletedAt  DateTime?
+
+  category MenuCategory @relation(fields: [categoryId], references: [id])
+  slots    ComboSlot[]
+
+  @@index([tenantId, outletId])
+  @@map("combos")
+}
+
+// A "choose one" slot in a combo (e.g. "Main", "Drink").
+model ComboSlot {
+  id        String @id @default(cuid())
+  comboId   String
+  name      String
+  sortOrder Int    @default(0)
+
+  combo   Combo             @relation(fields: [comboId], references: [id], onDelete: Cascade)
+  options ComboSlotOption[]
+
+  @@map("combo_slots")
+}
+
+// An item that can fill a slot; priceDelta lets a premium pick add cost.
+model ComboSlotOption {
+  id         String  @id @default(cuid())
+  slotId     String
+  itemId     String
+  priceDelta Decimal @default(0) @db.Decimal(10, 2)
+  isDefault  Boolean @default(false)
+
+  slot ComboSlot @relation(fields: [slotId], references: [id], onDelete: Cascade)
+  item Item      @relation(fields: [itemId], references: [id])
+
+  @@map("combo_slot_options")
+}
+
+// ---------- Floor ----------
+
+model Area {
+  id       String @id @default(cuid())
+  tenantId String
+  outletId String
+  name     String
+
+  outlet Outlet        @relation(fields: [outletId], references: [id])
+  tables DiningTable[]
+
+  @@map("areas")
+}
+
+model DiningTable {
+  id          String  @id @default(cuid())
+  tenantId    String
+  outletId    String
+  areaId      String
+  name        String
+  seats       Int     @default(4)
+  publicToken String? @unique // opaque token embedded in the table's Scan & Order QR
+
+  area          Area           @relation(fields: [areaId], references: [id])
+  outlet        Outlet         @relation(fields: [outletId], references: [id])
+  orders        Order[]
+  orderRequests OrderRequest[]
+
+  @@map("dining_tables")
+}
+
+// ---------- Orders ----------
+
+model Order {
+  id             String    @id @default(cuid())
+  tenantId       String
+  outletId       String
+  billNumber     String?
+  orderType      String // DINE_IN | TAKEAWAY | DELIVERY
+  status         String    @default("OPEN") // OPEN | BILLED | SETTLED | CANCELLED
+  tableId        String?
+  customerName   String?
+  customerPhone  String?
+  customerId     String?
+  couponCode     String?
+  deviceId       String? // edge device that created this order offline
+  clientId       String? // device-local id, for sync idempotency
+  subtotal       Decimal   @default(0) @db.Decimal(10, 2)
+  discountAmount Decimal   @default(0) @db.Decimal(10, 2)
+  taxAmount      Decimal   @default(0) @db.Decimal(10, 2)
+  total          Decimal   @default(0) @db.Decimal(10, 2)
+  version        Int       @default(1)
+  createdById    String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  deletedAt      DateTime?
+
+  outlet   Outlet         @relation(fields: [outletId], references: [id])
+  table    DiningTable?   @relation(fields: [tableId], references: [id])
+  customer Customer?      @relation(fields: [customerId], references: [id])
+  items    OrderItem[]
+  kots     Kot[]
+  payments OrderPayment[]
+
+  @@unique([deviceId, clientId])
+  @@index([tenantId, outletId, status])
+  @@index([outletId, updatedAt])
+  @@map("orders")
+}
+
+model OrderItem {
+  id            String  @id @default(cuid())
+  orderId       String
+  itemId        String
+  itemName      String
+  variationId   String?
+  variationName String?
+  quantity      Int
+  unitPrice     Decimal @db.Decimal(10, 2)
+  lineTotal     Decimal @db.Decimal(10, 2)
+  taxRate       Decimal @default(5) @db.Decimal(5, 2)
+  note          String?
+  kotId         String?
+  stationId     String? // snapshot of the item's kitchen station at punch time
+  prepStatus    String    @default("PENDING") // PENDING | PREPARING | READY (KDS)
+  preppedAt     DateTime? // when marked READY; drives the Ready column window
+  // Combos: a combo punches as one priced parent line (isComboComponent=false, no KOT)
+  // plus zero-priced component lines (isComboComponent=true) that route to the kitchen.
+  comboId          String? // the combo this line belongs to (parent + components)
+  comboGroupId     String? // groups one combo instance's parent + components in an order
+  isComboComponent Boolean @default(false)
+
+  order  Order            @relation(fields: [orderId], references: [id])
+  kot    Kot?             @relation(fields: [kotId], references: [id])
+  addons OrderItemAddon[]
+
+  @@index([orderId])
+  @@index([stationId, prepStatus])
+  @@map("order_items")
+}
+
+model OrderItemAddon {
+  id          String  @id @default(cuid())
+  orderItemId String
+  addonId     String
+  name        String
+  price       Decimal @db.Decimal(10, 2)
+
+  orderItem OrderItem @relation(fields: [orderItemId], references: [id])
+
+  @@map("order_item_addons")
+}
+
+model Kot {
+  id        String   @id @default(cuid())
+  tenantId  String
+  outletId  String
+  orderId   String
+  kotNumber Int
+  status    String   @default("PENDING") // PENDING | READY | SERVED
+  createdAt DateTime @default(now())
+
+  order Order       @relation(fields: [orderId], references: [id])
+  items OrderItem[]
+
+  @@index([tenantId, outletId, status])
+  @@map("kots")
+}
+
+model OrderPayment {
+  id        String   @id @default(cuid())
+  orderId   String
+  mode      String // CASH | CARD | UPI | WALLET | OTHER
+  amount    Decimal  @db.Decimal(10, 2)
+  createdAt DateTime @default(now())
+
+  order Order @relation(fields: [orderId], references: [id])
+
+  @@map("order_payments")
+}
+
+// ---------- Inventory ----------
+
+model RawMaterial {
+  id             String    @id @default(cuid())
+  tenantId       String
+  outletId       String
+  name           String
+  unit           String // KG | G | L | ML | PCS
+  stockQty       Decimal   @default(0) @db.Decimal(12, 3) // running balance
+  reorderLevel   Decimal   @default(0) @db.Decimal(12, 3)
+  costPerUnit    Decimal   @default(0) @db.Decimal(12, 4) // weighted average
+  isSemiFinished Boolean   @default(false) // produced in-house from a prep recipe
+  deletedAt      DateTime?
+
+  outlet      Outlet             @relation(fields: [outletId], references: [id])
+  ingredients RecipeIngredient[]
+  movements   StockMovement[]
+  // Multi-stage recipes: this material's own prep recipe, and uses of it as an input.
+  prepRecipe  PrepRecipeIngredient[] @relation("PrepOutput")
+  prepInputs  PrepRecipeIngredient[] @relation("PrepInput")
+
+  @@index([tenantId, outletId])
+  @@map("raw_materials")
+}
+
+// One line of a semi-finished good's prep recipe: quantity of an input material
+// per 1 unit of the produced output material.
+model PrepRecipeIngredient {
+  id               String  @id @default(cuid())
+  outputMaterialId String
+  inputMaterialId  String
+  quantity         Decimal @db.Decimal(12, 4)
+
+  output RawMaterial @relation("PrepOutput", fields: [outputMaterialId], references: [id], onDelete: Cascade)
+  input  RawMaterial @relation("PrepInput", fields: [inputMaterialId], references: [id])
+
+  @@unique([outputMaterialId, inputMaterialId])
+  @@map("prep_recipe_ingredients")
+}
+
+// One line of an item's recipe: quantity of a raw material per unit of the dish.
+model RecipeIngredient {
+  id            String  @id @default(cuid())
+  itemId        String
+  rawMaterialId String
+  quantity      Decimal @db.Decimal(12, 3)
+
+  item     Item        @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  material RawMaterial @relation(fields: [rawMaterialId], references: [id], onDelete: Cascade)
+
+  @@unique([itemId, rawMaterialId])
+  @@map("recipe_ingredients")
+}
+
+model Vendor {
+  id        String    @id @default(cuid())
+  tenantId  String
+  outletId  String
+  name      String
+  phone     String?
+  deletedAt DateTime?
+
+  outlet    Outlet          @relation(fields: [outletId], references: [id])
+  movements StockMovement[]
+
+  @@map("vendors")
+}
+
+// ---------- Aggregator orders ----------
+
+model AggregatorOrder {
+  id                  String   @id @default(cuid())
+  tenantId            String
+  outletId            String
+  platform            String // ZOMATO | SWIGGY | ONDC | URBANPIPER
+  externalOrderId     String
+  orderId             String? // internal Order id once ingested
+  status              String   @default("RECEIVED") // RECEIVED | ACCEPTED | PREPARING | READY | PICKED_UP | DELIVERED | REJECTED | CANCELLED
+  customerName        String?
+  customerPhoneMasked String?
+  orderValue          Decimal  @db.Decimal(10, 2)
+  unmatchedItems      Json? // external item ids that had no internal mapping
+  rawPayload          Json?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  @@unique([platform, externalOrderId])
+  @@index([tenantId, outletId, status])
+  @@map("aggregator_orders")
+}
+
+// ---------- CRM / loyalty / marketing ----------
+
+model Customer {
+  id            String   @id @default(cuid())
+  tenantId      String
+  outletId      String
+  name          String?
+  phone         String
+  email         String?
+  loyaltyPoints Int      @default(0)
+  totalOrders   Int      @default(0)
+  totalSpent    Decimal  @default(0) @db.Decimal(12, 2)
+  lastVisitAt   DateTime?
+  createdAt     DateTime @default(now())
+
+  outlet       Outlet               @relation(fields: [outletId], references: [id])
+  orders       Order[]
+  transactions LoyaltyTransaction[]
+  feedback     Feedback[]
+
+  @@unique([outletId, phone])
+  @@index([tenantId, outletId])
+  @@map("customers")
+}
+
+model LoyaltyTransaction {
+  id         String   @id @default(cuid())
+  customerId String
+  type       String // EARN | REDEEM | TOPUP | ADJUST
+  points     Int // signed: + earn/topup, - redeem
+  orderId    String?
+  note       String?
+  createdAt  DateTime @default(now())
+
+  customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  @@index([customerId, createdAt])
+  @@map("loyalty_transactions")
+}
+
+model Coupon {
+  id          String    @id @default(cuid())
+  tenantId    String
+  outletId    String
+  code        String
+  type        String // PERCENT | FLAT
+  value       Decimal   @db.Decimal(10, 2)
+  minOrder    Decimal   @default(0) @db.Decimal(10, 2)
+  maxDiscount Decimal?  @db.Decimal(10, 2)
+  validFrom   DateTime?
+  validTo     DateTime?
+  usageLimit  Int? // null = unlimited
+  usedCount   Int       @default(0)
+  isActive    Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+
+  outlet Outlet @relation(fields: [outletId], references: [id])
+
+  @@unique([outletId, code])
+  @@map("coupons")
+}
+
+model Campaign {
+  id        String   @id @default(cuid())
+  tenantId  String
+  outletId  String
+  name      String
+  channel   String // SMS | WHATSAPP | EMAIL
+  segment   String // ALL | NEW | REGULAR | VIP | LAPSED
+  message   String
+  sentCount Int      @default(0)
+  status    String   @default("DRAFT") // DRAFT | SENT
+  createdAt DateTime @default(now())
+
+  outlet Outlet @relation(fields: [outletId], references: [id])
+
+  @@map("campaigns")
+}
+
+model Feedback {
+  id         String   @id @default(cuid())
+  tenantId   String
+  outletId   String
+  orderId    String?
+  customerId String?
+  rating     Int // 1..5
+  comment    String?
+  createdAt  DateTime @default(now())
+
+  outlet   Outlet    @relation(fields: [outletId], references: [id])
+  customer Customer? @relation(fields: [customerId], references: [id])
+
+  @@index([tenantId, outletId, createdAt])
+  @@map("feedback")
+}
+
+// ---------- Cash management + payments ----------
+
+model CashSession {
+  id           String    @id @default(cuid())
+  tenantId     String
+  outletId     String
+  openedById   String?
+  openingFloat Decimal   @db.Decimal(10, 2)
+  openedAt     DateTime  @default(now())
+  closedAt     DateTime?
+  countedCash  Decimal?  @db.Decimal(10, 2)
+  status       String    @default("OPEN") // OPEN | CLOSED
+
+  outlet    Outlet         @relation(fields: [outletId], references: [id])
+  movements CashMovement[]
+
+  @@index([tenantId, outletId, status])
+  @@map("cash_sessions")
+}
+
+model CashMovement {
+  id        String   @id @default(cuid())
+  sessionId String
+  type      String // SALE | PAY_IN | PAY_OUT | EXPENSE | REFUND
+  amount    Decimal  @db.Decimal(10, 2) // signed: + cash in, - cash out
+  category  String? // for EXPENSE
+  note      String?
+  orderId   String?
+  createdAt DateTime @default(now())
+
+  session CashSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId])
+  @@map("cash_movements")
+}
+
+model Refund {
+  id         String   @id @default(cuid())
+  tenantId   String
+  outletId   String
+  orderId    String
+  amount     Decimal  @db.Decimal(10, 2)
+  mode       String // CASH | CARD | UPI | WALLET | OTHER
+  reason     String?
+  gatewayRef String?
+  createdAt  DateTime @default(now())
+
+  @@index([tenantId, outletId])
+  @@map("refunds")
+}
+
+// ---------- GST e-invoicing ----------
+
+// A tax invoice for a settled order. IRN/signed-QR/ack are returned by the GSP/IRP
+// and stored here — we never build GSTN plumbing ourselves.
+model Invoice {
+  id            String    @id @default(cuid())
+  tenantId      String
+  outletId      String
+  orderId       String    @unique
+  invoiceNumber String
+  invoiceDate   DateTime  @default(now())
+  sellerGstin   String?
+  buyerGstin    String?
+  placeOfSupply String?
+  taxableValue  Decimal   @db.Decimal(12, 2)
+  cgst          Decimal   @db.Decimal(12, 2)
+  sgst          Decimal   @db.Decimal(12, 2)
+  igst          Decimal   @default(0) @db.Decimal(12, 2)
+  total         Decimal   @db.Decimal(12, 2)
+  hsnSummary    Json? // [{ hsn, taxable, rate, cgst, sgst }]
+  irn           String? // IRN returned by the IRP
+  signedQr      String? // signed QR payload (rendered as the invoice QR)
+  ackNo         String?
+  ackDate       DateTime?
+  status        String    @default("PENDING") // PENDING | GENERATED | CANCELLED
+  createdAt     DateTime  @default(now())
+
+  @@index([tenantId, outletId])
+  @@map("invoices")
+}
+
+// ---------- Central kitchen / commissary ----------
+
+// A satellite outlet's stock request to the central kitchen.
+model Indent {
+  id           String    @id @default(cuid())
+  tenantId     String
+  fromOutletId String // requesting (satellite) outlet
+  toOutletId   String // central kitchen
+  status       String    @default("DRAFT") // DRAFT | DISPATCHED | RECEIVED | CANCELLED
+  note         String?
+  createdAt    DateTime  @default(now())
+  dispatchedAt DateTime?
+  receivedAt   DateTime?
+
+  items    IndentItem[]
+  ewayBill EwayBill?
+
+  @@index([tenantId, fromOutletId])
+  @@index([tenantId, toOutletId])
+  @@map("indents")
+}
+
+model IndentItem {
+  id            String  @id @default(cuid())
+  indentId      String
+  rawMaterialId String // material at the central kitchen
+  materialName  String
+  unit          String
+  requestedQty  Decimal @db.Decimal(12, 3)
+  dispatchedQty Decimal @default(0) @db.Decimal(12, 3)
+  unitCost      Decimal @default(0) @db.Decimal(12, 4)
+
+  indent Indent @relation(fields: [indentId], references: [id], onDelete: Cascade)
+
+  @@map("indent_items")
+}
+
+// E-way bill for the goods movement (generated via a GSP, like the IRN flow).
+model EwayBill {
+  id          String    @id @default(cuid())
+  tenantId    String
+  indentId    String    @unique
+  ewbNo       String
+  value       Decimal   @db.Decimal(12, 2)
+  fromGstin   String?
+  toGstin     String?
+  distanceKm  Int?
+  validUntil  DateTime?
+  status      String    @default("GENERATED")
+  generatedAt DateTime  @default(now())
+
+  indent Indent @relation(fields: [indentId], references: [id], onDelete: Cascade)
+
+  @@map("eway_bills")
+}
+
+// Append-only ledger; RawMaterial.stockQty is the denormalised running balance.
+model StockMovement {
+  id            String   @id @default(cuid())
+  tenantId      String
+  outletId      String
+  rawMaterialId String
+  type          String // RECEIPT | CONSUMPTION | WASTAGE | ADJUSTMENT
+  quantity      Decimal  @db.Decimal(12, 3) // signed: + inward, - outward
+  unitCost      Decimal? @db.Decimal(12, 4)
+  reason        String?
+  vendorId      String?
+  refType       String? // e.g. "kot"
+  refId         String?
+  createdById   String?
+  createdAt     DateTime @default(now())
+
+  material RawMaterial @relation(fields: [rawMaterialId], references: [id])
+  vendor   Vendor?     @relation(fields: [vendorId], references: [id])
+
+  @@index([tenantId, outletId, createdAt])
+  @@index([rawMaterialId])
+  @@map("stock_movements")
+}
+
+// ---------- First-party online ordering (Scan & Order / kiosk) ----------
+
+// A diner-submitted cart that a staff member must validate before it becomes a
+// real order + KOT. Keeps unauthenticated diners from firing kitchen tickets.
+model OrderRequest {
+  id            String    @id @default(cuid())
+  tenantId      String
+  outletId      String
+  tableId       String? // null for kiosk / takeaway
+  mode          String    @default("DINE_IN") // DINE_IN | TAKEAWAY
+  customerName  String?
+  customerPhone String?
+  items         Json // [{ itemId, variationId?, addonIds?, quantity, note? }]
+  combos        Json? // [{ comboId, quantity, selections: [{ slotId, itemId }], note? }]
+  note          String?
+  status        String    @default("PENDING") // PENDING | ACCEPTED | REJECTED
+  token         String    @unique @default(cuid()) // diner polls status with this
+  orderId       String? // the real order created on acceptance
+  tokenNumber   Int? // short number shown on the token-display board
+  createdAt     DateTime  @default(now())
+  decidedAt     DateTime?
+
+  outlet Outlet       @relation(fields: [outletId], references: [id])
+  table  DiningTable? @relation(fields: [tableId], references: [id])
+
+  @@index([tenantId, outletId, status])
+  @@map("order_requests")
+}
+
+// ---------- Loyalty redemption OTP ----------
+
+// A one-time code that gates points redemption at billing (sent to the customer's
+// phone via the notification provider; consumed when the OTP verifies at settle).
+model LoyaltyOtp {
+  id         String    @id @default(cuid())
+  tenantId   String
+  outletId   String
+  phone      String
+  code       String
+  expiresAt  DateTime
+  consumedAt DateTime?
+  createdAt  DateTime  @default(now())
+
+  @@index([outletId, phone])
+  @@map("loyalty_otps")
+}

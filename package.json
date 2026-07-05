@@ -1,0 +1,30 @@
+{
+  "name": "petpooja-clone",
+  "private": true,
+  "version": "0.1.0",
+  "packageManager": "pnpm@10.33.2",
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "better-sqlite3",
+      "electron",
+      "esbuild",
+      "@prisma/client",
+      "@prisma/engines",
+      "prisma"
+    ]
+  },
+  "scripts": {
+    "dev:api": "pnpm --filter @petpooja/api start:dev",
+    "dev:pos": "pnpm --filter @petpooja/pos dev",
+    "dev:kds": "pnpm --filter @petpooja/kds dev",
+    "dev:dashboard": "pnpm --filter @petpooja/dashboard dev",
+    "dev:connector": "pnpm --filter @petpooja/connector start:dev",
+    "order": "pnpm --filter @petpooja/order dev",
+    "edge:sidecar": "pnpm --filter @petpooja/edge sidecar",
+    "edge:renderer": "pnpm --filter @petpooja/edge dev",
+    "edge:electron": "pnpm --filter @petpooja/edge electron",
+    "build": "pnpm -r build",
+    "db:migrate": "pnpm --filter @petpooja/api prisma:migrate",
+    "db:seed": "pnpm --filter @petpooja/api prisma:seed"
+  }
+}

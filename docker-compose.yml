@@ -1,0 +1,29 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: petpooja-postgres
+    environment:
+      POSTGRES_USER: petpooja
+      POSTGRES_PASSWORD: petpooja
+      POSTGRES_DB: petpooja
+    ports:
+      - "5455:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U petpooja"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    container_name: petpooja-redis
+    ports:
+      - "6395:6379"
+    volumes:
+      - redisdata:/data
+
+volumes:
+  pgdata:
+  redisdata:
