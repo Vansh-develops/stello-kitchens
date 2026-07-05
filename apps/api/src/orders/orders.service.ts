@@ -308,17 +308,15 @@ export class OrdersService {
       couponDiscount = evalResult.discount;
     }
 
-    // Loyalty redemption (requires an existing customer with enough points).
+    // Loyalty redemption. The authoritative balance check + decrement runs
+    // atomically inside the settle transaction (a conditional update below), so
+    // concurrent settlements can never over-redeem the same balance. Here we only
+    // need the phone (redemption requires a customer) and the discount value; a
+    // stale pre-transaction read would be a time-of-check/time-of-use hole.
     const redeemPoints = input.redeemPoints ?? 0;
     let redeemDiscount = 0;
     if (redeemPoints > 0) {
       if (!phone) throw new BadRequestException("A customer phone is required to redeem points");
-      const existing = await this.prisma.customer.findUnique({
-        where: { outletId_phone: { outletId: order.outletId, phone } },
-      });
-      if (!existing || existing.loyaltyPoints < redeemPoints) {
-        throw new BadRequestException("Customer does not have enough points to redeem");
-      }
       redeemDiscount = redeemPoints * Number(outletRow.loyaltyPointValue);
     }
 
@@ -357,11 +355,25 @@ export class OrdersService {
         }
       }
 
-      // Customer + loyalty: earn on the final total, apply redemption, keep a ledger.
+      // Redeem atomically, BEFORE earning: a conditional decrement that only
+      // matches while the customer still holds enough points. The row lock makes a
+      // concurrent second settlement re-evaluate the (already decremented) balance,
+      // so the same points can never be spent twice. Zero rows updated means the
+      // balance is insufficient or the customer does not exist — throwing rolls the
+      // whole settlement back.
+      if (redeemPoints > 0) {
+        const redeemed = await tx.customer.updateMany({
+          where: { outletId: order.outletId, phone, loyaltyPoints: { gte: redeemPoints } },
+          data: { loyaltyPoints: { decrement: redeemPoints } },
+        });
+        if (redeemed.count === 0) throw new BadRequestException("Customer does not have enough points to redeem");
+      }
+
+      // Customer + loyalty: earn on the final total, keep a ledger. Any redemption
+      // was already applied above, so earning is a plain increment.
       let customerId: string | null = null;
       if (phone) {
         earned = Math.round(total * Number(outletRow.loyaltyEarnRate));
-        const net = earned - redeemPoints;
         const customer = await tx.customer.upsert({
           where: { outletId_phone: { outletId: order.outletId, phone } },
           create: {
@@ -369,14 +381,14 @@ export class OrdersService {
             outletId: order.outletId,
             phone,
             name,
-            loyaltyPoints: net,
+            loyaltyPoints: earned,
             totalOrders: 1,
             totalSpent: total,
             lastVisitAt: new Date(),
           },
           update: {
             name: name ?? undefined,
-            loyaltyPoints: { increment: net },
+            loyaltyPoints: { increment: earned },
             totalOrders: { increment: 1 },
             totalSpent: { increment: total },
             lastVisitAt: new Date(),
