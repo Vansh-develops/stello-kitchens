@@ -1,5 +1,6 @@
 import { BadRequestException, ForbiddenException, Inject, Injectable, NotFoundException } from "@nestjs/common";
 import type { AuthUser, HsnSummaryRowDto, InvoiceDto, InvoiceRowDto } from "@petpooja/shared";
+import { fromPaise, toPaise } from "@petpooja/shared";
 import { Prisma } from "@prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
 import { EINVOICE_PROVIDER, type EInvoiceProvider } from "./einvoice.provider";
@@ -100,22 +101,25 @@ export class InvoicesService {
     const items = await this.prisma.item.findMany({ where: { id: { in: itemIds } }, select: { id: true, hsnCode: true } });
     const hsnByItem = new Map(items.map((i) => [i.id, i.hsnCode ?? "996331"]));
 
-    const subtotal = N(order.subtotal);
-    const taxable = subtotal - N(order.discountAmount);
-    const scale = subtotal > 0 ? taxable / subtotal : 0; // spread the discount proportionally
+    // Allocate the order's taxable value and tax across HSN groups in integer
+    // paise, so the rows are exact and never drift against the order total.
+    const subtotalPaise = toPaise(N(order.subtotal));
+    const taxablePaise = subtotalPaise - toPaise(N(order.discountAmount));
 
-    const groups = new Map<string, { hsn: string; rate: number; taxable: number }>();
+    const groups = new Map<string, { hsn: string; rate: number; subtotalPaise: number }>();
     for (const line of order.items) {
       const hsn = hsnByItem.get(line.itemId) ?? "996331";
       const rate = N(line.taxRate);
       const key = `${hsn}@${rate}`;
-      const g = groups.get(key) ?? { hsn, rate, taxable: 0 };
-      g.taxable += N(line.lineTotal) * scale;
+      const g = groups.get(key) ?? { hsn, rate, subtotalPaise: 0 };
+      g.subtotalPaise += toPaise(N(line.lineTotal)); // spread the discount proportionally below
       groups.set(key, g);
     }
     return [...groups.values()].map((g) => {
-      const tax = (g.taxable * g.rate) / 100;
-      return { hsn: g.hsn, rate: g.rate, taxable: r2(g.taxable), cgst: r2(tax / 2), sgst: r2(tax / 2) };
+      const groupTaxablePaise = subtotalPaise > 0 ? Math.round((g.subtotalPaise * taxablePaise) / subtotalPaise) : 0;
+      const taxPaise = Math.round((groupTaxablePaise * g.rate) / 100);
+      const halfPaise = Math.round(taxPaise / 2);
+      return { hsn: g.hsn, rate: g.rate, taxable: fromPaise(groupTaxablePaise), cgst: fromPaise(halfPaise), sgst: fromPaise(halfPaise) };
     });
   }
 

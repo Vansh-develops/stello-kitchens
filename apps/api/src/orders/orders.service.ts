@@ -14,7 +14,7 @@ import type {
   SettleOrderInput,
   SyncedOrderInput,
 } from "@petpooja/shared";
-import { evaluateCoupon } from "@petpooja/shared";
+import { computeOrderTotals, evaluateCoupon, fromPaise, lineTotalPaise, toPaise } from "@petpooja/shared";
 import { Prisma } from "@prisma/client";
 import { randomUUID } from "node:crypto";
 import { PrismaService } from "../prisma/prisma.service";
@@ -556,7 +556,7 @@ export class OrdersService {
           variationName,
           quantity: input.quantity,
           unitPrice,
-          lineTotal: unitPrice * input.quantity,
+          lineTotal: fromPaise(lineTotalPaise(unitPrice, input.quantity)),
           taxRate: item.taxRate,
           note: input.note ?? null,
           kotId: kot.id,
@@ -604,7 +604,7 @@ export class OrdersService {
           itemName: combo.name,
           quantity: comboInput.quantity,
           unitPrice: comboUnit,
-          lineTotal: comboUnit * comboInput.quantity,
+          lineTotal: fromPaise(lineTotalPaise(comboUnit, comboInput.quantity)),
           taxRate: combo.taxRate,
           note: comboInput.note ?? null,
           comboId: combo.id,
@@ -673,22 +673,19 @@ export class OrdersService {
     discount?: Prisma.Decimal,
   ) {
     const items = await tx.orderItem.findMany({ where: { orderId } });
-    const subtotal = items.reduce((s, i) => s + Number(i.lineTotal), 0);
-    const discountAmount = Math.min(Number(discount ?? 0), subtotal);
-    const taxable = subtotal - discountAmount;
-    const rawTax = items.reduce(
-      (s, i) => s + Number(i.lineTotal) * (Number(i.taxRate) / 100),
-      0,
+    // Compute in integer paise via the shared formula the edge device also uses,
+    // so an order's totals are identical whether billed online or offline.
+    const totals = computeOrderTotals(
+      items.map((i) => ({ lineTotalPaise: toPaise(Number(i.lineTotal)), taxRatePercent: Number(i.taxRate) })),
+      Number(discount ?? 0),
     );
-    const taxAmount = subtotal > 0 ? rawTax * (taxable / subtotal) : 0;
-    const total = Math.round((taxable + taxAmount) * 100) / 100;
     return tx.order.update({
       where: { id: orderId },
       data: {
-        subtotal,
-        discountAmount,
-        taxAmount: Math.round(taxAmount * 100) / 100,
-        total,
+        subtotal: totals.subtotal,
+        discountAmount: totals.discountAmount,
+        taxAmount: totals.taxAmount,
+        total: totals.total,
         version: { increment: 1 },
       },
     });

@@ -8,6 +8,9 @@ const path = require("node:path");
 const fs = require("node:fs");
 const { randomUUID } = require("node:crypto");
 const Database = require("better-sqlite3");
+// Shared integer-paise money formula — the exact same code the cloud API runs, so
+// an order billed offline totals identically to one billed online.
+const { computeOrderTotals, lineTotalPaise, fromPaise, toPaise } = require("@petpooja/shared");
 
 class EdgeEngine {
   constructor({ dataDir, apiUrl }) {
@@ -102,18 +105,17 @@ class EdgeEngine {
       addonNames,
       quantity: input.quantity,
       unitPrice,
-      lineTotal: Math.round(unitPrice * input.quantity * 100) / 100,
+      lineTotal: fromPaise(lineTotalPaise(unitPrice, input.quantity)),
       taxRate: item.taxRate,
     };
   }
 
   _totals(lines, discountAmount) {
-    const subtotal = Math.round(lines.reduce((s, l) => s + l.lineTotal, 0) * 100) / 100;
-    const discount = Math.min(discountAmount || 0, subtotal);
-    const taxable = subtotal - discount;
-    const rawTax = lines.reduce((s, l) => s + l.lineTotal * (l.taxRate / 100), 0);
-    const taxAmount = subtotal > 0 ? Math.round(rawTax * (taxable / subtotal) * 100) / 100 : 0;
-    return { subtotal, discountAmount: discount, taxAmount, total: Math.round((taxable + taxAmount) * 100) / 100 };
+    // Delegate to the shared paise formula so edge totals match the server exactly.
+    return computeOrderTotals(
+      lines.map((l) => ({ lineTotalPaise: toPaise(l.lineTotal), taxRatePercent: l.taxRate })),
+      discountAmount || 0,
+    );
   }
 
   createOrder({ orderType, tableId, customerName, customerPhone, items }) {
