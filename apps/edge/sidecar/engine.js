@@ -233,11 +233,40 @@ class EdgeEngine {
     return body;
   }
 
-  /** Log in to the cloud once to seed token + outlet + reference snapshot. */
-  async bootstrap({ email, password }) {
+  /**
+   * Bind this device to ONE outlet and seed token + reference snapshot. The outlet
+   * is chosen explicitly, never by guessing a name or defaulting to the first in a
+   * list — a terminal that silently attached to the wrong outlet would file its
+   * bills and stock moves against another store.
+   *
+   * `outletId` comes from the caller (device provisioning / EDGE_OUTLET_ID). It must
+   * be one the signed-in user can access. Once a device is bound it stays bound:
+   * re-bootstrapping with a different outlet is refused, because the offline outbox
+   * already holds orders that belong to the original outlet.
+   */
+  async bootstrap({ email, password, outletId }) {
     const login = await this._api("/auth/login", { method: "POST", body: JSON.stringify({ email, password }) });
     const outlets = await this._apiAuthed(login.accessToken, "/outlets");
-    const outlet = outlets.find((o) => o.name.includes("Koramangala")) || outlets[0];
+    if (!Array.isArray(outlets) || outlets.length === 0) throw new Error("This account has no accessible outlets");
+
+    const bound = this.outletId;
+    // Resolve the target outlet: an already-bound device keeps its outlet; otherwise
+    // use the explicitly requested one; if the user has exactly one, that is unambiguous.
+    const target = bound ?? outletId ?? (outlets.length === 1 ? outlets[0].id : null);
+    if (!target) {
+      const list = outlets.map((o) => `${o.id} (${o.name})`).join(", ");
+      throw new Error(`This account can access multiple outlets — specify which one to bind this device to. Available: ${list}`);
+    }
+    if (bound && outletId && outletId !== bound) {
+      throw new Error(`Device is already bound to outlet ${bound}; refusing to rebind to ${outletId}. Re-provision (clear device data) to move it.`);
+    }
+
+    const outlet = outlets.find((o) => o.id === target);
+    if (!outlet) {
+      const list = outlets.map((o) => `${o.id} (${o.name})`).join(", ");
+      throw new Error(`Outlet ${target} is not accessible to this account. Available: ${list}`);
+    }
+
     this.setSession({ token: login.accessToken, outletId: outlet.id, outletName: outlet.name });
     const snap = await this._api(`/sync/snapshot?outletId=${outlet.id}`);
     this.cacheSnapshot(snap);
