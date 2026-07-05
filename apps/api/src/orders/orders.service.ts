@@ -94,28 +94,46 @@ export class OrdersService {
     customerName?: string | null;
     customerPhone?: string | null;
   }): Promise<{ orderId: string; kotNumber: number; total: number }> {
+    const result = await this.prisma.$transaction((tx) => this.ingestAggregatorOrderTx(tx, params));
+    this.realtime.notifyOutlet(params.outletId);
+    return result;
+  }
+
+  /**
+   * Core aggregator-order creation, on a caller-supplied transaction. The
+   * connector wraps this together with its idempotency-key reservation in ONE
+   * transaction, so a duplicate webhook loses the unique race and rolls back the
+   * KOT + stock it would have created — no double-fire, no orphaned order.
+   * Callers must fire `realtime.notifyOutlet(outletId)` after the tx commits.
+   */
+  async ingestAggregatorOrderTx(
+    tx: Prisma.TransactionClient,
+    params: {
+      tenantId: string;
+      outletId: string;
+      items: OrderItemInput[];
+      customerName?: string | null;
+      customerPhone?: string | null;
+    },
+  ): Promise<{ orderId: string; kotNumber: number; total: number }> {
     if (params.items.length === 0) throw new BadRequestException("No mappable items in order");
     const actor = { tenantId: params.tenantId, id: null };
-    const orderId = await this.prisma.$transaction(async (tx) => {
-      const order = await tx.order.create({
-        data: {
-          tenantId: params.tenantId,
-          outletId: params.outletId,
-          orderType: "DELIVERY",
-          customerName: params.customerName ?? null,
-          customerPhone: params.customerPhone ?? null,
-        },
-      });
-      await this.punchItems(tx, actor, order.id, params.outletId, params.items);
-      await this.recomputeTotals(tx, order.id);
-      return order.id;
+    const order = await tx.order.create({
+      data: {
+        tenantId: params.tenantId,
+        outletId: params.outletId,
+        orderType: "DELIVERY",
+        customerName: params.customerName ?? null,
+        customerPhone: params.customerPhone ?? null,
+      },
     });
-    this.realtime.notifyOutlet(params.outletId);
-    const order = await this.prisma.order.findUniqueOrThrow({
-      where: { id: orderId },
-      include: { kots: { orderBy: { kotNumber: "asc" } } },
+    await this.punchItems(tx, actor, order.id, params.outletId, params.items);
+    await this.recomputeTotals(tx, order.id);
+    const withKot = await tx.order.findUniqueOrThrow({
+      where: { id: order.id },
+      include: { kots: { orderBy: { kotNumber: "asc" }, take: 1 } },
     });
-    return { orderId, kotNumber: order.kots[0]?.kotNumber ?? 0, total: Number(order.total) };
+    return { orderId: order.id, kotNumber: withKot.kots[0]?.kotNumber ?? 0, total: Number(withKot.total) };
   }
 
   /**
