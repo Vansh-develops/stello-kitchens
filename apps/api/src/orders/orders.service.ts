@@ -209,6 +209,18 @@ export class OrdersService {
     const actor = { tenantId, id: null };
     const settled = order.status === "SETTLED";
     const orderId = await this.prisma.$transaction(async (tx) => {
+      // The device's number is a provisional reference only. On sync, a settled
+      // order is assigned the authoritative GST bill number from the single
+      // outlet counter — the same series online settlements draw from — so the
+      // outlet has one gapless invoice sequence regardless of where a sale began.
+      let billNumber: string | null = null;
+      if (settled) {
+        const outlet = await tx.outlet.update({
+          where: { id: outletId },
+          data: { nextBillNumber: { increment: 1 } },
+        });
+        billNumber = `B-${outlet.nextBillNumber - 1}`;
+      }
       const created = await tx.order.create({
         data: {
           tenantId,
@@ -219,8 +231,9 @@ export class OrdersService {
           customerPhone: order.customerPhone ?? null,
           deviceId,
           clientId: order.clientId,
+          offlineRef: order.offlineRef ?? null,
           status: order.status,
-          billNumber: settled ? (order.offlineBillNumber ?? null) : null,
+          billNumber,
         },
       });
       await this.punchItems(tx, actor, created.id, outletId, order.items);
@@ -236,7 +249,7 @@ export class OrdersService {
           action: "ORDER_SYNCED",
           entity: "order",
           entityId: created.id,
-          data: { deviceId, clientId: order.clientId, status: order.status, offlineBillNumber: order.offlineBillNumber },
+          data: { deviceId, clientId: order.clientId, status: order.status, offlineRef: order.offlineRef, billNumber },
         },
       });
       return created.id;

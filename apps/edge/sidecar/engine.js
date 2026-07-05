@@ -130,7 +130,7 @@ class EdgeEngine {
       payments: [],
       ...t,
       status: "OPEN",
-      offlineBillNumber: null,
+      offlineRef: null,
       clientUpdatedAt: new Date().toISOString(),
     };
     this._save(order, "OPEN", 0); // OPEN orders aren't pushed until terminal
@@ -146,10 +146,13 @@ class EdgeEngine {
     if (Math.abs(paid - t.total) > 0.01) throw new Error(`Payments (${paid}) must equal total (${t.total})`);
     const seq = parseInt(this._meta("billSeq"), 10) + 1;
     this._setMeta("billSeq", seq);
+    // A provisional reference for the customer's offline receipt — NOT the tax
+    // invoice number. The server assigns the authoritative GST bill number from
+    // the single outlet series when this order syncs.
     Object.assign(order, t, {
       payments,
       status: "SETTLED",
-      offlineBillNumber: `${this.deviceId.split("-")[1] || "D"}-${seq}`,
+      offlineRef: `${this.deviceId.split("-")[1] || "D"}-${seq}`,
       clientUpdatedAt: new Date().toISOString(),
     });
     this._save(order, "SETTLED", 1); // dirty → will push on next sync
@@ -179,7 +182,9 @@ class EdgeEngine {
         dirty,
         clientUpdatedAt: order.clientUpdatedAt,
         serverId: order._serverId || null,
-        billNumber: order.offlineBillNumber || null,
+        // Local `billNumber` holds the authoritative server number once synced;
+        // before sync it stays null (the provisional value is `offlineRef`).
+        billNumber: order.billNumber || null,
       });
   }
   _get(clientId) {
@@ -198,7 +203,8 @@ class EdgeEngine {
           status: r.status,
           synced: r.dirty === 0,
           serverId: r.serverId,
-          billNumber: r.billNumber,
+          billNumber: r.billNumber, // authoritative GST number (after sync)
+          offlineRef: s.offlineRef, // provisional device reference (offline receipt)
           total: s.total,
           orderType: s.orderType,
           tableId: s.tableId,
@@ -265,7 +271,7 @@ class EdgeEngine {
           items: s.lines.map((l) => l.input),
           payments: s.payments,
           status: s.status,
-          offlineBillNumber: s.offlineBillNumber,
+          offlineRef: s.offlineRef,
           discountAmount: s.discountAmount,
           clientUpdatedAt: s.clientUpdatedAt,
           clientVersion: 1,

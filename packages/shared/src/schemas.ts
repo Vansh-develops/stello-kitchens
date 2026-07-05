@@ -303,7 +303,9 @@ export const SyncedOrderSchema = z.object({
     .array(z.object({ mode: PaymentMode, amount: z.number().positive() }))
     .default([]),
   status: z.enum(["OPEN", "SETTLED", "CANCELLED"]),
-  offlineBillNumber: z.string().max(40).nullable().optional(),
+  // Provisional device reference. The authoritative GST bill/invoice number is
+  // assigned by the server from the single outlet counter at sync time.
+  offlineRef: z.string().max(40).nullable().optional(),
   discountAmount: z.number().min(0).optional(),
   clientUpdatedAt: z.string(), // ISO; drives last-write-wins
   clientVersion: z.number().int().default(1),

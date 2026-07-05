@@ -76,7 +76,7 @@ export function App() {
       });
       const settled = await edge.settle(order.clientId, [{ mode: "CASH", amount: order.total }]);
       setCart([]);
-      flashMsg(`Bill ${settled.offlineBillNumber} · ${rupee(settled.total)} — saved locally`);
+      flashMsg(`Provisional ${settled.offlineRef} · ${rupee(settled.total)} — tax invoice on sync`);
       await refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not settle");
@@ -194,7 +194,7 @@ export function App() {
             <span className="eb-recent-label">Local orders</span>
             {orders.slice(0, 6).map((o) => (
               <div key={o.clientId} className="eb-recent-row">
-                <span className="mono">{o.billNumber ?? o.clientId.slice(0, 6)}</span>
+                <span className="mono">{o.billNumber ?? o.offlineRef ?? o.clientId.slice(0, 6)}</span>
                 <span className="mono">{rupee(o.total)}</span>
                 <span className={`sync-pill ${o.synced ? "synced" : "pending"}`}>{o.synced ? "synced" : "queued"}</span>
               </div>

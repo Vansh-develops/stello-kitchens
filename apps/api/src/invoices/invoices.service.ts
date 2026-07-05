@@ -37,7 +37,7 @@ export class InvoicesService {
       const tax = N(o.taxAmount);
       return {
         orderId: o.id,
-        invoiceNumber: o.billNumber ?? o.id.slice(-6),
+        invoiceNumber: o.billNumber ?? "",
         invoiceDate: o.createdAt.toISOString(),
         customerName: o.customerName,
         taxableValue: r2(N(o.subtotal) - N(o.discountAmount)),
@@ -57,6 +57,10 @@ export class InvoicesService {
       include: { items: true },
     });
     if (!order || order.status !== "SETTLED") throw new BadRequestException("Only settled orders have invoices");
+    // A tax invoice must carry the authoritative outlet bill number — never a
+    // truncated order id. Settled orders always have one (assigned at settle, or
+    // at sync for offline sales).
+    if (!order.billNumber) throw new BadRequestException("Settled order is missing its authoritative bill number");
     const outlet = await this.prisma.outlet.findUniqueOrThrow({ where: { id: outletId } });
     const stored = await this.prisma.invoice.findUnique({ where: { orderId } });
 
@@ -65,7 +69,7 @@ export class InvoicesService {
     return {
       id: stored?.id ?? "",
       orderId,
-      invoiceNumber: order.billNumber ?? orderId.slice(-6),
+      invoiceNumber: order.billNumber,
       invoiceDate: order.createdAt.toISOString(),
       customerName: order.customerName,
       sellerGstin: outlet.gstin,
@@ -196,7 +200,7 @@ export class InvoicesService {
     <VOUCHER VCHTYPE="Sales" ACTION="Create">
      <DATE>${fmtDate(o.createdAt)}</DATE>
      <VOUCHERTYPENAME>Sales</VOUCHERTYPENAME>
-     <VOUCHERNUMBER>${esc(o.billNumber ?? o.id.slice(-6))}</VOUCHERNUMBER>
+     <VOUCHERNUMBER>${esc(o.billNumber ?? "")}</VOUCHERNUMBER>
      <PARTYLEDGERNAME>${esc(party)}</PARTYLEDGERNAME>
      <ALLLEDGERENTRIES.LIST><LEDGERNAME>${esc(party)}</LEDGERNAME><ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE><AMOUNT>${amt(total)}</AMOUNT></ALLLEDGERENTRIES.LIST>
      <ALLLEDGERENTRIES.LIST><LEDGERNAME>Sales</LEDGERNAME><ISDEEMEDPOSITIVE>No</ISDEEMEDPOSITIVE><AMOUNT>-${amt(taxable)}</AMOUNT></ALLLEDGERENTRIES.LIST>

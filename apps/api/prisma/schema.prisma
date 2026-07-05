@@ -404,6 +404,7 @@ model Order {
   couponCode     String?
   deviceId       String? // edge device that created this order offline
   clientId       String? // device-local id, for sync idempotency
+  offlineRef     String? // provisional device reference (NOT the tax-invoice number)
   subtotal       Decimal   @default(0) @db.Decimal(10, 2)
   discountAmount Decimal   @default(0) @db.Decimal(10, 2)
   taxAmount      Decimal   @default(0) @db.Decimal(10, 2)
