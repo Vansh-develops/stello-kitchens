@@ -1,7 +1,8 @@
 import { Body, Controller, Param, Patch } from "@nestjs/common";
-import type { AuthUser } from "@stello/shared";
+import type { AuthUser, UpdateBrandThemeInput } from "@stello/shared";
 import { UpdateBrandThemeSchema } from "@stello/shared";
 import { CurrentUser, RequirePermission } from "../common/decorators";
+import { ZodValidationPipe } from "../common/zod.pipe";
 import { BrandsService } from "./brands.service";
 
 @Controller("brands/:id")
@@ -13,9 +14,8 @@ export class BrandsController {
   setTheme(
     @CurrentUser() user: AuthUser,
     @Param("id") id: string,
-    @Body() body: unknown,
+    @Body(new ZodValidationPipe(UpdateBrandThemeSchema)) body: UpdateBrandThemeInput,
   ) {
-    const { themeId } = UpdateBrandThemeSchema.parse(body);
-    return this.brands.setTheme(user, id, themeId);
+    return this.brands.setTheme(user, id, body.themeId);
   }
 }
