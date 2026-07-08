@@ -1,18 +1,26 @@
 @import url("https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap");
 
 :root {
-  --ink: #14110f;
-  --slate: #1d1a17;
-  --slate-2: #262220;
-  --line: #363029;
-  --cream: #f4ede2;
-  --muted: #a1968a;
-  --faint: #6f665c;
-  --saffron: #f5a623;
-  --saffron-deep: #d98613;
-  --chili: #e2542a;
-  --leaf: #57a55a;
-  --mint: #2dd4a7;
+  /* shared token defaults = counter theme; applyTheme overrides these on <html> at runtime */
+  --bg:#f8fafc; --panel:#ffffff; --panel-2:#f1f5f9; --card-bg:#ffffff;
+  --ink:#0f172a; --muted:#64748b; --faint:#94a3b8; --line:#e2e8f0;
+  --accent:#6366f1; --accent-ink:#ffffff; --accent-soft:#e6e7fd;
+  --veg:#16a34a; --nonveg:#dc2626; --good:#2f7d47; --warn:#c07a09; --crit:#b23a32;
+  --radius:14px; --radius-sm:9px; --gap:12px; --shadow:0 10px 26px rgba(15,23,42,.06);
+  --font-display:ui-sans-serif,system-ui,sans-serif; --font-body:ui-sans-serif,system-ui,sans-serif;
+  --font-num:ui-sans-serif,system-ui,sans-serif; --label-tt:none; --label-ls:0;
+
+  /* Console palette aliased to the theme tokens (was a fixed dark palette) */
+  --slate: var(--panel);
+  --slate-2: var(--panel-2);
+  --cream: var(--ink);
+  --saffron: var(--accent);
+  --saffron-deep: var(--accent);
+  --chili: var(--crit);
+  --leaf: var(--good);
+  --mint: var(--good);
+
+  /* Console keeps its own type identity */
   --mono: "IBM Plex Mono", ui-monospace, monospace;
   --sans: "Space Grotesk", system-ui, sans-serif;
 }
@@ -28,7 +36,7 @@ body {
 }
 body {
   font-family: var(--sans);
-  background: var(--ink);
+  background: var(--bg);
   color: var(--cream);
   -webkit-font-smoothing: antialiased;
 }
@@ -42,7 +50,7 @@ button {
 input,
 select {
   font-family: inherit;
-  background: var(--ink);
+  background: var(--bg);
   border: 1px solid var(--line);
   border-radius: 8px;
   padding: 10px 12px;
@@ -90,7 +98,7 @@ select:focus-visible {
 /* buttons */
 .btn-primary {
   background: var(--saffron);
-  color: #241a08;
+  color: var(--accent-ink);
   font-weight: 600;
   padding: 12px 18px;
   border-radius: 9px;
@@ -140,7 +148,7 @@ select:focus-visible {
   min-height: 100vh;
   display: grid;
   place-items: center;
-  background: radial-gradient(120% 100% at 50% 0%, #211c17 0%, var(--ink) 60%);
+  background: radial-gradient(120% 100% at 50% 0%, var(--panel-2) 0%, var(--bg) 60%);
   padding: 24px;
 }
 .login-card {
@@ -242,7 +250,7 @@ select:focus-visible {
   border-bottom: 1px solid var(--line);
   position: sticky;
   top: 0;
-  background: var(--ink);
+  background: var(--bg);
   z-index: 5;
 }
 .top-brand {
@@ -288,7 +296,7 @@ select:focus-visible {
 }
 .banner-error {
   background: rgba(226, 84, 42, 0.14);
-  color: #f3b4a3;
+  color: var(--crit);
   padding: 10px 24px;
   font-size: 13px;
   cursor: pointer;
@@ -721,7 +729,7 @@ select:focus-visible {
 .veg-toggle {
   display: flex;
   gap: 4px;
-  background: var(--ink);
+  background: var(--bg);
   border: 1px solid var(--line);
   border-radius: 8px;
   padding: 3px;
@@ -886,7 +894,7 @@ select:focus-visible {
 .lowstock-banner {
   background: rgba(226, 84, 42, 0.12);
   border: 1px solid rgba(226, 84, 42, 0.4);
-  color: #f3b4a3;
+  color: var(--crit);
   border-radius: 10px;
   padding: 10px 16px;
   font-size: 13px;
@@ -1108,7 +1116,7 @@ select:focus-visible {
 }
 .plat-badge.zomato {
   background: rgba(226, 84, 42, 0.16);
-  color: #ef6b48;
+  color: var(--crit);
 }
 .plat-badge.swiggy {
   background: rgba(245, 166, 35, 0.16);
@@ -1198,7 +1206,7 @@ select:focus-visible {
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  background: var(--ink);
+  background: var(--bg);
   border: 1px solid var(--line);
   border-radius: 10px;
   padding: 14px 18px;
@@ -1407,7 +1415,7 @@ select:focus-visible {
 }
 .range-tab.active {
   background: var(--saffron);
-  color: #241a08;
+  color: var(--accent-ink);
   font-weight: 500;
 }
 .outlet-kpis {
@@ -1550,7 +1558,7 @@ select:focus-visible {
 }
 .share-track {
   height: 8px;
-  background: var(--ink);
+  background: var(--bg);
   border-radius: 999px;
   overflow: hidden;
 }
@@ -1646,7 +1654,7 @@ select:focus-visible {
 .ze-chip {
   font-family: var(--mono);
   font-size: 12px;
-  background: var(--ink);
+  background: var(--bg);
   border: 1px solid var(--line);
   border-radius: 6px;
   padding: 5px 10px;
@@ -1688,7 +1696,7 @@ select:focus-visible {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: 12px;
-  background: var(--ink);
+  background: var(--bg);
   border: 1px solid var(--line);
   border-radius: 10px;
   padding: 14px 16px;
@@ -1833,15 +1841,15 @@ select:focus-visible {
 .seg {
   display: inline-flex;
   gap: 2px;
-  background: var(--ink-3, #201a14);
-  border: 1px solid var(--line, #372f26);
+  background: var(--panel-2);
+  border: 1px solid var(--line);
   border-radius: 10px;
   padding: 3px;
 }
 .seg button {
   background: none;
   border: none;
-  color: var(--muted, #9b8f7d);
+  color: var(--muted);
   font-family: inherit;
   font-size: 13px;
   font-weight: 500;
@@ -1852,12 +1860,12 @@ select:focus-visible {
   gap: 7px;
 }
 .seg button.on {
-  background: var(--saffron, #f5a623);
-  color: var(--ink, #14110f);
+  background: var(--saffron);
+  color: var(--accent-ink);
   font-weight: 600;
 }
 .seg-badge {
-  background: var(--chili, #e2542a);
+  background: var(--chili);
   color: #fff;
   font-size: 11px;
   font-weight: 700;
@@ -1869,8 +1877,8 @@ select:focus-visible {
   place-items: center;
 }
 .seg button.on .seg-badge {
-  background: var(--ink, #14110f);
-  color: var(--saffron, #f5a623);
+  background: var(--bg);
+  color: var(--saffron);
 }
 
 .scan-queue {
@@ -1880,9 +1888,9 @@ select:focus-visible {
   margin-top: 14px;
 }
 .scan-card {
-  border: 1px solid var(--line, #372f26);
+  border: 1px solid var(--line);
   border-radius: 14px;
-  background: var(--ink-2, #1d1916);
+  background: var(--panel);
   padding: 16px;
   display: flex;
   flex-direction: column;
@@ -1901,29 +1909,29 @@ select:focus-visible {
   letter-spacing: 0.02em;
 }
 .chan-pill.dine {
-  background: color-mix(in srgb, var(--saffron, #f5a623) 18%, transparent);
-  color: var(--saffron, #f5a623);
+  background: color-mix(in srgb, var(--saffron) 18%, transparent);
+  color: var(--saffron);
 }
 .chan-pill.take {
-  background: color-mix(in srgb, var(--mint, #2dd4a7) 18%, transparent);
-  color: var(--mint, #2dd4a7);
+  background: color-mix(in srgb, var(--mint) 18%, transparent);
+  color: var(--mint);
 }
 .sc-time {
   font-family: var(--mono, monospace);
   font-size: 12px;
-  color: var(--muted, #9b8f7d);
+  color: var(--muted);
 }
 .sc-who {
   font-size: 14px;
   font-weight: 500;
-  color: var(--text, #f4ede2);
+  color: var(--cream);
 }
 .sc-items {
   list-style: none;
   margin: 0;
   padding: 8px 0;
-  border-top: 1px solid var(--line, #372f26);
-  border-bottom: 1px solid var(--line, #372f26);
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
   display: flex;
   flex-direction: column;
   gap: 6px;
@@ -1936,16 +1944,16 @@ select:focus-visible {
 }
 .sc-q {
   font-family: var(--mono, monospace);
-  color: var(--saffron, #f5a623);
+  color: var(--saffron);
   flex: 0 0 auto;
 }
 .sc-opts {
   font-style: normal;
-  color: var(--muted, #9b8f7d);
+  color: var(--muted);
 }
 .sc-note {
   font-style: italic;
-  color: var(--muted, #9b8f7d);
+  color: var(--muted);
 }
 .sc-foot {
   display: flex;
@@ -1962,8 +1970,8 @@ select:focus-visible {
   gap: 8px;
 }
 .btn-ghost.sm.danger {
-  color: var(--chili, #e2542a);
-  border-color: color-mix(in srgb, var(--chili, #e2542a) 40%, transparent);
+  color: var(--chili);
+  border-color: color-mix(in srgb, var(--chili) 40%, transparent);
 }
 
 .qr-grid {
@@ -1973,9 +1981,9 @@ select:focus-visible {
   margin-top: 14px;
 }
 .qr-card {
-  border: 1px solid var(--line, #372f26);
+  border: 1px solid var(--line);
   border-radius: 14px;
-  background: var(--ink-2, #1d1916);
+  background: var(--panel);
   padding: 16px;
   display: flex;
   flex-direction: column;
@@ -1985,19 +1993,20 @@ select:focus-visible {
   transition: border-color 0.15s, transform 0.15s;
 }
 .qr-card:hover {
-  border-color: var(--saffron, #f5a623);
+  border-color: var(--saffron);
   transform: translateY(-2px);
 }
 .qr-card.accent {
-  background: radial-gradient(120% 120% at 50% 0%, #2a2016 0%, var(--ink-2, #1d1916) 70%);
-  border-color: color-mix(in srgb, var(--saffron, #f5a623) 40%, transparent);
+  background: radial-gradient(120% 120% at 50% 0%, color-mix(in srgb, var(--accent) 22%, var(--panel)) 0%, var(--panel) 70%);
+  border-color: color-mix(in srgb, var(--saffron) 40%, transparent);
 }
 .qr-img {
   width: 100%;
   aspect-ratio: 1;
   display: grid;
   place-items: center;
-  background: var(--text, #f4ede2);
+  /* fixed light surface (non-themed): QR modules must stay scannable in every theme */
+  background: #f4ede2;
   border-radius: 10px;
   overflow: hidden;
 }
@@ -2014,12 +2023,12 @@ select:focus-visible {
 .qr-label {
   font-weight: 600;
   font-size: 15px;
-  color: var(--text, #f4ede2);
+  color: var(--cream);
   margin-top: 4px;
 }
 .qr-sub {
   font-size: 12px;
-  color: var(--muted, #9b8f7d);
+  color: var(--muted);
 }
 
 /* ---------- Combos admin ---------- */
@@ -2036,9 +2045,9 @@ select:focus-visible {
 }
 .cb-meta input,
 .cb-meta select {
-  background: var(--ink, #14110f);
-  border: 1px solid var(--line, #372f26);
-  color: var(--text, #f4ede2);
+  background: var(--bg);
+  border: 1px solid var(--line);
+  color: var(--cream);
   padding: 9px 12px;
   border-radius: 10px;
   font-family: inherit;
@@ -2052,19 +2061,19 @@ select:focus-visible {
   align-items: center;
   gap: 6px;
   font-size: 13px;
-  color: var(--muted, #9b8f7d);
+  color: var(--muted);
 }
 .veg-toggle input {
-  accent-color: var(--mint, #2dd4a7);
+  accent-color: var(--mint);
 }
 .cb-slot {
-  border: 1px solid var(--line, #372f26);
+  border: 1px solid var(--line);
   border-radius: 12px;
   padding: 12px;
   display: flex;
   flex-direction: column;
   gap: 8px;
-  background: var(--ink, #14110f);
+  background: var(--bg);
 }
 .cb-slot-head {
   display: flex;
@@ -2072,9 +2081,9 @@ select:focus-visible {
 }
 .cb-slot-name {
   flex: 1;
-  background: var(--ink-2, #1d1916);
-  border: 1px solid var(--line, #372f26);
-  color: var(--text, #f4ede2);
+  background: var(--panel);
+  border: 1px solid var(--line);
+  color: var(--cream);
   padding: 8px 12px;
   border-radius: 9px;
   font-family: inherit;
@@ -2087,15 +2096,15 @@ select:focus-visible {
   gap: 8px;
 }
 .cb-option input[type="radio"] {
-  accent-color: var(--saffron, #f5a623);
+  accent-color: var(--saffron);
   width: 16px;
   height: 16px;
 }
 .cb-option select {
   flex: 1;
-  background: var(--ink-2, #1d1916);
-  border: 1px solid var(--line, #372f26);
-  color: var(--text, #f4ede2);
+  background: var(--panel);
+  border: 1px solid var(--line);
+  color: var(--cream);
   padding: 8px 10px;
   border-radius: 9px;
   font-family: inherit;
@@ -2103,9 +2112,9 @@ select:focus-visible {
 }
 .cb-delta {
   width: 72px;
-  background: var(--ink-2, #1d1916);
-  border: 1px solid var(--line, #372f26);
-  color: var(--text, #f4ede2);
+  background: var(--panel);
+  border: 1px solid var(--line);
+  color: var(--cream);
   padding: 8px;
   border-radius: 9px;
   font-family: var(--mono, monospace);
@@ -2113,8 +2122,8 @@ select:focus-visible {
 }
 .del-row {
   background: none;
-  border: 1px solid var(--line, #372f26);
-  color: var(--muted, #9b8f7d);
+  border: 1px solid var(--line);
+  color: var(--muted);
   width: 32px;
   height: 32px;
   border-radius: 8px;
@@ -2123,8 +2132,8 @@ select:focus-visible {
 .add-row {
   align-self: flex-start;
   background: none;
-  border: 1px dashed var(--line, #372f26);
-  color: var(--saffron, #f5a623);
+  border: 1px dashed var(--line);
+  color: var(--saffron);
   padding: 7px 12px;
   border-radius: 9px;
   font-family: inherit;
@@ -2147,9 +2156,9 @@ select:focus-visible {
   margin-top: 16px;
 }
 .combo-admin-card {
-  border: 1px solid var(--line, #372f26);
+  border: 1px solid var(--line);
   border-radius: 14px;
-  background: radial-gradient(140% 120% at 50% 0%, #2a2016 0%, var(--ink-2, #1d1916) 68%);
+  background: radial-gradient(140% 120% at 50% 0%, color-mix(in srgb, var(--accent) 22%, var(--panel)) 0%, var(--panel) 68%);
   padding: 16px;
   display: flex;
   flex-direction: column;
@@ -2175,12 +2184,12 @@ select:focus-visible {
   border: 1.5px solid;
 }
 .veg-mark.veg {
-  border-color: var(--mint, #2dd4a7);
-  background: color-mix(in srgb, var(--mint, #2dd4a7) 40%, transparent);
+  border-color: var(--mint);
+  background: color-mix(in srgb, var(--mint) 40%, transparent);
 }
 .veg-mark.nonveg {
-  border-color: var(--chili, #e2542a);
-  background: color-mix(in srgb, var(--chili, #e2542a) 40%, transparent);
+  border-color: var(--chili);
+  background: color-mix(in srgb, var(--chili) 40%, transparent);
 }
 .cac-name {
   font-weight: 600;
@@ -2189,13 +2198,13 @@ select:focus-visible {
 .cac-price {
   font-family: var(--mono, monospace);
   font-weight: 600;
-  color: var(--saffron, #f5a623);
+  color: var(--saffron);
 }
 .cac-slots {
   display: flex;
   flex-direction: column;
   gap: 4px;
-  border-top: 1px solid var(--line, #372f26);
+  border-top: 1px solid var(--line);
   padding-top: 10px;
 }
 .cac-slot {
@@ -2205,13 +2214,13 @@ select:focus-visible {
   line-height: 1.4;
 }
 .cac-slot-name {
-  color: var(--saffron, #f5a623);
+  color: var(--saffron);
   font-weight: 600;
   min-width: 56px;
   flex: 0 0 auto;
 }
 .cac-opts {
-  color: var(--muted, #9b8f7d);
+  color: var(--muted);
 }
 .cac-foot {
   display: flex;
@@ -2229,19 +2238,19 @@ select:focus-visible {
   font-family: inherit;
 }
 .stock-toggle.in {
-  color: var(--mint, #2dd4a7);
-  border-color: color-mix(in srgb, var(--mint, #2dd4a7) 40%, transparent);
+  color: var(--mint);
+  border-color: color-mix(in srgb, var(--mint) 40%, transparent);
 }
 .stock-toggle.out {
-  color: var(--chili, #e2542a);
-  border-color: color-mix(in srgb, var(--chili, #e2542a) 40%, transparent);
+  color: var(--chili);
+  border-color: color-mix(in srgb, var(--chili) 40%, transparent);
 }
 
 /* ---------- Prep & production ---------- */
 .banner-ok {
-  background: color-mix(in srgb, var(--mint, #2dd4a7) 16%, transparent);
-  border: 1px solid color-mix(in srgb, var(--mint, #2dd4a7) 40%, transparent);
-  color: var(--mint, #2dd4a7);
+  background: color-mix(in srgb, var(--mint) 16%, transparent);
+  border: 1px solid color-mix(in srgb, var(--mint) 40%, transparent);
+  color: var(--mint);
   padding: 10px 14px;
   border-radius: 10px;
   font-size: 13px;
@@ -2260,9 +2269,9 @@ select:focus-visible {
 }
 .prep-line select {
   flex: 1;
-  background: var(--ink, #14110f);
-  border: 1px solid var(--line, #372f26);
-  color: var(--text, #f4ede2);
+  background: var(--bg);
+  border: 1px solid var(--line);
+  color: var(--cream);
   padding: 9px 12px;
   border-radius: 10px;
   font-family: inherit;
@@ -2270,9 +2279,9 @@ select:focus-visible {
 }
 .prep-line input {
   width: 110px;
-  background: var(--ink, #14110f);
-  border: 1px solid var(--line, #372f26);
-  color: var(--text, #f4ede2);
+  background: var(--bg);
+  border: 1px solid var(--line);
+  color: var(--cream);
   padding: 9px 12px;
   border-radius: 10px;
   font-family: var(--mono, monospace);
@@ -2285,9 +2294,9 @@ select:focus-visible {
   margin-top: 16px;
 }
 .prep-card {
-  border: 1px solid var(--line, #372f26);
+  border: 1px solid var(--line);
   border-radius: 14px;
-  background: radial-gradient(140% 120% at 50% 0%, #16241f 0%, var(--ink-2, #1d1916) 68%);
+  background: radial-gradient(140% 120% at 50% 0%, color-mix(in srgb, var(--good) 22%, var(--panel)) 0%, var(--panel) 68%);
   padding: 16px;
   display: flex;
   flex-direction: column;
@@ -2308,8 +2317,8 @@ select:focus-visible {
   font-size: 9px;
   font-weight: 700;
   letter-spacing: 0.1em;
-  color: var(--ink, #14110f);
-  background: var(--mint, #2dd4a7);
+  background: color-mix(in srgb, var(--good) 22%, transparent);
+  color: var(--good);
   padding: 2px 6px;
   border-radius: 5px;
 }
@@ -2320,10 +2329,10 @@ select:focus-visible {
 .prep-stock {
   font-family: var(--mono, monospace);
   font-size: 13px;
-  color: var(--muted, #9b8f7d);
+  color: var(--muted);
 }
 .prep-recipe {
-  border-top: 1px solid var(--line, #372f26);
+  border-top: 1px solid var(--line);
   padding-top: 10px;
   display: flex;
   flex-direction: column;
@@ -2335,10 +2344,10 @@ select:focus-visible {
   font-size: 13px;
 }
 .prep-ing .mono {
-  color: var(--muted, #9b8f7d);
+  color: var(--muted);
 }
 .prep-ing .short {
-  color: var(--chili, #e2542a);
+  color: var(--chili);
   font-style: normal;
 }
 .prep-costline {
@@ -2346,10 +2355,10 @@ select:focus-visible {
   justify-content: space-between;
   font-size: 13px;
   font-weight: 600;
-  color: var(--saffron, #f5a623);
+  color: var(--saffron);
   margin-top: 4px;
   padding-top: 6px;
-  border-top: 1px dashed var(--line, #372f26);
+  border-top: 1px dashed var(--line);
 }
 .prep-foot {
   display: flex;
@@ -2363,9 +2372,9 @@ select:focus-visible {
 }
 .produce-row input {
   width: 120px;
-  background: var(--ink, #14110f);
-  border: 1px solid var(--line, #372f26);
-  color: var(--text, #f4ede2);
+  background: var(--bg);
+  border: 1px solid var(--line);
+  color: var(--cream);
   padding: 8px 10px;
   border-radius: 9px;
   font-family: var(--mono, monospace);
@@ -2374,7 +2383,7 @@ select:focus-visible {
 .prep-new {
   margin-top: 20px;
   padding-top: 16px;
-  border-top: 1px solid var(--line, #372f26);
+  border-top: 1px solid var(--line);
 }
 .prep-new-row {
   display: flex;
@@ -2382,9 +2391,9 @@ select:focus-visible {
   margin-top: 8px;
 }
 .prep-new-row select {
-  background: var(--ink, #14110f);
-  border: 1px solid var(--line, #372f26);
-  color: var(--text, #f4ede2);
+  background: var(--bg);
+  border: 1px solid var(--line);
+  color: var(--cream);
   padding: 9px 12px;
   border-radius: 10px;
   font-family: inherit;
@@ -2408,13 +2417,13 @@ select:focus-visible {
   flex-direction: column;
   gap: 5px;
   font-size: 12px;
-  color: var(--muted, #9b8f7d);
+  color: var(--muted);
   letter-spacing: 0.02em;
 }
 .cr-controls select {
-  background: var(--ink, #14110f);
-  border: 1px solid var(--line, #372f26);
-  color: var(--text, #f4ede2);
+  background: var(--bg);
+  border: 1px solid var(--line);
+  color: var(--cream);
   padding: 9px 12px;
   border-radius: 10px;
   font-family: inherit;
@@ -2422,17 +2431,17 @@ select:focus-visible {
   min-width: 150px;
 }
 .cr-error {
-  color: var(--chili, #e2542a);
+  color: var(--chili);
   font-size: 13px;
   margin: 10px 0 0;
 }
 .cr-total {
   margin-top: 14px;
   font-size: 13px;
-  color: var(--muted, #9b8f7d);
+  color: var(--muted);
 }
 .cr-total strong {
-  color: var(--saffron, #f5a623);
+  color: var(--saffron);
   font-family: var(--mono, monospace);
   font-size: 15px;
 }
@@ -2455,14 +2464,14 @@ select:focus-visible {
   text-overflow: ellipsis;
 }
 .cr-bar-wrap {
-  background: var(--ink, #14110f);
+  background: var(--bg);
   border-radius: 6px;
   height: 18px;
   overflow: hidden;
 }
 .cr-bar {
   height: 100%;
-  background: linear-gradient(90deg, color-mix(in srgb, var(--saffron, #f5a623) 55%, transparent), var(--saffron, #f5a623));
+  background: linear-gradient(90deg, color-mix(in srgb, var(--saffron) 55%, transparent), var(--saffron));
   border-radius: 6px;
   min-width: 2px;
   transition: width 0.3s ease;
@@ -2471,12 +2480,12 @@ select:focus-visible {
   font-family: var(--mono, monospace);
   font-size: 13px;
   text-align: right;
-  color: var(--text, #f4ede2);
+  color: var(--cream);
 }
 .cr-share {
   font-family: var(--mono, monospace);
   font-size: 12px;
-  color: var(--muted, #9b8f7d);
+  color: var(--muted);
   text-align: right;
 }
 @media (max-width: 640px) {
@@ -2497,9 +2506,9 @@ select:focus-visible {
 }
 .fleet-new input,
 .fleet-new select {
-  background: var(--ink, #14110f);
-  border: 1px solid var(--line, #372f26);
-  color: var(--text, #f4ede2);
+  background: var(--bg);
+  border: 1px solid var(--line);
+  color: var(--cream);
   padding: 9px 12px;
   border-radius: 10px;
   font-family: inherit;
@@ -2514,9 +2523,9 @@ select:focus-visible {
   gap: 14px;
 }
 .device-card {
-  border: 1px solid var(--line, #372f26);
+  border: 1px solid var(--line);
   border-radius: 14px;
-  background: var(--ink-2, #1d1916);
+  background: var(--panel);
   padding: 16px;
   display: flex;
   flex-direction: column;
@@ -2542,11 +2551,11 @@ select:focus-visible {
   flex: 0 0 auto;
 }
 .dc-dot.on {
-  background: var(--mint, #2dd4a7);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--mint, #2dd4a7) 25%, transparent);
+  background: var(--mint);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--mint) 25%, transparent);
 }
 .dc-dot.off {
-  background: var(--muted, #9b8f7d);
+  background: var(--muted);
 }
 .dc-name {
   font-weight: 600;
@@ -2559,24 +2568,36 @@ select:focus-visible {
   letter-spacing: 0.08em;
   padding: 2px 6px;
   border-radius: 5px;
-  color: var(--ink, #14110f);
-  background: var(--muted, #9b8f7d);
+  /* Base pairing: --accent-ink is the designed contrast partner for
+     --accent (used by .t-pos below) and reads fine on the base --muted
+     background too. Fixed pastel variants below override this. */
+  color: var(--accent-ink);
+  background: var(--muted);
 }
-.type-badge.t-pos { background: var(--saffron, #f5a623); }
-.type-badge.t-kds { background: var(--mint, #2dd4a7); }
+.type-badge.t-pos { background: var(--saffron); }
+.type-badge.t-kds {
+  background: color-mix(in srgb, var(--good) 22%, transparent);
+  color: var(--good);
+}
+.type-badge.t-printer, .type-badge.t-kiosk, .type-badge.t-display {
+  /* Fixed dark text: these variants use fixed categorical pastel
+     backgrounds (not themed), so text must stay a fixed dark colour too
+     rather than following a themed ink token. */
+  color: #141210;
+}
 .type-badge.t-printer { background: #8ea2c6; }
 .type-badge.t-kiosk { background: #c68ec0; }
 .type-badge.t-display { background: #c6b98e; }
 .dc-seen {
   font-family: var(--mono, monospace);
   font-size: 11px;
-  color: var(--muted, #9b8f7d);
+  color: var(--muted);
 }
 .dc-config {
   display: flex;
   flex-wrap: wrap;
   gap: 10px 16px;
-  border-top: 1px solid var(--line, #372f26);
+  border-top: 1px solid var(--line);
   padding-top: 12px;
 }
 .dc-config label {
@@ -2584,20 +2605,20 @@ select:focus-visible {
   flex-direction: column;
   gap: 4px;
   font-size: 12px;
-  color: var(--muted, #9b8f7d);
+  color: var(--muted);
 }
 .dc-config label.chk {
   flex-direction: row;
   align-items: center;
   gap: 6px;
-  color: var(--text, #f4ede2);
+  color: var(--cream);
   font-size: 13px;
 }
 .dc-config select,
 .dc-config input[type="number"] {
-  background: var(--ink, #14110f);
-  border: 1px solid var(--line, #372f26);
-  color: var(--text, #f4ede2);
+  background: var(--bg);
+  border: 1px solid var(--line);
+  color: var(--cream);
   padding: 7px 10px;
   border-radius: 8px;
   font-family: inherit;
@@ -2607,14 +2628,14 @@ select:focus-visible {
   width: 64px;
 }
 .dc-config input[type="checkbox"] {
-  accent-color: var(--saffron, #f5a623);
+  accent-color: var(--saffron);
   width: 16px;
   height: 16px;
 }
 .dc-noconfig {
   font-size: 12px;
-  color: var(--muted, #9b8f7d);
-  border-top: 1px solid var(--line, #372f26);
+  color: var(--muted);
+  border-top: 1px solid var(--line);
   padding-top: 12px;
   margin: 0;
 }

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import type { AuthUser, OutletDto } from "@stello/shared";
 import { api, hasToken, setToken } from "@/lib/api";
 import { Console } from "@/components/Console";
+import { ThemeProvider } from "@/components/ThemeProvider";
 
 export default function Page() {
   const [user, setUser] = useState<AuthUser | null>(null);
@@ -39,48 +40,59 @@ export default function Page() {
     setOutlet(null);
   };
 
-  if (loading) return <div className="boot">Loading console…</div>;
+  if (loading)
+    return (
+      <ThemeProvider themeId={outlet?.themeId}>
+        <div className="boot">Loading console…</div>
+      </ThemeProvider>
+    );
 
   if (!user || !outlets) {
     return (
-      <Login
-        onLoggedIn={async () => {
-          setLoading(true);
-          await bootstrap();
-        }}
-      />
+      <ThemeProvider themeId={outlet?.themeId}>
+        <Login
+          onLoggedIn={async () => {
+            setLoading(true);
+            await bootstrap();
+          }}
+        />
+      </ThemeProvider>
     );
   }
 
   if (!outlet) {
     return (
-      <div className="pick-outlet">
-        <span className="wordmark">STELLO KITCHENS · CONSOLE</span>
-        <h1>Select outlet</h1>
-        <div className="outlet-list">
-          {outlets.map((o) => (
-            <button key={o.id} className="outlet-card" onClick={() => setOutlet(o)}>
-              <span className="outlet-brand">{o.brandName}</span>
-              <span className="outlet-name">{o.name}</span>
-              <span className="outlet-addr">{o.address}</span>
-            </button>
-          ))}
-          {outlets.length === 0 && <p>No outlets assigned.</p>}
+      <ThemeProvider>
+        <div className="pick-outlet">
+          <span className="wordmark">STELLO KITCHENS · CONSOLE</span>
+          <h1>Select outlet</h1>
+          <div className="outlet-list">
+            {outlets.map((o) => (
+              <button key={o.id} className="outlet-card" onClick={() => setOutlet(o)}>
+                <span className="outlet-brand">{o.brandName}</span>
+                <span className="outlet-name">{o.name}</span>
+                <span className="outlet-addr">{o.address}</span>
+              </button>
+            ))}
+            {outlets.length === 0 && <p>No outlets assigned.</p>}
+          </div>
+          <button className="text-btn" onClick={logout}>
+            Sign out
+          </button>
         </div>
-        <button className="text-btn" onClick={logout}>
-          Sign out
-        </button>
-      </div>
+      </ThemeProvider>
     );
   }
 
   return (
-    <Console
-      user={user}
-      outlet={outlet}
-      onSwitchOutlet={outlets.length > 1 ? () => setOutlet(null) : undefined}
-      onLogout={logout}
-    />
+    <ThemeProvider themeId={outlet?.themeId}>
+      <Console
+        user={user}
+        outlet={outlet}
+        onSwitchOutlet={outlets.length > 1 ? () => setOutlet(null) : undefined}
+        onLogout={logout}
+      />
+    </ThemeProvider>
   );
 }
 
