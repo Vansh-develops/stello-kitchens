@@ -5,7 +5,7 @@ import {
   type AggregatorStatusUpdateInput,
   type AuthUser,
   type ConnectorIngestInput,
-} from "@petpooja/shared";
+} from "@stello/shared";
 import { ConnectorService } from "./connector.service";
 import { ConnectorKeyGuard } from "./connector-key.guard";
 import { ZodValidationPipe } from "../common/zod.pipe";

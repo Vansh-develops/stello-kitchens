@@ -9,8 +9,8 @@ import type {
   OrderDto,
   OrderItemInput,
   OutletDto,
-} from "@petpooja/shared";
-import type { CashSessionDto } from "@petpooja/shared";
+} from "@stello/shared";
+import type { CashSessionDto } from "@stello/shared";
 import { api } from "./api";
 import { ItemDialog } from "./ItemDialog";
 import { ComboDialog, type ComboLine } from "./ComboDialog";
@@ -269,7 +269,7 @@ export function Billing({
       <aside className="rail">
         <div className="rail-top">
           <span className="wordmark">SPICE<br />ROUTE</span>
-          <span className="rail-outlet">{outlet.name.replace("Spice Route - ", "")}</span>
+          <span className="rail-outlet">{outlet.name.replace("Stello Kitchens - ", "")}</span>
         </div>
         <nav className="cat-nav">
           {menu.map((c) => (

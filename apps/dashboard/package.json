@@ -1,5 +1,5 @@
 {
-  "name": "@petpooja/dashboard",
+  "name": "@stello/dashboard",
   "version": "0.1.0",
   "private": true,
   "scripts": {
@@ -8,7 +8,7 @@
     "start": "next start -p 3002"
   },
   "dependencies": {
-    "@petpooja/shared": "workspace:*",
+    "@stello/shared": "workspace:*",
     "next": "^15.1.0",
     "qrcode": "^1.5.4",
     "react": "^19.0.0",

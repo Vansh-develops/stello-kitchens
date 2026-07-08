@@ -6,7 +6,7 @@ import {
   type AuthUser,
   type CreateComboInput,
   type UpdateComboInput,
-} from "@petpooja/shared";
+} from "@stello/shared";
 import { CombosService } from "./combos.service";
 import { ZodValidationPipe } from "../common/zod.pipe";
 import { CurrentUser, RequirePermission } from "../common/decorators";

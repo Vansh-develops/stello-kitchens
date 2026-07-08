@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import type { PrepRecipeDto, RawMaterialDto } from "@petpooja/shared";
+import type { PrepRecipeDto, RawMaterialDto } from "@stello/shared";
 import { api } from "@/lib/api";
 
 const money = (n: number) => `₹${n.toLocaleString("en-IN", { maximumFractionDigits: 2 })}`;

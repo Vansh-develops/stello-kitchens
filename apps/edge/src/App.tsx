@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import type { MenuCategoryDto, MenuItemDto } from "@petpooja/shared";
+import type { MenuCategoryDto, MenuItemDto } from "@stello/shared";
 import { edge, type EdgeStatus, type LocalOrderRow } from "./api";
 
 const rupee = (n: number) => `₹${n.toFixed(2)}`;
@@ -112,7 +112,7 @@ export function App() {
     return (
       <div className="connect">
         <div className="connect-card">
-          <span className="wordmark">SPICE ROUTE · EDGE</span>
+          <span className="wordmark">STELLO KITCHENS · EDGE</span>
           <h1>Local terminal setup</h1>
           <p className="connect-hint">Device {status.deviceId}. Connect once to cache the menu, then this terminal bills offline.</p>
           {error && <p className="form-error">{error}</p>}
@@ -131,8 +131,8 @@ export function App() {
     <div className="edge">
       <header className="edge-head">
         <div className="eh-brand">
-          <span className="wordmark">SPICE ROUTE</span>
-          <span className="eh-sub">EDGE · {status.outletName?.replace("Spice Route - ", "")} · {status.deviceId}</span>
+          <span className="wordmark">STELLO KITCHENS</span>
+          <span className="eh-sub">EDGE · {status.outletName?.replace("Stello Kitchens - ", "")} · {status.deviceId}</span>
         </div>
         <div className="eh-status">
           <span className={`net ${online ? "online" : "offline"}`}>

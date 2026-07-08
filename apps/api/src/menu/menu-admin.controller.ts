@@ -13,7 +13,7 @@ import {
   type CreateItemInput,
   type UpdateCategoryInput,
   type UpdateItemInput,
-} from "@petpooja/shared";
+} from "@stello/shared";
 import { MenuAdminService } from "./menu-admin.service";
 import { ZodValidationPipe } from "../common/zod.pipe";
 import { CurrentUser, RequirePermission } from "../common/decorators";

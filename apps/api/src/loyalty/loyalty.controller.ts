@@ -1,5 +1,5 @@
 import { Body, Controller, Param, Post } from "@nestjs/common";
-import { RequestOtpSchema, type AuthUser, type RequestOtpInput } from "@petpooja/shared";
+import { RequestOtpSchema, type AuthUser, type RequestOtpInput } from "@stello/shared";
 import { LoyaltyOtpService } from "./loyalty-otp.service";
 import { ZodValidationPipe } from "../common/zod.pipe";
 import { CurrentUser, RequirePermission } from "../common/decorators";

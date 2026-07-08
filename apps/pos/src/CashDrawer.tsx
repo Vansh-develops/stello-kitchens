@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import type { CashSessionDto, CashSessionReportDto } from "@petpooja/shared";
+import type { CashSessionDto, CashSessionReportDto } from "@stello/shared";
 import { api, ApiError } from "./api";
 
 const rupee = (n: number) => `₹${n.toFixed(2)}`;

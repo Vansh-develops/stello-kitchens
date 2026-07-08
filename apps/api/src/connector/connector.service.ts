@@ -6,7 +6,7 @@ import type {
   ConnectorIngestResult,
   MenuPushRowDto,
   ReconciliationRowDto,
-} from "@petpooja/shared";
+} from "@stello/shared";
 import { Prisma } from "@prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
 import { OrdersService } from "../orders/orders.service";

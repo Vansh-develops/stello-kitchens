@@ -1,5 +1,5 @@
 import { Injectable } from "@nestjs/common";
-import type { ScaleReadingDto } from "@petpooja/shared";
+import type { ScaleReadingDto } from "@stello/shared";
 
 /**
  * Seam for peripheral hardware a POS integrates with: weighing scales (weight

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import type { AuthUser, OutletDto } from "@petpooja/shared";
+import type { AuthUser, OutletDto } from "@stello/shared";
 import { api, hasToken, setToken } from "./api";
 import { Billing } from "./Billing";
 
@@ -50,7 +50,7 @@ export function App() {
     return (
       <div className="pick-outlet">
         <header>
-          <span className="wordmark">SPICE ROUTE POS</span>
+          <span className="wordmark">STELLO KITCHENS POS</span>
           <span className="pick-user">{session.user.name}</span>
         </header>
         <h1>Select outlet</h1>
@@ -101,7 +101,7 @@ function LoginScreen({ onLoggedIn }: { onLoggedIn: () => void }) {
   return (
     <div className="login">
       <form className="login-card" onSubmit={submit}>
-        <span className="wordmark">SPICE ROUTE POS</span>
+        <span className="wordmark">STELLO KITCHENS POS</span>
         <h1>Sign in to the counter</h1>
         <label>
           Email

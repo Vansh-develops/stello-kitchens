@@ -9,7 +9,7 @@ import type {
   OutletKpiDto,
   ReportBreakdownDto,
   ReportOverviewDto,
-} from "@petpooja/shared";
+} from "@stello/shared";
 import { api } from "@/lib/api";
 import { CustomReport } from "./CustomReport";
 
@@ -94,7 +94,7 @@ export function ReportsTab({ outletId }: { outletId: string }) {
         <div className="outlet-kpis">
           {outlets.map((o) => (
             <div key={o.outletId} className={`okpi ${o.outletId === outletId ? "current" : ""}`}>
-              <span className="okpi-name">{o.outletName.replace("Spice Route - ", "")}</span>
+              <span className="okpi-name">{o.outletName.replace("Stello Kitchens - ", "")}</span>
               <span className="okpi-sales">{money(o.grossSales)}</span>
               <span className="okpi-meta">{o.orders} orders · AOV {money(o.avgOrderValue)}</span>
             </div>

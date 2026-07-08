@@ -1,4 +1,4 @@
-import type { CashSessionDto, MenuCategoryDto } from "@petpooja/shared";
+import type { CashSessionDto, MenuCategoryDto } from "@stello/shared";
 
 // The renderer talks ONLY to the local master service (sidecar) — never the cloud
 // directly — so it operates identically online and offline.

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import type { OutletDto } from "@petpooja/shared";
+import type { OutletDto } from "@stello/shared";
 import { api, hasToken, setToken } from "./api";
 import { Board } from "./Board";
 
@@ -42,7 +42,7 @@ export function App() {
   if (!outlet) {
     return (
       <div className="pick-outlet">
-        <span className="wordmark">SPICE ROUTE · KDS</span>
+        <span className="wordmark">STELLO KITCHENS · KDS</span>
         <h1>Choose the kitchen this screen serves</h1>
         <div className="outlet-list">
           {outlets.map((o) => (
@@ -92,7 +92,7 @@ function LoginScreen({ onLoggedIn }: { onLoggedIn: () => void }) {
   return (
     <div className="login">
       <form className="login-card" onSubmit={submit}>
-        <span className="wordmark">SPICE ROUTE · KDS</span>
+        <span className="wordmark">STELLO KITCHENS · KDS</span>
         <h1>Kitchen display sign-in</h1>
         <label>
           Email

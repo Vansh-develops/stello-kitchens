@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import type { ConsumptionRowDto, RawMaterialDto, VendorDto, MaterialUnit } from "@petpooja/shared";
+import type { ConsumptionRowDto, RawMaterialDto, VendorDto, MaterialUnit } from "@stello/shared";
 import { api } from "@/lib/api";
 
 const UNITS: MaterialUnit[] = ["KG", "G", "L", "ML", "PCS"];

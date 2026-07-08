@@ -7,7 +7,7 @@ import type {
   SyncPushInput,
   SyncPushResultRowDto,
   SyncSnapshotDto,
-} from "@petpooja/shared";
+} from "@stello/shared";
 import { PrismaService } from "../prisma/prisma.service";
 import { OrdersService } from "../orders/orders.service";
 

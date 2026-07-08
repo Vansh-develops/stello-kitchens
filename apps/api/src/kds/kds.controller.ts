@@ -1,5 +1,5 @@
 import { Body, Controller, Get, Param, Post } from "@nestjs/common";
-import { AdvanceTicketSchema, type AdvanceTicketInput, type AuthUser } from "@petpooja/shared";
+import { AdvanceTicketSchema, type AdvanceTicketInput, type AuthUser } from "@stello/shared";
 import { KdsService } from "./kds.service";
 import { ZodValidationPipe } from "../common/zod.pipe";
 import { CurrentUser, RequirePermission } from "../common/decorators";

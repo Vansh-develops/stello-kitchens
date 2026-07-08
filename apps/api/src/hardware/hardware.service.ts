@@ -1,5 +1,5 @@
 import { Inject, Injectable, NotFoundException } from "@nestjs/common";
-import type { AuthUser, CallerIdDto, ScaleReadingDto } from "@petpooja/shared";
+import type { AuthUser, CallerIdDto, ScaleReadingDto } from "@stello/shared";
 import { PrismaService } from "../prisma/prisma.service";
 import { RealtimeGateway } from "../realtime/realtime.gateway";
 import { HARDWARE_BRIDGE, type HardwareBridge } from "./hardware.bridge";

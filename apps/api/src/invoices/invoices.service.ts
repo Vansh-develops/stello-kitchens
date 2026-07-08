@@ -1,6 +1,6 @@
 import { BadRequestException, ForbiddenException, Inject, Injectable, NotFoundException } from "@nestjs/common";
-import type { AuthUser, HsnSummaryRowDto, InvoiceDto, InvoiceRowDto } from "@petpooja/shared";
-import { fromPaise, toPaise } from "@petpooja/shared";
+import type { AuthUser, HsnSummaryRowDto, InvoiceDto, InvoiceRowDto } from "@stello/shared";
+import { fromPaise, toPaise } from "@stello/shared";
 import { Prisma } from "@prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
 import { EINVOICE_PROVIDER, type EInvoiceProvider } from "./einvoice.provider";

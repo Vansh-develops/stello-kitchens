@@ -1,6 +1,6 @@
 import { Injectable, Logger } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
-import type { ConnectorIngestResult, MenuPushRowDto } from "@petpooja/shared";
+import type { ConnectorIngestResult, MenuPushRowDto } from "@stello/shared";
 import type { CanonicalOrder } from "./adapters/types";
 
 /** Thin HTTP client for the main API's service-authenticated connector surface. */

@@ -1,5 +1,5 @@
 import { Controller, ForbiddenException, Get, Param, Patch, Body } from "@nestjs/common";
-import type { AuthUser, ComboDto, MenuCategoryDto } from "@petpooja/shared";
+import type { AuthUser, ComboDto, MenuCategoryDto } from "@stello/shared";
 import { PrismaService } from "../prisma/prisma.service";
 import { RealtimeGateway } from "../realtime/realtime.gateway";
 import { CombosService } from "../combos/combos.service";

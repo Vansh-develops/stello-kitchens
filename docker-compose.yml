@@ -1,24 +1,24 @@
 services:
   postgres:
     image: postgres:16-alpine
-    container_name: petpooja-postgres
+    container_name: stello-postgres
     environment:
-      POSTGRES_USER: petpooja
-      POSTGRES_PASSWORD: petpooja
-      POSTGRES_DB: petpooja
+      POSTGRES_USER: stello
+      POSTGRES_PASSWORD: stello
+      POSTGRES_DB: stello
     ports:
       - "5455:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U petpooja"]
+      test: ["CMD-SHELL", "pg_isready -U stello"]
       interval: 5s
       timeout: 3s
       retries: 10
 
   redis:
     image: redis:7-alpine
-    container_name: petpooja-redis
+    container_name: stello-redis
     ports:
       - "6395:6379"
     volumes:

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { io, type Socket } from "socket.io-client";
-import type { KdsStockItemDto, KdsTicketDto, OutletDto, PrepStatus, StationDto } from "@petpooja/shared";
+import type { KdsStockItemDto, KdsTicketDto, OutletDto, PrepStatus, StationDto } from "@stello/shared";
 import { api } from "./api";
 
 const NEXT: Record<PrepStatus, PrepStatus> = {
@@ -135,8 +135,8 @@ export function Board({ outlet, onExit }: { outlet: OutletDto; onExit: () => voi
     <div className="kds">
       <header className="kds-head">
         <div className="kds-brand">
-          <span className="wordmark">SPICE ROUTE</span>
-          <span className="kds-sub">KDS · {outlet.name.replace("Spice Route - ", "")}</span>
+          <span className="wordmark">STELLO KITCHENS</span>
+          <span className="kds-sub">KDS · {outlet.name.replace("Stello Kitchens - ", "")}</span>
         </div>
 
         <nav className="station-tabs">

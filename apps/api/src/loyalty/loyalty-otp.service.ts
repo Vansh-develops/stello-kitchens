@@ -1,5 +1,5 @@
 import { BadRequestException, ForbiddenException, Inject, Injectable } from "@nestjs/common";
-import type { AuthUser } from "@petpooja/shared";
+import type { AuthUser } from "@stello/shared";
 import { Prisma } from "@prisma/client";
 import { randomInt } from "node:crypto";
 import { PrismaService } from "../prisma/prisma.service";
@@ -36,7 +36,7 @@ export class LoyaltyOtpService {
     await this.notifications.send(
       "SMS",
       phone,
-      `Your Spice Route redemption OTP is ${code}. Valid for 5 minutes.`,
+      `Your Stello Kitchens redemption OTP is ${code}. Valid for 5 minutes.`,
     );
     return { sent: true, points: customer.loyaltyPoints, expiresInSec: OTP_TTL_MS / 1000 };
   }

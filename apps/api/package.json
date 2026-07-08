@@ -1,5 +1,5 @@
 {
-  "name": "@petpooja/api",
+  "name": "@stello/api",
   "version": "0.1.0",
   "private": true,
   "scripts": {
@@ -21,7 +21,7 @@
     "@nestjs/platform-express": "^11.0.0",
     "@nestjs/platform-socket.io": "^11.0.0",
     "@nestjs/websockets": "^11.0.0",
-    "@petpooja/shared": "workspace:*",
+    "@stello/shared": "workspace:*",
     "@prisma/client": "^6.8.0",
     "bcryptjs": "^3.0.0",
     "reflect-metadata": "^0.2.2",

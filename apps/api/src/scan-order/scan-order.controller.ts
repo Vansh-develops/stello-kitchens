@@ -3,7 +3,7 @@ import {
   SubmitOrderRequestSchema,
   type AuthUser,
   type SubmitOrderRequestInput,
-} from "@petpooja/shared";
+} from "@stello/shared";
 import { ScanOrderService } from "./scan-order.service";
 import { ZodValidationPipe } from "../common/zod.pipe";
 import { CurrentUser, Public, RequirePermission } from "../common/decorators";

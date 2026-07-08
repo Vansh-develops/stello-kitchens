@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import type { TokenBoardDto } from "@petpooja/shared";
+import type { TokenBoardDto } from "@stello/shared";
 import { api } from "./api";
 
 // Customer-facing token-display screen (a TV near the counter). Polls the board

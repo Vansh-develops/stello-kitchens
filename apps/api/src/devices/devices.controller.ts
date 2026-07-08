@@ -5,7 +5,7 @@ import {
   type AuthUser,
   type CreateDeviceInput,
   type UpdateDeviceInput,
-} from "@petpooja/shared";
+} from "@stello/shared";
 import { DevicesService } from "./devices.service";
 import { ZodValidationPipe } from "../common/zod.pipe";
 import { CurrentUser, Public, RequirePermission } from "../common/decorators";

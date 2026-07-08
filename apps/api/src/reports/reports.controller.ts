@@ -1,5 +1,5 @@
 import { Body, Controller, Get, Param, Post, Query } from "@nestjs/common";
-import { CustomReportSchema, type AuthUser, type CustomReportInput } from "@petpooja/shared";
+import { CustomReportSchema, type AuthUser, type CustomReportInput } from "@stello/shared";
 import { ReportsService } from "./reports.service";
 import { ZodValidationPipe } from "../common/zod.pipe";
 import { CurrentUser, RequirePermission } from "../common/decorators";

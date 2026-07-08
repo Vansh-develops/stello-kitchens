@@ -14,17 +14,17 @@ async function main() {
 
   const tenant = await prisma.tenant.create({ data: { name: "Demo Restaurants" } });
   const brand = await prisma.brand.create({
-    data: { tenantId: tenant.id, name: "Spice Route" },
+    data: { tenantId: tenant.id, name: "Stello Kitchens" },
   });
 
   const outlet1 = await prisma.outlet.create({
     data: {
       tenantId: tenant.id,
       brandId: brand.id,
-      name: "Spice Route - Koramangala",
+      name: "Stello Kitchens - Koramangala",
       address: "80 Feet Rd, Koramangala, Bengaluru",
       gstin: "29ABCDE1234F1Z5",
-      upiVpa: "spiceroute.kor@okhdfc",
+      upiVpa: "stellokitchens.kor@okhdfc",
       placeOfSupply: "29",
       isCentralKitchen: true,
       publicToken: publicToken(),
@@ -34,7 +34,7 @@ async function main() {
     data: {
       tenantId: tenant.id,
       brandId: brand.id,
-      name: "Spice Route - Indiranagar",
+      name: "Stello Kitchens - Indiranagar",
       address: "100 Feet Rd, Indiranagar, Bengaluru",
       gstin: "29ABCDE1234F2Z4",
       publicToken: publicToken(),

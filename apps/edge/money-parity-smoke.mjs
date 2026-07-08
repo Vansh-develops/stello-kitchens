@@ -9,7 +9,7 @@ import { join } from "node:path";
 
 const require = createRequire(import.meta.url);
 const { EdgeEngine } = require("./sidecar/engine.js");
-const { computeOrderTotals, toPaise, fromPaise } = require("@petpooja/shared");
+const { computeOrderTotals, toPaise, fromPaise } = require("@stello/shared");
 
 const API = "http://localhost:3001/api/v1";
 let pass = 0, fail = 0;

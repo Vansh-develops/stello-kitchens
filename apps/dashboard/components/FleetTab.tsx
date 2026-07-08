@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import type { DeviceDto, DeviceType } from "@petpooja/shared";
+import type { DeviceDto, DeviceType } from "@stello/shared";
 import { api } from "@/lib/api";
 
 const TYPES: { key: DeviceType; label: string }[] = [
@@ -59,7 +59,7 @@ export function FleetTab({ outletId }: { outletId: string }) {
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `spice-route-backup-${backup.generatedAt.slice(0, 10)}.json`;
+      a.download = `stello-kitchens-backup-${backup.generatedAt.slice(0, 10)}.json`;
       a.click();
       URL.revokeObjectURL(url);
       setMessage(

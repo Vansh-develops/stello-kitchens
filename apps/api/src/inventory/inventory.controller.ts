@@ -17,7 +17,7 @@ import {
   type UpdateMaterialInput,
   type VendorInput,
   type WastageInput,
-} from "@petpooja/shared";
+} from "@stello/shared";
 import { InventoryService } from "./inventory.service";
 import { ZodValidationPipe } from "../common/zod.pipe";
 import { CurrentUser, RequirePermission } from "../common/decorators";

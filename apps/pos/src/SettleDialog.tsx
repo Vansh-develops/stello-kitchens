@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import QRCode from "qrcode";
-import type { CustomerLookupDto, OrderDto, PaymentMode } from "@petpooja/shared";
+import type { CustomerLookupDto, OrderDto, PaymentMode } from "@stello/shared";
 import { api, ApiError } from "./api";
 
 const rupee = (n: number) => `₹${n.toFixed(2)}`;

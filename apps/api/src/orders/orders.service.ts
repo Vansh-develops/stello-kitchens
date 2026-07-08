@@ -13,8 +13,8 @@ import type {
   OrderItemInput,
   SettleOrderInput,
   SyncedOrderInput,
-} from "@petpooja/shared";
-import { computeOrderTotals, evaluateCoupon, fromPaise, lineTotalPaise, toPaise } from "@petpooja/shared";
+} from "@stello/shared";
+import { computeOrderTotals, evaluateCoupon, fromPaise, lineTotalPaise, toPaise } from "@stello/shared";
 import { Prisma } from "@prisma/client";
 import { randomUUID } from "node:crypto";
 import { PrismaService } from "../prisma/prisma.service";

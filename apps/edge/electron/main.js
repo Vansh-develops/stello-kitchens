@@ -13,7 +13,7 @@ let sidecar;
 function startSidecar() {
   // Spawn with SYSTEM Node (not Electron): better-sqlite3 is compiled for Node's ABI,
   // so the local master must run under real Node, never Electron's bundled runtime.
-  // No shell: keeps the space in "Pet Pooja Clone" intact (shell:true splits on it).
+  // No shell: keeps the space in "Stello Kitchens" intact (shell:true splits on it).
   // node.exe is resolved from PATH; args are passed verbatim.
   const nodeBin = process.platform === "win32" ? "node.exe" : "node";
   sidecar = spawn(nodeBin, [path.join(__dirname, "..", "sidecar", "server.js")], {
@@ -26,7 +26,7 @@ function createWindow() {
     width: 1400,
     height: 860,
     backgroundColor: "#14110f",
-    title: "Spice Route · Edge POS",
+    title: "Stello Kitchens · Edge POS",
     webPreferences: { preload: path.join(__dirname, "preload.js") },
   });
   if (process.env.EDGE_LOAD_FILE) win.loadFile(path.join(__dirname, "..", "dist", "index.html"));

@@ -1,6 +1,6 @@
-# Petpooja Clone
+# Stello Kitchens
 
-A restaurant management platform (Petpooja clone), built as a pnpm monorepo. This
+A restaurant management platform (Stello Kitchens), built as a pnpm monorepo. This
 milestone covers **Phase 0 (multi-tenant foundation)**, **core POS billing**, the
 **real-time KDS (Kitchen Display System)**, the **admin console** (menu management +
 multi-channel pricing), **inventory** (recipes, auto-deduction, costing), the
@@ -56,12 +56,12 @@ docker compose up -d
 
 # 2. Install dependencies + build shared types
 pnpm install
-pnpm --filter @petpooja/shared build
+pnpm --filter @stello/shared build
 
 # 3. Create the schema and seed a demo tenant
-pnpm --filter @petpooja/api prisma:generate
-pnpm --filter @petpooja/api prisma:migrate --name init
-pnpm --filter @petpooja/api prisma:seed
+pnpm --filter @stello/api prisma:generate
+pnpm --filter @stello/api prisma:migrate --name init
+pnpm --filter @stello/api prisma:seed
 
 # 4. Run each service (one terminal each)
 pnpm dev:api        # http://localhost:3001/api/v1

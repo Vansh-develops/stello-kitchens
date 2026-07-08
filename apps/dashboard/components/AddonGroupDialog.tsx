@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import type { AddonGroupAdminDto, AddonGroupInput } from "@petpooja/shared";
+import type { AddonGroupAdminDto, AddonGroupInput } from "@stello/shared";
 import { api } from "@/lib/api";
 
 export function AddonGroupDialog({

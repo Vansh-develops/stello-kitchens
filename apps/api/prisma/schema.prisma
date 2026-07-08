@@ -45,7 +45,7 @@ model Outlet {
   // Loyalty: points earned = round(billTotal * earnRate); 1 point = pointValue rupees.
   loyaltyEarnRate  Decimal @default(0.1) @db.Decimal(6, 4)
   loyaltyPointValue Decimal @default(1) @db.Decimal(6, 2)
-  upiVpa           String? // payee VPA for dynamic UPI QR (e.g. spiceroute@okhdfc)
+  upiVpa           String? // payee VPA for dynamic UPI QR (e.g. stellokitchens@okhdfc)
   placeOfSupply    String? // GST state code, e.g. "29" (Karnataka)
   isCentralKitchen Boolean @default(false) // commissary that supplies satellite outlets
   publicToken      String? @unique // opaque token for kiosk / token-display board URLs

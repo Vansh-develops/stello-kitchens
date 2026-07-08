@@ -1,5 +1,5 @@
 import { Body, Controller, Get, Post, Query } from "@nestjs/common";
-import { SyncPushSchema, type AuthUser, type SyncPushInput } from "@petpooja/shared";
+import { SyncPushSchema, type AuthUser, type SyncPushInput } from "@stello/shared";
 import { SyncService } from "./sync.service";
 import { ZodValidationPipe } from "../common/zod.pipe";
 import { CurrentUser, RequirePermission } from "../common/decorators";

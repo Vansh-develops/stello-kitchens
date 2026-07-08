@@ -10,7 +10,7 @@ const { randomUUID } = require("node:crypto");
 const Database = require("better-sqlite3");
 // Shared integer-paise money formula — the exact same code the cloud API runs, so
 // an order billed offline totals identically to one billed online.
-const { computeOrderTotals, lineTotalPaise, fromPaise, toPaise } = require("@petpooja/shared");
+const { computeOrderTotals, lineTotalPaise, fromPaise, toPaise } = require("@stello/shared");
 
 class EdgeEngine {
   constructor({ dataDir, apiUrl }) {

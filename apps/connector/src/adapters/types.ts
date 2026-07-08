@@ -1,4 +1,4 @@
-import type { AggregatorPlatform } from "@petpooja/shared";
+import type { AggregatorPlatform } from "@stello/shared";
 import type { WebhookHeaders } from "./signatures";
 
 /** The normalised order shape the connector forwards to the main API. */

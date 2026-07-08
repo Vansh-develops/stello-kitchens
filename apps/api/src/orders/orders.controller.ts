@@ -7,7 +7,7 @@ import {
   type AuthUser,
   type CreateOrderInput,
   type SettleOrderInput,
-} from "@petpooja/shared";
+} from "@stello/shared";
 import { OrdersService } from "./orders.service";
 import { ZodValidationPipe } from "../common/zod.pipe";
 import { CurrentUser, RequirePermission } from "../common/decorators";
