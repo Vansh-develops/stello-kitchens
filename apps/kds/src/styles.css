@@ -71,7 +71,7 @@ input:focus-visible {
   width: min(400px, 100%);
   background: var(--card-bg);
   border: 1px solid var(--line);
-  border-radius: 16px;
+  border-radius: var(--radius);
   padding: 40px 36px;
   display: flex;
   flex-direction: column;
@@ -98,7 +98,7 @@ input:focus-visible {
 .login-card input {
   background: var(--bg);
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   padding: 12px 14px;
   color: var(--ink);
   font-size: 16px;
@@ -115,7 +115,7 @@ input:focus-visible {
   color: var(--accent-ink);
   font-weight: 600;
   padding: 13px 18px;
-  border-radius: 9px;
+  border-radius: var(--radius-sm);
   font-size: 15px;
 }
 .btn-primary:disabled {
@@ -147,7 +147,7 @@ input:focus-visible {
   text-align: left;
   background: var(--card-bg);
   border: 1px solid var(--line);
-  border-radius: 14px;
+  border-radius: var(--radius);
   padding: 22px;
   display: flex;
   flex-direction: column;
@@ -247,7 +247,7 @@ input:focus-visible {
 }
 .cook-toggle {
   padding: 9px 15px;
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   background: var(--panel-2);
   border: 1px solid var(--line);
   color: var(--muted);
@@ -295,7 +295,7 @@ input:focus-visible {
 .exit {
   width: 34px;
   height: 34px;
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   background: var(--panel-2);
   color: var(--muted);
   font-size: 15px;
@@ -365,7 +365,7 @@ input:focus-visible {
   background: var(--card-bg);
   border: 1px solid var(--line);
   border-left-width: 5px;
-  border-radius: 10px;
+  border-radius: var(--radius-sm);
   padding: 12px 14px;
   display: flex;
   flex-direction: column;
@@ -451,7 +451,7 @@ input:focus-visible {
   text-transform: var(--label-tt);
   color: var(--faint);
   border: 1px solid var(--line);
-  border-radius: 5px;
+  border-radius: var(--radius-sm);
   padding: 2px 6px;
 }
 .ticket-items {
@@ -541,7 +541,7 @@ input:focus-visible {
   gap: 16px;
   background: var(--card-bg);
   border: 1px solid var(--line);
-  border-radius: 10px;
+  border-radius: var(--radius-sm);
   padding: 14px 18px;
 }
 .cook-row.oos {
@@ -564,7 +564,7 @@ input:focus-visible {
 }
 .btn-86 {
   padding: 8px 16px;
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   border: 1px solid var(--crit);
   color: var(--crit);
   font-family: var(--font-num);
