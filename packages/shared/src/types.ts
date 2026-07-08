@@ -809,6 +809,7 @@ export interface PublicMenuDto {
   mode: "DINE_IN" | "TAKEAWAY";
   tableName: string | null;
   categories: MenuCategoryDto[];
+  themeId: string;
 }
 
 // What the diner polls after submitting: their request's fate + token number.
@@ -845,6 +846,7 @@ export interface TokenBoardDto {
   outletName: string;
   preparing: number[];
   ready: number[];
+  themeId: string;
 }
 
 // Mock hardware bridge readings (weighing scale, caller-ID).

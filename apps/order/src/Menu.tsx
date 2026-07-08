@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import type { ComboDto, MenuItemDto, PublicMenuDto } from "@stello/shared";
 import { api } from "./api";
+import { ThemeProvider } from "./ThemeProvider";
 
 // Common display shape + a discriminator that carries what the submit payload needs.
 type CartLine = {
@@ -149,29 +150,42 @@ export function Menu({ mode, token }: { mode: "table" | "kiosk"; token: string }
     }
   };
 
-  if (error && !menu) return <Splash title="Hmm." sub={error} />;
-  if (!menu) return <Splash title="Stello Kitchens" sub="Loading the menu…" />;
+  if (error && !menu)
+    return (
+      <ThemeProvider>
+        <Splash title="Hmm." sub={error} />
+      </ThemeProvider>
+    );
+  if (!menu)
+    return (
+      <ThemeProvider>
+        <Splash title="Stello Kitchens" sub="Loading the menu…" />
+      </ThemeProvider>
+    );
 
   if (phase === "placed") {
     return (
-      <Confirmation
-        status={status}
-        tokenNumber={tokenNumber}
-        outletName={menu.outletName}
-        onDone={() => {
-          setCart([]);
-          setRequestToken(null);
-          setStatus("PENDING");
-          setTokenNumber(null);
-          setPhase("browse");
-        }}
-      />
+      <ThemeProvider themeId={menu?.themeId}>
+        <Confirmation
+          status={status}
+          tokenNumber={tokenNumber}
+          outletName={menu.outletName}
+          onDone={() => {
+            setCart([]);
+            setRequestToken(null);
+            setStatus("PENDING");
+            setTokenNumber(null);
+            setPhase("browse");
+          }}
+        />
+      </ThemeProvider>
     );
   }
 
   const cats = menu.categories.filter((c) => c.items.length > 0 || c.combos.length > 0);
 
   return (
+    <ThemeProvider themeId={menu?.themeId}>
     <div className="menu">
       <header className="menu-head">
         <div className="brand-row">
@@ -332,6 +346,7 @@ export function Menu({ mode, token }: { mode: "table" | "kiosk"; token: string }
         </div>
       )}
     </div>
+    </ThemeProvider>
   );
 }
 

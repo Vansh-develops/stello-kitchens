@@ -1,5 +1,6 @@
 import { Menu } from "./Menu";
 import { Board } from "./Board";
+import { ThemeProvider } from "./ThemeProvider";
 
 // Tiny path router — the diner app is only ever opened via a QR deep link, so
 // a full router dependency would be overkill.
@@ -12,13 +13,15 @@ export function App() {
   if (route === "board" && token) return <Board token={token} />;
 
   return (
-    <div className="landing">
-      <div className="mark">Stello Kitchens</div>
-      <h1>Scan to order</h1>
-      <p>
-        Point your camera at the QR code on your table to browse the menu and order without
-        waiting for a server.
-      </p>
-    </div>
+    <ThemeProvider>
+      <div className="landing">
+        <div className="mark">Stello Kitchens</div>
+        <h1>Scan to order</h1>
+        <p>
+          Point your camera at the QR code on your table to browse the menu and order without
+          waiting for a server.
+        </p>
+      </div>
+    </ThemeProvider>
   );
 }

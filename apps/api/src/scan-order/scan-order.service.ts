@@ -56,7 +56,7 @@ export class ScanOrderService {
   async menuForTable(token: string): Promise<PublicMenuDto> {
     const table = await this.prisma.diningTable.findUnique({
       where: { publicToken: token },
-      include: { outlet: true },
+      include: { outlet: { include: { brand: true } } },
     });
     if (!table) throw new NotFoundException("This QR code is no longer active");
     return {
@@ -64,18 +64,23 @@ export class ScanOrderService {
       mode: "DINE_IN",
       tableName: table.name,
       categories: await this.buildMenu(table.outlet.tenantId, table.outletId),
+      themeId: table.outlet.brand.themeId,
     };
   }
 
   /** Menu for kiosk / self-service takeaway (outlet-level token). */
   async menuForOutlet(token: string): Promise<PublicMenuDto> {
-    const outlet = await this.prisma.outlet.findUnique({ where: { publicToken: token } });
+    const outlet = await this.prisma.outlet.findUnique({
+      where: { publicToken: token },
+      include: { brand: true },
+    });
     if (!outlet) throw new NotFoundException("This kiosk link is no longer active");
     return {
       outletName: outlet.name,
       mode: "TAKEAWAY",
       tableName: null,
       categories: await this.buildMenu(outlet.tenantId, outlet.id),
+      themeId: outlet.brand.themeId,
     };
   }
 
@@ -116,7 +121,10 @@ export class ScanOrderService {
 
   /** Public token-display board: which token numbers are cooking vs ready. */
   async board(outletToken: string): Promise<TokenBoardDto> {
-    const outlet = await this.prisma.outlet.findUnique({ where: { publicToken: outletToken } });
+    const outlet = await this.prisma.outlet.findUnique({
+      where: { publicToken: outletToken },
+      include: { brand: true },
+    });
     if (!outlet) throw new NotFoundException("Board link is no longer active");
     const reqs = await this.prisma.orderRequest.findMany({
       where: { outletId: outlet.id, status: "ACCEPTED", tokenNumber: { not: null }, orderId: { not: null } },
@@ -136,7 +144,7 @@ export class ScanOrderService {
       const allReady = order.items.every((i) => i.prepStatus === "READY");
       (allReady ? ready : preparing).push(r.tokenNumber!);
     }
-    return { outletName: outlet.name, preparing, ready };
+    return { outletName: outlet.name, preparing, ready, themeId: outlet.brand.themeId };
   }
 
   // ---------- Staff validation (authed) ----------
