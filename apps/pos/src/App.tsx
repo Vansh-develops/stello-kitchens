@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import type { AuthUser, OutletDto } from "@stello/shared";
 import { api, hasToken, setToken } from "./api";
 import { Billing } from "./Billing";
+import { ThemeProvider } from "./ThemeProvider";
 
 type Session = { user: AuthUser; outlets: OutletDto[] };
 
@@ -48,33 +49,37 @@ export function App() {
 
   if (!outlet) {
     return (
-      <div className="pick-outlet">
-        <header>
-          <span className="wordmark">STELLO KITCHENS POS</span>
-          <span className="pick-user">{session.user.name}</span>
-        </header>
-        <h1>Select outlet</h1>
-        <div className="outlet-list">
-          {session.outlets.map((o) => (
-            <button key={o.id} className="outlet-card" onClick={() => setOutlet(o)}>
-              <span className="outlet-brand">{o.brandName}</span>
-              <span className="outlet-name">{o.name}</span>
-              <span className="outlet-addr">{o.address}</span>
-            </button>
-          ))}
-          {session.outlets.length === 0 && <p>No outlets assigned to your account.</p>}
+      <ThemeProvider>
+        <div className="pick-outlet">
+          <header>
+            <span className="wordmark">STELLO KITCHENS POS</span>
+            <span className="pick-user">{session.user.name}</span>
+          </header>
+          <h1>Select outlet</h1>
+          <div className="outlet-list">
+            {session.outlets.map((o) => (
+              <button key={o.id} className="outlet-card" onClick={() => setOutlet(o)}>
+                <span className="outlet-brand">{o.brandName}</span>
+                <span className="outlet-name">{o.name}</span>
+                <span className="outlet-addr">{o.address}</span>
+              </button>
+            ))}
+            {session.outlets.length === 0 && <p>No outlets assigned to your account.</p>}
+          </div>
         </div>
-      </div>
+      </ThemeProvider>
     );
   }
 
   return (
-    <Billing
-      user={session.user}
-      outlet={outlet}
-      onSwitchOutlet={session.outlets.length > 1 ? () => setOutlet(null) : undefined}
-      onLogout={logout}
-    />
+    <ThemeProvider themeId={outlet?.themeId}>
+      <Billing
+        user={session.user}
+        outlet={outlet}
+        onSwitchOutlet={session.outlets.length > 1 ? () => setOutlet(null) : undefined}
+        onLogout={logout}
+      />
+    </ThemeProvider>
   );
 }
 
