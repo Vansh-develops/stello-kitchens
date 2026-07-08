@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { MenuCategoryDto, MenuItemDto } from "@stello/shared";
 import { edge, type EdgeStatus, type LocalOrderRow } from "./api";
+import { ThemeProvider } from "./ThemeProvider";
 
 const rupee = (n: number) => `₹${n.toFixed(2)}`;
 type CartLine = { key: string; item: MenuItemDto; qty: number };
@@ -105,11 +106,16 @@ export function App() {
   };
 
   if (!status) {
-    return <div className="boot">{error ?? "Starting local master service…"}</div>;
+    return (
+      <ThemeProvider>
+        <div className="boot">{error ?? "Starting local master service…"}</div>
+      </ThemeProvider>
+    );
   }
 
   if (!status.outletId) {
     return (
+      <ThemeProvider themeId={status.themeId ?? undefined}>
       <div className="connect">
         <div className="connect-card">
           <span className="wordmark">STELLO KITCHENS · EDGE</span>
@@ -121,6 +127,7 @@ export function App() {
           </button>
         </div>
       </div>
+      </ThemeProvider>
     );
   }
 
@@ -128,6 +135,7 @@ export function App() {
   const activeItems = menu.find((c) => c.id === activeCat)?.items ?? [];
 
   return (
+    <ThemeProvider themeId={status.themeId ?? undefined}>
     <div className="edge">
       <header className="edge-head">
         <div className="eh-brand">
@@ -203,5 +211,6 @@ export function App() {
         </section>
       </div>
     </div>
+    </ThemeProvider>
   );
 }
