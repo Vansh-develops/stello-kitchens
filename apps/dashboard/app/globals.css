@@ -1877,7 +1877,7 @@ select:focus-visible {
   place-items: center;
 }
 .seg button.on .seg-badge {
-  background: var(--ink, #14110f);
+  background: var(--bg);
   color: var(--saffron, #f5a623);
 }
 
@@ -2044,7 +2044,7 @@ select:focus-visible {
 }
 .cb-meta input,
 .cb-meta select {
-  background: var(--ink, #14110f);
+  background: var(--bg);
   border: 1px solid var(--line, #372f26);
   color: var(--text, #f4ede2);
   padding: 9px 12px;
@@ -2072,7 +2072,7 @@ select:focus-visible {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  background: var(--ink, #14110f);
+  background: var(--bg);
 }
 .cb-slot-head {
   display: flex;
@@ -2268,7 +2268,7 @@ select:focus-visible {
 }
 .prep-line select {
   flex: 1;
-  background: var(--ink, #14110f);
+  background: var(--bg);
   border: 1px solid var(--line, #372f26);
   color: var(--text, #f4ede2);
   padding: 9px 12px;
@@ -2278,7 +2278,7 @@ select:focus-visible {
 }
 .prep-line input {
   width: 110px;
-  background: var(--ink, #14110f);
+  background: var(--bg);
   border: 1px solid var(--line, #372f26);
   color: var(--text, #f4ede2);
   padding: 9px 12px;
@@ -2371,7 +2371,7 @@ select:focus-visible {
 }
 .produce-row input {
   width: 120px;
-  background: var(--ink, #14110f);
+  background: var(--bg);
   border: 1px solid var(--line, #372f26);
   color: var(--text, #f4ede2);
   padding: 8px 10px;
@@ -2390,7 +2390,7 @@ select:focus-visible {
   margin-top: 8px;
 }
 .prep-new-row select {
-  background: var(--ink, #14110f);
+  background: var(--bg);
   border: 1px solid var(--line, #372f26);
   color: var(--text, #f4ede2);
   padding: 9px 12px;
@@ -2420,7 +2420,7 @@ select:focus-visible {
   letter-spacing: 0.02em;
 }
 .cr-controls select {
-  background: var(--ink, #14110f);
+  background: var(--bg);
   border: 1px solid var(--line, #372f26);
   color: var(--text, #f4ede2);
   padding: 9px 12px;
@@ -2463,7 +2463,7 @@ select:focus-visible {
   text-overflow: ellipsis;
 }
 .cr-bar-wrap {
-  background: var(--ink, #14110f);
+  background: var(--bg);
   border-radius: 6px;
   height: 18px;
   overflow: hidden;
@@ -2505,7 +2505,7 @@ select:focus-visible {
 }
 .fleet-new input,
 .fleet-new select {
-  background: var(--ink, #14110f);
+  background: var(--bg);
   border: 1px solid var(--line, #372f26);
   color: var(--text, #f4ede2);
   padding: 9px 12px;
@@ -2603,7 +2603,7 @@ select:focus-visible {
 }
 .dc-config select,
 .dc-config input[type="number"] {
-  background: var(--ink, #14110f);
+  background: var(--bg);
   border: 1px solid var(--line, #372f26);
   color: var(--text, #f4ede2);
   padding: 7px 10px;
