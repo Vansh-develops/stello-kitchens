@@ -1861,7 +1861,7 @@ select:focus-visible {
 }
 .seg button.on {
   background: var(--saffron);
-  color: var(--ink);
+  color: var(--accent-ink);
   font-weight: 600;
 }
 .seg-badge {
@@ -2317,8 +2317,8 @@ select:focus-visible {
   font-size: 9px;
   font-weight: 700;
   letter-spacing: 0.1em;
-  color: var(--ink);
-  background: var(--mint);
+  background: color-mix(in srgb, var(--good) 22%, transparent);
+  color: var(--good);
   padding: 2px 6px;
   border-radius: 5px;
 }
@@ -2568,15 +2568,23 @@ select:focus-visible {
   letter-spacing: 0.08em;
   padding: 2px 6px;
   border-radius: 5px;
-  /* Fixed dark text: the t-printer/t-kiosk/t-display variants below use fixed
-     categorical pastel backgrounds (not themed), so text must stay a fixed
-     dark colour too rather than following the themed --ink token, which is
-     light on dark themes and would produce illegible low-contrast text. */
-  color: #141210;
+  /* Base pairing: --accent-ink is the designed contrast partner for
+     --accent (used by .t-pos below) and reads fine on the base --muted
+     background too. Fixed pastel variants below override this. */
+  color: var(--accent-ink);
   background: var(--muted);
 }
 .type-badge.t-pos { background: var(--saffron); }
-.type-badge.t-kds { background: var(--mint); }
+.type-badge.t-kds {
+  background: color-mix(in srgb, var(--good) 22%, transparent);
+  color: var(--good);
+}
+.type-badge.t-printer, .type-badge.t-kiosk, .type-badge.t-display {
+  /* Fixed dark text: these variants use fixed categorical pastel
+     backgrounds (not themed), so text must stay a fixed dark colour too
+     rather than following a themed ink token. */
+  color: #141210;
+}
 .type-badge.t-printer { background: #8ea2c6; }
 .type-badge.t-kiosk { background: #c68ec0; }
 .type-badge.t-display { background: #c6b98e; }
