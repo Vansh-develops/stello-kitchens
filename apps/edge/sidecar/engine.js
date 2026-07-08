@@ -65,6 +65,10 @@ class EdgeEngine {
   cacheSnapshot(snapshot) {
     this.db.prepare("INSERT INTO ref_cache(kind,json) VALUES('menu',?) ON CONFLICT(kind) DO UPDATE SET json=excluded.json").run(JSON.stringify(snapshot.menu));
     this.db.prepare("INSERT INTO ref_cache(kind,json) VALUES('areas',?) ON CONFLICT(kind) DO UPDATE SET json=excluded.json").run(JSON.stringify(snapshot.areas));
+    // Persist the brand's selected theme so the offline renderer can style itself
+    // without reaching the cloud. Refreshes on every sync, so a theme change in
+    // Console propagates to this terminal on the next snapshot pull.
+    this._setMeta("themeId", snapshot.themeId || "");
     this._setMeta("snapshotAt", new Date().toISOString());
   }
   menu() {
@@ -343,6 +347,7 @@ class EdgeEngine {
       pending: this.pendingCount(),
       lastSyncAt: this._meta("lastSyncAt"),
       snapshotAt: this._meta("snapshotAt"),
+      themeId: this._meta("themeId") || null,
       forcedOffline: this.forcedOffline,
     };
   }

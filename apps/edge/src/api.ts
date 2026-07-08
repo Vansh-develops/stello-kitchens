@@ -22,6 +22,7 @@ export interface EdgeStatus {
   pending: number;
   lastSyncAt: string | null;
   snapshotAt: string | null;
+  themeId: string | null; // brand theme cached from /sync/snapshot; drives the renderer's look offline
   forcedOffline: boolean;
   online: boolean;
 }
