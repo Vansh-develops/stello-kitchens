@@ -1,5 +1,5 @@
 {
-  "name": "@petpooja/pos",
+  "name": "@stello/pos",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -9,7 +9,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@petpooja/shared": "workspace:*",
+    "@stello/shared": "workspace:*",
     "qrcode": "^1.5.4",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"

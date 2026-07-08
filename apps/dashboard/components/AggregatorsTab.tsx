@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import type { AggregatorOrderDto, ReconciliationRowDto } from "@petpooja/shared";
+import type { AggregatorOrderDto, ReconciliationRowDto } from "@stello/shared";
 import { api } from "@/lib/api";
 
 const money = (n: number) => `₹${n.toLocaleString("en-IN", { maximumFractionDigits: 0 })}`;

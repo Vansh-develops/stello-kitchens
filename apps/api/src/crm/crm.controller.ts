@@ -9,7 +9,7 @@ import {
   type CouponInput,
   type FeedbackSubmitInput,
   type LoyaltyAdjustInput,
-} from "@petpooja/shared";
+} from "@stello/shared";
 import { CrmService } from "./crm.service";
 import { ZodValidationPipe } from "../common/zod.pipe";
 import { CurrentUser, Public, RequirePermission } from "../common/decorators";

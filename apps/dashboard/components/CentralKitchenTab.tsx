@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import type { CentralKitchenContextDto, IndentDto } from "@petpooja/shared";
+import type { CentralKitchenContextDto, IndentDto } from "@stello/shared";
 import { api } from "@/lib/api";
 
 const money = (n: number) => `₹${n.toLocaleString("en-IN", { maximumFractionDigits: 0 })}`;
@@ -71,14 +71,14 @@ export function CentralKitchenTab({ outletId }: { outletId: string }) {
       <div className="pane-head">
         <h1>Central kitchen</h1>
         <span className={`status-pill ${isCentral ? "good" : "info"}`}>
-          {isCentral ? "This outlet is the commissary" : `Satellite of ${ctx.centralKitchen?.name.replace("Spice Route - ", "")}`}
+          {isCentral ? "This outlet is the commissary" : `Satellite of ${ctx.centralKitchen?.name.replace("Stello Kitchens - ", "")}`}
         </span>
       </div>
       {error && <div className="banner-error" onClick={() => setError(null)}>{error} — dismiss</div>}
 
       {!isCentral && (
         <div className="report-card">
-          <span className="card-title">Raise an indent to {ctx.centralKitchen?.name.replace("Spice Route - ", "")}</span>
+          <span className="card-title">Raise an indent to {ctx.centralKitchen?.name.replace("Stello Kitchens - ", "")}</span>
           {rows.map((r, i) => (
             <div key={i} className="indent-row">
               <select value={r.rawMaterialId} onChange={(e) => setRows((p) => p.map((x, idx) => (idx === i ? { ...x, rawMaterialId: e.target.value } : x)))}>
@@ -107,7 +107,7 @@ export function CentralKitchenTab({ outletId }: { outletId: string }) {
             <div className="ic-head">
               <div>
                 <span className="ic-route">
-                  {ind.fromOutletName.replace("Spice Route - ", "")} → {ind.toOutletName.replace("Spice Route - ", "")}
+                  {ind.fromOutletName.replace("Stello Kitchens - ", "")} → {ind.toOutletName.replace("Stello Kitchens - ", "")}
                 </span>
                 <span className="ic-meta">{new Date(ind.createdAt).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" })}{ind.note ? ` · ${ind.note}` : ""}</span>
               </div>

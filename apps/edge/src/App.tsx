@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import type { MenuCategoryDto, MenuItemDto } from "@petpooja/shared";
+import type { MenuCategoryDto, MenuItemDto } from "@stello/shared";
 import { edge, type EdgeStatus, type LocalOrderRow } from "./api";
 
 const rupee = (n: number) => `₹${n.toFixed(2)}`;
@@ -76,7 +76,7 @@ export function App() {
       });
       const settled = await edge.settle(order.clientId, [{ mode: "CASH", amount: order.total }]);
       setCart([]);
-      flashMsg(`Bill ${settled.offlineBillNumber} · ${rupee(settled.total)} — saved locally`);
+      flashMsg(`Provisional ${settled.offlineRef} · ${rupee(settled.total)} — tax invoice on sync`);
       await refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not settle");
@@ -112,7 +112,7 @@ export function App() {
     return (
       <div className="connect">
         <div className="connect-card">
-          <span className="wordmark">SPICE ROUTE · EDGE</span>
+          <span className="wordmark">STELLO KITCHENS · EDGE</span>
           <h1>Local terminal setup</h1>
           <p className="connect-hint">Device {status.deviceId}. Connect once to cache the menu, then this terminal bills offline.</p>
           {error && <p className="form-error">{error}</p>}
@@ -131,8 +131,8 @@ export function App() {
     <div className="edge">
       <header className="edge-head">
         <div className="eh-brand">
-          <span className="wordmark">SPICE ROUTE</span>
-          <span className="eh-sub">EDGE · {status.outletName?.replace("Spice Route - ", "")} · {status.deviceId}</span>
+          <span className="wordmark">STELLO KITCHENS</span>
+          <span className="eh-sub">EDGE · {status.outletName?.replace("Stello Kitchens - ", "")} · {status.deviceId}</span>
         </div>
         <div className="eh-status">
           <span className={`net ${online ? "online" : "offline"}`}>
@@ -194,7 +194,7 @@ export function App() {
             <span className="eb-recent-label">Local orders</span>
             {orders.slice(0, 6).map((o) => (
               <div key={o.clientId} className="eb-recent-row">
-                <span className="mono">{o.billNumber ?? o.clientId.slice(0, 6)}</span>
+                <span className="mono">{o.billNumber ?? o.offlineRef ?? o.clientId.slice(0, 6)}</span>
                 <span className="mono">{rupee(o.total)}</span>
                 <span className={`sync-pill ${o.synced ? "synced" : "pending"}`}>{o.synced ? "synced" : "queued"}</span>
               </div>

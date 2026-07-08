@@ -13,8 +13,8 @@ import type {
   OrderItemInput,
   SettleOrderInput,
   SyncedOrderInput,
-} from "@petpooja/shared";
-import { evaluateCoupon } from "@petpooja/shared";
+} from "@stello/shared";
+import { computeOrderTotals, evaluateCoupon, fromPaise, lineTotalPaise, toPaise } from "@stello/shared";
 import { Prisma } from "@prisma/client";
 import { randomUUID } from "node:crypto";
 import { PrismaService } from "../prisma/prisma.service";
@@ -94,28 +94,46 @@ export class OrdersService {
     customerName?: string | null;
     customerPhone?: string | null;
   }): Promise<{ orderId: string; kotNumber: number; total: number }> {
+    const result = await this.prisma.$transaction((tx) => this.ingestAggregatorOrderTx(tx, params));
+    this.realtime.notifyOutlet(params.outletId);
+    return result;
+  }
+
+  /**
+   * Core aggregator-order creation, on a caller-supplied transaction. The
+   * connector wraps this together with its idempotency-key reservation in ONE
+   * transaction, so a duplicate webhook loses the unique race and rolls back the
+   * KOT + stock it would have created — no double-fire, no orphaned order.
+   * Callers must fire `realtime.notifyOutlet(outletId)` after the tx commits.
+   */
+  async ingestAggregatorOrderTx(
+    tx: Prisma.TransactionClient,
+    params: {
+      tenantId: string;
+      outletId: string;
+      items: OrderItemInput[];
+      customerName?: string | null;
+      customerPhone?: string | null;
+    },
+  ): Promise<{ orderId: string; kotNumber: number; total: number }> {
     if (params.items.length === 0) throw new BadRequestException("No mappable items in order");
     const actor = { tenantId: params.tenantId, id: null };
-    const orderId = await this.prisma.$transaction(async (tx) => {
-      const order = await tx.order.create({
-        data: {
-          tenantId: params.tenantId,
-          outletId: params.outletId,
-          orderType: "DELIVERY",
-          customerName: params.customerName ?? null,
-          customerPhone: params.customerPhone ?? null,
-        },
-      });
-      await this.punchItems(tx, actor, order.id, params.outletId, params.items);
-      await this.recomputeTotals(tx, order.id);
-      return order.id;
+    const order = await tx.order.create({
+      data: {
+        tenantId: params.tenantId,
+        outletId: params.outletId,
+        orderType: "DELIVERY",
+        customerName: params.customerName ?? null,
+        customerPhone: params.customerPhone ?? null,
+      },
     });
-    this.realtime.notifyOutlet(params.outletId);
-    const order = await this.prisma.order.findUniqueOrThrow({
-      where: { id: orderId },
-      include: { kots: { orderBy: { kotNumber: "asc" } } },
+    await this.punchItems(tx, actor, order.id, params.outletId, params.items);
+    await this.recomputeTotals(tx, order.id);
+    const withKot = await tx.order.findUniqueOrThrow({
+      where: { id: order.id },
+      include: { kots: { orderBy: { kotNumber: "asc" }, take: 1 } },
     });
-    return { orderId, kotNumber: order.kots[0]?.kotNumber ?? 0, total: Number(order.total) };
+    return { orderId: order.id, kotNumber: withKot.kots[0]?.kotNumber ?? 0, total: Number(withKot.total) };
   }
 
   /**
@@ -181,16 +199,29 @@ export class OrdersService {
     order: SyncedOrderInput;
   }): Promise<{ serverId: string; billNumber: string | null; status: "applied" | "duplicate" }> {
     const { tenantId, outletId, deviceId, order } = params;
-    const existing = await this.prisma.order.findFirst({
-      where: { deviceId, clientId: order.clientId },
-    });
-    if (existing) {
-      return { serverId: existing.id, billNumber: existing.billNumber, status: "duplicate" };
-    }
-
     const actor = { tenantId, id: null };
     const settled = order.status === "SETTLED";
-    const orderId = await this.prisma.$transaction(async (tx) => {
+    // Idempotency is enforced by the @@unique([deviceId, clientId]) constraint, not
+    // a pre-check read: we attempt the insert and treat a unique violation as "this
+    // order already synced". A pre-check findFirst has a window where two concurrent
+    // deliveries of the same order both see nothing and both insert; letting the DB
+    // arbitrate means the loser rolls back cleanly (including its bill-number
+    // increment) and is reported as a duplicate.
+    let orderId: string;
+    try {
+      orderId = await this.prisma.$transaction(async (tx) => {
+      // The device's number is a provisional reference only. On sync, a settled
+      // order is assigned the authoritative GST bill number from the single
+      // outlet counter — the same series online settlements draw from — so the
+      // outlet has one gapless invoice sequence regardless of where a sale began.
+      let billNumber: string | null = null;
+      if (settled) {
+        const outlet = await tx.outlet.update({
+          where: { id: outletId },
+          data: { nextBillNumber: { increment: 1 } },
+        });
+        billNumber = `B-${outlet.nextBillNumber - 1}`;
+      }
       const created = await tx.order.create({
         data: {
           tenantId,
@@ -201,8 +232,9 @@ export class OrdersService {
           customerPhone: order.customerPhone ?? null,
           deviceId,
           clientId: order.clientId,
+          offlineRef: order.offlineRef ?? null,
           status: order.status,
-          billNumber: settled ? (order.offlineBillNumber ?? null) : null,
+          billNumber,
         },
       });
       await this.punchItems(tx, actor, created.id, outletId, order.items);
@@ -218,11 +250,21 @@ export class OrdersService {
           action: "ORDER_SYNCED",
           entity: "order",
           entityId: created.id,
-          data: { deviceId, clientId: order.clientId, status: order.status, offlineBillNumber: order.offlineBillNumber },
+          data: { deviceId, clientId: order.clientId, status: order.status, offlineRef: order.offlineRef, billNumber },
         },
       });
       return created.id;
-    });
+      });
+    } catch (e) {
+      // Lost the idempotency race, or a re-delivery of an already-synced order: the
+      // (deviceId, clientId) row already exists. Report it as a duplicate instead of
+      // erroring, so the device stops retrying and clears it from the outbox.
+      if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") {
+        const existing = await this.prisma.order.findFirst({ where: { deviceId, clientId: order.clientId } });
+        if (existing) return { serverId: existing.id, billNumber: existing.billNumber, status: "duplicate" };
+      }
+      throw e;
+    }
     this.realtime.notifyOutlet(outletId);
     const saved = await this.prisma.order.findUniqueOrThrow({ where: { id: orderId } });
     return { serverId: orderId, billNumber: saved.billNumber, status: "applied" };
@@ -277,17 +319,15 @@ export class OrdersService {
       couponDiscount = evalResult.discount;
     }
 
-    // Loyalty redemption (requires an existing customer with enough points).
+    // Loyalty redemption. The authoritative balance check + decrement runs
+    // atomically inside the settle transaction (a conditional update below), so
+    // concurrent settlements can never over-redeem the same balance. Here we only
+    // need the phone (redemption requires a customer) and the discount value; a
+    // stale pre-transaction read would be a time-of-check/time-of-use hole.
     const redeemPoints = input.redeemPoints ?? 0;
     let redeemDiscount = 0;
     if (redeemPoints > 0) {
       if (!phone) throw new BadRequestException("A customer phone is required to redeem points");
-      const existing = await this.prisma.customer.findUnique({
-        where: { outletId_phone: { outletId: order.outletId, phone } },
-      });
-      if (!existing || existing.loyaltyPoints < redeemPoints) {
-        throw new BadRequestException("Customer does not have enough points to redeem");
-      }
       redeemDiscount = redeemPoints * Number(outletRow.loyaltyPointValue);
     }
 
@@ -326,11 +366,25 @@ export class OrdersService {
         }
       }
 
-      // Customer + loyalty: earn on the final total, apply redemption, keep a ledger.
+      // Redeem atomically, BEFORE earning: a conditional decrement that only
+      // matches while the customer still holds enough points. The row lock makes a
+      // concurrent second settlement re-evaluate the (already decremented) balance,
+      // so the same points can never be spent twice. Zero rows updated means the
+      // balance is insufficient or the customer does not exist — throwing rolls the
+      // whole settlement back.
+      if (redeemPoints > 0) {
+        const redeemed = await tx.customer.updateMany({
+          where: { outletId: order.outletId, phone, loyaltyPoints: { gte: redeemPoints } },
+          data: { loyaltyPoints: { decrement: redeemPoints } },
+        });
+        if (redeemed.count === 0) throw new BadRequestException("Customer does not have enough points to redeem");
+      }
+
+      // Customer + loyalty: earn on the final total, keep a ledger. Any redemption
+      // was already applied above, so earning is a plain increment.
       let customerId: string | null = null;
       if (phone) {
         earned = Math.round(total * Number(outletRow.loyaltyEarnRate));
-        const net = earned - redeemPoints;
         const customer = await tx.customer.upsert({
           where: { outletId_phone: { outletId: order.outletId, phone } },
           create: {
@@ -338,14 +392,14 @@ export class OrdersService {
             outletId: order.outletId,
             phone,
             name,
-            loyaltyPoints: net,
+            loyaltyPoints: earned,
             totalOrders: 1,
             totalSpent: total,
             lastVisitAt: new Date(),
           },
           update: {
             name: name ?? undefined,
-            loyaltyPoints: { increment: net },
+            loyaltyPoints: { increment: earned },
             totalOrders: { increment: 1 },
             totalSpent: { increment: total },
             lastVisitAt: new Date(),
@@ -513,7 +567,7 @@ export class OrdersService {
           variationName,
           quantity: input.quantity,
           unitPrice,
-          lineTotal: unitPrice * input.quantity,
+          lineTotal: fromPaise(lineTotalPaise(unitPrice, input.quantity)),
           taxRate: item.taxRate,
           note: input.note ?? null,
           kotId: kot.id,
@@ -561,7 +615,7 @@ export class OrdersService {
           itemName: combo.name,
           quantity: comboInput.quantity,
           unitPrice: comboUnit,
-          lineTotal: comboUnit * comboInput.quantity,
+          lineTotal: fromPaise(lineTotalPaise(comboUnit, comboInput.quantity)),
           taxRate: combo.taxRate,
           note: comboInput.note ?? null,
           comboId: combo.id,
@@ -630,22 +684,19 @@ export class OrdersService {
     discount?: Prisma.Decimal,
   ) {
     const items = await tx.orderItem.findMany({ where: { orderId } });
-    const subtotal = items.reduce((s, i) => s + Number(i.lineTotal), 0);
-    const discountAmount = Math.min(Number(discount ?? 0), subtotal);
-    const taxable = subtotal - discountAmount;
-    const rawTax = items.reduce(
-      (s, i) => s + Number(i.lineTotal) * (Number(i.taxRate) / 100),
-      0,
+    // Compute in integer paise via the shared formula the edge device also uses,
+    // so an order's totals are identical whether billed online or offline.
+    const totals = computeOrderTotals(
+      items.map((i) => ({ lineTotalPaise: toPaise(Number(i.lineTotal)), taxRatePercent: Number(i.taxRate) })),
+      Number(discount ?? 0),
     );
-    const taxAmount = subtotal > 0 ? rawTax * (taxable / subtotal) : 0;
-    const total = Math.round((taxable + taxAmount) * 100) / 100;
     return tx.order.update({
       where: { id: orderId },
       data: {
-        subtotal,
-        discountAmount,
-        taxAmount: Math.round(taxAmount * 100) / 100,
-        total,
+        subtotal: totals.subtotal,
+        discountAmount: totals.discountAmount,
+        taxAmount: totals.taxAmount,
+        total: totals.total,
         version: { increment: 1 },
       },
     });

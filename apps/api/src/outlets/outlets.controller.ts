@@ -1,5 +1,5 @@
 import { Controller, ForbiddenException, Get, Param } from "@nestjs/common";
-import type { AreaDto, AuthUser, OutletDto } from "@petpooja/shared";
+import type { AreaDto, AuthUser, OutletDto } from "@stello/shared";
 import { PrismaService } from "../prisma/prisma.service";
 import { CurrentUser } from "../common/decorators";
 

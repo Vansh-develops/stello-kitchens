@@ -668,6 +668,7 @@ export interface HsnSummaryRowDto {
   rate: number;
   cgst: number;
   sgst: number;
+  igst: number;
 }
 
 export interface InvoiceDto {
@@ -701,6 +702,7 @@ export interface InvoiceRowDto {
   taxableValue: number;
   cgst: number;
   sgst: number;
+  igst: number;
   total: number;
   status: InvoiceStatus;
   hasIrn: boolean;

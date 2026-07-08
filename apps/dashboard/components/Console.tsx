@@ -7,7 +7,7 @@ import type {
   AdminMenuDto,
   AuthUser,
   OutletDto,
-} from "@petpooja/shared";
+} from "@stello/shared";
 import { api } from "@/lib/api";
 import { ItemDialog } from "./ItemDialog";
 import { AddonGroupDialog } from "./AddonGroupDialog";
@@ -110,8 +110,8 @@ export function Console({
     <div className="console">
       <header className="top">
         <div className="top-brand">
-          <span className="wordmark">SPICE ROUTE</span>
-          <span className="top-sub">Console · {outlet.name.replace("Spice Route - ", "")}</span>
+          <span className="wordmark">STELLO KITCHENS</span>
+          <span className="top-sub">Console · {outlet.name.replace("Stello Kitchens - ", "")}</span>
         </div>
         <nav className="top-tabs">
           {(

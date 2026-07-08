@@ -13,7 +13,7 @@ export function App() {
 
   return (
     <div className="landing">
-      <div className="mark">Spice Route</div>
+      <div className="mark">Stello Kitchens</div>
       <h1>Scan to order</h1>
       <p>
         Point your camera at the QR code on your table to browse the menu and order without

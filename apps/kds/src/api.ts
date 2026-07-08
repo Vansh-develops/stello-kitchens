@@ -6,7 +6,7 @@ import type {
   LoginResponse,
   OutletDto,
   StationDto,
-} from "@petpooja/shared";
+} from "@stello/shared";
 
 const BASE = "/api/v1";
 

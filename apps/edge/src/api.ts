@@ -1,4 +1,4 @@
-import type { CashSessionDto, MenuCategoryDto } from "@petpooja/shared";
+import type { CashSessionDto, MenuCategoryDto } from "@stello/shared";
 
 // The renderer talks ONLY to the local master service (sidecar) — never the cloud
 // directly — so it operates identically online and offline.
@@ -30,7 +30,8 @@ export interface LocalOrderRow {
   status: string;
   synced: boolean;
   serverId: string | null;
-  billNumber: string | null;
+  billNumber: string | null; // authoritative GST number, populated after sync
+  offlineRef: string | null; // provisional device reference (offline receipt)
   total: number;
   orderType: string;
   tableId: string | null;
@@ -39,7 +40,7 @@ export interface LocalOrderRow {
 export interface LocalOrder {
   clientId: string;
   total: number;
-  offlineBillNumber: string | null;
+  offlineRef: string | null;
 }
 
 // CashSessionDto imported only to keep the shared dependency wired; not used directly.

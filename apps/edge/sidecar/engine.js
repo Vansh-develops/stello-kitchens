@@ -8,6 +8,9 @@ const path = require("node:path");
 const fs = require("node:fs");
 const { randomUUID } = require("node:crypto");
 const Database = require("better-sqlite3");
+// Shared integer-paise money formula — the exact same code the cloud API runs, so
+// an order billed offline totals identically to one billed online.
+const { computeOrderTotals, lineTotalPaise, fromPaise, toPaise } = require("@stello/shared");
 
 class EdgeEngine {
   constructor({ dataDir, apiUrl }) {
@@ -102,18 +105,17 @@ class EdgeEngine {
       addonNames,
       quantity: input.quantity,
       unitPrice,
-      lineTotal: Math.round(unitPrice * input.quantity * 100) / 100,
+      lineTotal: fromPaise(lineTotalPaise(unitPrice, input.quantity)),
       taxRate: item.taxRate,
     };
   }
 
   _totals(lines, discountAmount) {
-    const subtotal = Math.round(lines.reduce((s, l) => s + l.lineTotal, 0) * 100) / 100;
-    const discount = Math.min(discountAmount || 0, subtotal);
-    const taxable = subtotal - discount;
-    const rawTax = lines.reduce((s, l) => s + l.lineTotal * (l.taxRate / 100), 0);
-    const taxAmount = subtotal > 0 ? Math.round(rawTax * (taxable / subtotal) * 100) / 100 : 0;
-    return { subtotal, discountAmount: discount, taxAmount, total: Math.round((taxable + taxAmount) * 100) / 100 };
+    // Delegate to the shared paise formula so edge totals match the server exactly.
+    return computeOrderTotals(
+      lines.map((l) => ({ lineTotalPaise: toPaise(l.lineTotal), taxRatePercent: l.taxRate })),
+      discountAmount || 0,
+    );
   }
 
   createOrder({ orderType, tableId, customerName, customerPhone, items }) {
@@ -130,7 +132,7 @@ class EdgeEngine {
       payments: [],
       ...t,
       status: "OPEN",
-      offlineBillNumber: null,
+      offlineRef: null,
       clientUpdatedAt: new Date().toISOString(),
     };
     this._save(order, "OPEN", 0); // OPEN orders aren't pushed until terminal
@@ -146,10 +148,13 @@ class EdgeEngine {
     if (Math.abs(paid - t.total) > 0.01) throw new Error(`Payments (${paid}) must equal total (${t.total})`);
     const seq = parseInt(this._meta("billSeq"), 10) + 1;
     this._setMeta("billSeq", seq);
+    // A provisional reference for the customer's offline receipt — NOT the tax
+    // invoice number. The server assigns the authoritative GST bill number from
+    // the single outlet series when this order syncs.
     Object.assign(order, t, {
       payments,
       status: "SETTLED",
-      offlineBillNumber: `${this.deviceId.split("-")[1] || "D"}-${seq}`,
+      offlineRef: `${this.deviceId.split("-")[1] || "D"}-${seq}`,
       clientUpdatedAt: new Date().toISOString(),
     });
     this._save(order, "SETTLED", 1); // dirty → will push on next sync
@@ -179,7 +184,9 @@ class EdgeEngine {
         dirty,
         clientUpdatedAt: order.clientUpdatedAt,
         serverId: order._serverId || null,
-        billNumber: order.offlineBillNumber || null,
+        // Local `billNumber` holds the authoritative server number once synced;
+        // before sync it stays null (the provisional value is `offlineRef`).
+        billNumber: order.billNumber || null,
       });
   }
   _get(clientId) {
@@ -198,7 +205,8 @@ class EdgeEngine {
           status: r.status,
           synced: r.dirty === 0,
           serverId: r.serverId,
-          billNumber: r.billNumber,
+          billNumber: r.billNumber, // authoritative GST number (after sync)
+          offlineRef: s.offlineRef, // provisional device reference (offline receipt)
           total: s.total,
           orderType: s.orderType,
           tableId: s.tableId,
@@ -225,11 +233,40 @@ class EdgeEngine {
     return body;
   }
 
-  /** Log in to the cloud once to seed token + outlet + reference snapshot. */
-  async bootstrap({ email, password }) {
+  /**
+   * Bind this device to ONE outlet and seed token + reference snapshot. The outlet
+   * is chosen explicitly, never by guessing a name or defaulting to the first in a
+   * list — a terminal that silently attached to the wrong outlet would file its
+   * bills and stock moves against another store.
+   *
+   * `outletId` comes from the caller (device provisioning / EDGE_OUTLET_ID). It must
+   * be one the signed-in user can access. Once a device is bound it stays bound:
+   * re-bootstrapping with a different outlet is refused, because the offline outbox
+   * already holds orders that belong to the original outlet.
+   */
+  async bootstrap({ email, password, outletId }) {
     const login = await this._api("/auth/login", { method: "POST", body: JSON.stringify({ email, password }) });
     const outlets = await this._apiAuthed(login.accessToken, "/outlets");
-    const outlet = outlets.find((o) => o.name.includes("Koramangala")) || outlets[0];
+    if (!Array.isArray(outlets) || outlets.length === 0) throw new Error("This account has no accessible outlets");
+
+    const bound = this.outletId;
+    // Resolve the target outlet: an already-bound device keeps its outlet; otherwise
+    // use the explicitly requested one; if the user has exactly one, that is unambiguous.
+    const target = bound ?? outletId ?? (outlets.length === 1 ? outlets[0].id : null);
+    if (!target) {
+      const list = outlets.map((o) => `${o.id} (${o.name})`).join(", ");
+      throw new Error(`This account can access multiple outlets — specify which one to bind this device to. Available: ${list}`);
+    }
+    if (bound && outletId && outletId !== bound) {
+      throw new Error(`Device is already bound to outlet ${bound}; refusing to rebind to ${outletId}. Re-provision (clear device data) to move it.`);
+    }
+
+    const outlet = outlets.find((o) => o.id === target);
+    if (!outlet) {
+      const list = outlets.map((o) => `${o.id} (${o.name})`).join(", ");
+      throw new Error(`Outlet ${target} is not accessible to this account. Available: ${list}`);
+    }
+
     this.setSession({ token: login.accessToken, outletId: outlet.id, outletName: outlet.name });
     const snap = await this._api(`/sync/snapshot?outletId=${outlet.id}`);
     this.cacheSnapshot(snap);
@@ -265,7 +302,7 @@ class EdgeEngine {
           items: s.lines.map((l) => l.input),
           payments: s.payments,
           status: s.status,
-          offlineBillNumber: s.offlineBillNumber,
+          offlineRef: s.offlineRef,
           discountAmount: s.discountAmount,
           clientUpdatedAt: s.clientUpdatedAt,
           clientVersion: 1,

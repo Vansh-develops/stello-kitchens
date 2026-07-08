@@ -1,4 +1,5 @@
-import type { AggregatorPlatform } from "@petpooja/shared";
+import type { AggregatorPlatform } from "@stello/shared";
+import type { WebhookHeaders } from "./signatures";
 
 /** The normalised order shape the connector forwards to the main API. */
 export interface CanonicalOrder {
@@ -19,5 +20,12 @@ export interface CanonicalOrder {
  */
 export interface PlatformAdapter {
   readonly platform: AggregatorPlatform;
+  /**
+   * Authenticate the delivery against the provider's signature scheme, using the
+   * exact raw request bytes. Throws UnauthorizedException (401) on any missing or
+   * invalid signature. MUST be called before {@link parseOrder} — an unverified
+   * payload is never parsed or enqueued.
+   */
+  verifySignature(rawBody: Buffer, headers: WebhookHeaders): void;
   parseOrder(payload: unknown): CanonicalOrder;
 }

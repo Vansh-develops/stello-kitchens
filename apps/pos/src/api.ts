@@ -14,7 +14,7 @@ import type {
   OutletDto,
   SettleOrderInput,
   UpiQrDto,
-} from "@petpooja/shared";
+} from "@stello/shared";
 
 const BASE = "/api/v1";
 

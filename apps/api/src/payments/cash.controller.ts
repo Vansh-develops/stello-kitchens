@@ -9,7 +9,7 @@ import {
   type CloseDrawerInput,
   type OpenDrawerInput,
   type RefundInput,
-} from "@petpooja/shared";
+} from "@stello/shared";
 import { CashService } from "./cash.service";
 import { ZodValidationPipe } from "../common/zod.pipe";
 import { CurrentUser, RequirePermission } from "../common/decorators";

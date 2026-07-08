@@ -3,7 +3,7 @@ import type {
   PublicMenuDto,
   SubmitOrderRequestInput,
   TokenBoardDto,
-} from "@petpooja/shared";
+} from "@stello/shared";
 
 const BASE = "/api/v1/public/scan";
 

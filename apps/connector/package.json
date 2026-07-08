@@ -1,5 +1,5 @@
 {
-  "name": "@petpooja/connector",
+  "name": "@stello/connector",
   "version": "0.1.0",
   "private": true,
   "scripts": {
@@ -13,7 +13,7 @@
     "@nestjs/config": "^4.0.0",
     "@nestjs/core": "^11.0.0",
     "@nestjs/platform-express": "^11.0.0",
-    "@petpooja/shared": "workspace:*",
+    "@stello/shared": "workspace:*",
     "bullmq": "^5.34.0",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.0"

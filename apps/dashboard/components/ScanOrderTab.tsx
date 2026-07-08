@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import QRCode from "qrcode";
-import type { OrderRequestDto, TableQrDto } from "@petpooja/shared";
+import type { OrderRequestDto, TableQrDto } from "@stello/shared";
 import { api } from "@/lib/api";
 
 // Where the diner PWA is served. In dev it's the Vite app on :5176; in prod this

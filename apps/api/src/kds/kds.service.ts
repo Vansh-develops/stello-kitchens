@@ -5,7 +5,7 @@ import type {
   KdsStockItemDto,
   KdsTicketDto,
   StationDto,
-} from "@petpooja/shared";
+} from "@stello/shared";
 import { PrismaService } from "../prisma/prisma.service";
 import { RealtimeGateway } from "../realtime/realtime.gateway";
 

@@ -6,7 +6,7 @@ import type {
   DeviceType,
   OutletBackupDto,
   UpdateDeviceInput,
-} from "@petpooja/shared";
+} from "@stello/shared";
 import { Prisma } from "@prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
 import { RealtimeGateway } from "../realtime/realtime.gateway";

@@ -7,7 +7,7 @@ import type {
   CashSessionReportDto,
   RefundInput,
   UpiQrDto,
-} from "@petpooja/shared";
+} from "@stello/shared";
 import { Prisma } from "@prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
 import { PAYMENT_GATEWAY, type PaymentGateway } from "./payment.gateway";

@@ -1,4 +1,5 @@
 import { BadRequestException } from "@nestjs/common";
+import { verifyHmacSha256, type WebhookHeaders } from "./signatures";
 import type { CanonicalOrder, PlatformAdapter } from "./types";
 
 /**
@@ -9,6 +10,12 @@ import type { CanonicalOrder, PlatformAdapter } from "./types";
  */
 export class ZomatoAdapter implements PlatformAdapter {
   readonly platform = "ZOMATO" as const;
+
+  // Zomato Order Relay signs the raw body with HMAC-SHA256 and sends the hex
+  // digest in X-Zomato-Signature; the secret is issued at POS onboarding.
+  verifySignature(rawBody: Buffer, headers: WebhookHeaders): void {
+    verifyHmacSha256({ platform: this.platform, rawBody, headers, headerName: "X-Zomato-Signature", secretEnv: "ZOMATO_WEBHOOK_SECRET" });
+  }
 
   parseOrder(payload: unknown): CanonicalOrder {
     const p = payload as {

@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import type { MenuItemDto, OrderItemInput } from "@petpooja/shared";
+import type { MenuItemDto, OrderItemInput } from "@stello/shared";
 
 type Line = OrderItemInput & {
   variationName: string | null;

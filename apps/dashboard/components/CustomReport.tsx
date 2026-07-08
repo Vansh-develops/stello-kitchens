@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import type { CustomReportDto, ReportDimension, ReportMetric } from "@petpooja/shared";
+import type { CustomReportDto, ReportDimension, ReportMetric } from "@stello/shared";
 import { api } from "@/lib/api";
 
 const DIMENSIONS: { key: ReportDimension; label: string }[] = [

@@ -1,5 +1,5 @@
 {
-  "name": "@petpooja/edge",
+  "name": "@stello/edge",
   "version": "0.1.0",
   "private": true,
   "description": "Offline-first edge POS: local master service (Node + SQLite) + Electron shell",
@@ -11,7 +11,7 @@
     "electron": "electron ."
   },
   "dependencies": {
-    "@petpooja/shared": "workspace:*",
+    "@stello/shared": "workspace:*",
     "better-sqlite3": "^11.8.0",
     "express": "^4.21.0",
     "react": "^19.0.0",

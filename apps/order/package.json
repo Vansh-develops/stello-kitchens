@@ -1,5 +1,5 @@
 {
-  "name": "@petpooja/order",
+  "name": "@stello/order",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -9,7 +9,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@petpooja/shared": "workspace:*",
+    "@stello/shared": "workspace:*",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
   },

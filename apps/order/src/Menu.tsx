@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import type { ComboDto, MenuItemDto, PublicMenuDto } from "@petpooja/shared";
+import type { ComboDto, MenuItemDto, PublicMenuDto } from "@stello/shared";
 import { api } from "./api";
 
 // Common display shape + a discriminator that carries what the submit payload needs.
@@ -150,7 +150,7 @@ export function Menu({ mode, token }: { mode: "table" | "kiosk"; token: string }
   };
 
   if (error && !menu) return <Splash title="Hmm." sub={error} />;
-  if (!menu) return <Splash title="Spice Route" sub="Loading the menu…" />;
+  if (!menu) return <Splash title="Stello Kitchens" sub="Loading the menu…" />;
 
   if (phase === "placed") {
     return (
@@ -175,7 +175,7 @@ export function Menu({ mode, token }: { mode: "table" | "kiosk"; token: string }
     <div className="menu">
       <header className="menu-head">
         <div className="brand-row">
-          <span className="mark">Spice Route</span>
+          <span className="mark">Stello Kitchens</span>
           <span className="where">
             {mode === "table" ? `Table ${menu.tableName}` : "Takeaway"}
           </span>
@@ -519,7 +519,7 @@ function Confirmation({
 function Splash({ title, sub }: { title: string; sub: string }) {
   return (
     <div className="landing">
-      <div className="mark">Spice Route</div>
+      <div className="mark">Stello Kitchens</div>
       <h1>{title}</h1>
       <p>{sub}</p>
     </div>

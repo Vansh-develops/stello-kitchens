@@ -10,6 +10,9 @@ const { EdgeEngine } = require("./engine");
 const PORT = Number(process.env.EDGE_PORT || 4010);
 const API_URL = process.env.MAIN_API_URL || "http://localhost:3001/api/v1";
 const DATA_DIR = process.env.EDGE_DATA_DIR || path.join(__dirname, "..", "edge-data");
+// Which outlet this terminal is provisioned for. Set at install time; the caller
+// may still pass an explicit outletId in the bootstrap body to override for setup.
+const OUTLET_ID = process.env.EDGE_OUTLET_ID || undefined;
 
 const engine = new EdgeEngine({ dataDir: DATA_DIR, apiUrl: API_URL });
 const app = express();
@@ -31,7 +34,7 @@ const wrap = (fn) => async (req, res) => {
 };
 
 app.get("/status", wrap(async () => ({ ...engine.status(), online: await engine.isOnline() })));
-app.post("/bootstrap", wrap((req) => engine.bootstrap(req.body)));
+app.post("/bootstrap", wrap((req) => engine.bootstrap({ outletId: OUTLET_ID, ...req.body })));
 app.get("/menu", wrap(async () => engine.menu()));
 app.get("/areas", wrap(async () => engine.areas()));
 app.get("/orders", wrap(async () => engine.listOrders()));

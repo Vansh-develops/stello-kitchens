@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import QRCode from "qrcode";
-import type { InvoiceDto, InvoiceRowDto } from "@petpooja/shared";
+import type { InvoiceDto, InvoiceRowDto } from "@stello/shared";
 import { api } from "@/lib/api";
 
 const money = (n: number) => `₹${n.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;

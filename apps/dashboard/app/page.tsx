@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import type { AuthUser, OutletDto } from "@petpooja/shared";
+import type { AuthUser, OutletDto } from "@stello/shared";
 import { api, hasToken, setToken } from "@/lib/api";
 import { Console } from "@/components/Console";
 
@@ -55,7 +55,7 @@ export default function Page() {
   if (!outlet) {
     return (
       <div className="pick-outlet">
-        <span className="wordmark">SPICE ROUTE · CONSOLE</span>
+        <span className="wordmark">STELLO KITCHENS · CONSOLE</span>
         <h1>Select outlet</h1>
         <div className="outlet-list">
           {outlets.map((o) => (
@@ -107,7 +107,7 @@ function Login({ onLoggedIn }: { onLoggedIn: () => void }) {
   return (
     <div className="login">
       <form className="login-card" onSubmit={submit}>
-        <span className="wordmark">SPICE ROUTE · CONSOLE</span>
+        <span className="wordmark">STELLO KITCHENS · CONSOLE</span>
         <h1>Sign in to manage the menu</h1>
         <label>
           Email

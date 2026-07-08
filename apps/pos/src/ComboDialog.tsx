@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import type { ComboDto } from "@petpooja/shared";
+import type { ComboDto } from "@stello/shared";
 
 // What a configured combo contributes to the cart.
 export type ComboLine = {

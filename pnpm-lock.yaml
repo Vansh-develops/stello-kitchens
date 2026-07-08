@@ -31,12 +31,12 @@ importers:
       '@nestjs/websockets':
         specifier: ^11.0.0
         version: 11.1.27(@nestjs/common@11.1.27(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/core@11.1.27)(@nestjs/platform-socket.io@11.1.27)(reflect-metadata@0.2.2)(rxjs@7.8.2)
-      '@petpooja/shared':
-        specifier: workspace:*
-        version: link:../../packages/shared
       '@prisma/client':
         specifier: ^6.8.0
         version: 6.19.3(prisma@6.19.3(typescript@5.9.3))(typescript@5.9.3)
+      '@stello/shared':
+        specifier: workspace:*
+        version: link:../../packages/shared
       bcryptjs:
         specifier: ^3.0.0
         version: 3.0.3
@@ -89,7 +89,7 @@ importers:
       '@nestjs/platform-express':
         specifier: ^11.0.0
         version: 11.1.27(@nestjs/common@11.1.27(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/core@11.1.27)
-      '@petpooja/shared':
+      '@stello/shared':
         specifier: workspace:*
         version: link:../../packages/shared
       bullmq:
@@ -117,7 +117,7 @@ importers:
 
   apps/dashboard:
     dependencies:
-      '@petpooja/shared':
+      '@stello/shared':
         specifier: workspace:*
         version: link:../../packages/shared
       next:
@@ -151,7 +151,7 @@ importers:
 
   apps/edge:
     dependencies:
-      '@petpooja/shared':
+      '@stello/shared':
         specifier: workspace:*
         version: link:../../packages/shared
       better-sqlite3:
@@ -194,7 +194,7 @@ importers:
 
   apps/kds:
     dependencies:
-      '@petpooja/shared':
+      '@stello/shared':
         specifier: workspace:*
         version: link:../../packages/shared
       react:
@@ -225,7 +225,7 @@ importers:
 
   apps/order:
     dependencies:
-      '@petpooja/shared':
+      '@stello/shared':
         specifier: workspace:*
         version: link:../../packages/shared
       react:
@@ -253,7 +253,7 @@ importers:
 
   apps/pos:
     dependencies:
-      '@petpooja/shared':
+      '@stello/shared':
         specifier: workspace:*
         version: link:../../packages/shared
       qrcode:

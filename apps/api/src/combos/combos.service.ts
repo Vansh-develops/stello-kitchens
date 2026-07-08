@@ -4,7 +4,7 @@ import type {
   ComboDto,
   CreateComboInput,
   UpdateComboInput,
-} from "@petpooja/shared";
+} from "@stello/shared";
 import { Prisma } from "@prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
 import { RealtimeGateway } from "../realtime/realtime.gateway";

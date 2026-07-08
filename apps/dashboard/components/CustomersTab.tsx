@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import type { CustomerDetailDto, CustomerDto, CustomerSummaryDto } from "@petpooja/shared";
+import type { CustomerDetailDto, CustomerDto, CustomerSummaryDto } from "@stello/shared";
 import { api } from "@/lib/api";
 
 const money = (n: number) => `₹${n.toLocaleString("en-IN", { maximumFractionDigits: 0 })}`;

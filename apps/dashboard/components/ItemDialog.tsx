@@ -7,7 +7,7 @@ import type {
   AdminItemDto,
   ChannelDto,
   CreateItemInput,
-} from "@petpooja/shared";
+} from "@stello/shared";
 import { api } from "@/lib/api";
 
 type ChannelForm = { price: string; externalId: string };

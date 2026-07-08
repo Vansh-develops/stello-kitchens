@@ -7,7 +7,7 @@ import type {
   SyncPushInput,
   SyncPushResultRowDto,
   SyncSnapshotDto,
-} from "@petpooja/shared";
+} from "@stello/shared";
 import { PrismaService } from "../prisma/prisma.service";
 import { OrdersService } from "../orders/orders.service";
 
@@ -80,7 +80,12 @@ export class SyncService {
     return { menu, areas: areaDtos, serverTime: new Date().toISOString() };
   }
 
-  /** Apply an outbox batch from a device; idempotent, last-write-wins per order. */
+  /**
+   * Apply an outbox batch from a device. Idempotent and insert-once per order: the
+   * first delivery of a (deviceId, clientId) is applied and every later delivery is
+   * reported as a duplicate — a terminal offline order is never overwritten by a
+   * re-sync. See apps/edge/README.md for the offline consistency model.
+   */
   async push(user: AuthUser, input: SyncPushInput): Promise<SyncPushResultRowDto[]> {
     this.assertOutlet(user, input.outletId);
     const results: SyncPushResultRowDto[] = [];

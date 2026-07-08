@@ -14,7 +14,7 @@ import {
   type FeedbackDto,
   type FeedbackSubmitInput,
   type LoyaltyAdjustInput,
-} from "@petpooja/shared";
+} from "@stello/shared";
 import { Prisma } from "@prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
 import { NOTIFICATION_PROVIDER, type NotificationProvider } from "./notification.provider";

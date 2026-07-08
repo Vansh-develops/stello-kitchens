@@ -1,5 +1,5 @@
 {
-  "name": "petpooja-clone",
+  "name": "stello-kitchens",
   "private": true,
   "version": "0.1.0",
   "packageManager": "pnpm@10.33.2",
@@ -14,17 +14,17 @@
     ]
   },
   "scripts": {
-    "dev:api": "pnpm --filter @petpooja/api start:dev",
-    "dev:pos": "pnpm --filter @petpooja/pos dev",
-    "dev:kds": "pnpm --filter @petpooja/kds dev",
-    "dev:dashboard": "pnpm --filter @petpooja/dashboard dev",
-    "dev:connector": "pnpm --filter @petpooja/connector start:dev",
-    "order": "pnpm --filter @petpooja/order dev",
-    "edge:sidecar": "pnpm --filter @petpooja/edge sidecar",
-    "edge:renderer": "pnpm --filter @petpooja/edge dev",
-    "edge:electron": "pnpm --filter @petpooja/edge electron",
+    "dev:api": "pnpm --filter @stello/api start:dev",
+    "dev:pos": "pnpm --filter @stello/pos dev",
+    "dev:kds": "pnpm --filter @stello/kds dev",
+    "dev:dashboard": "pnpm --filter @stello/dashboard dev",
+    "dev:connector": "pnpm --filter @stello/connector start:dev",
+    "order": "pnpm --filter @stello/order dev",
+    "edge:sidecar": "pnpm --filter @stello/edge sidecar",
+    "edge:renderer": "pnpm --filter @stello/edge dev",
+    "edge:electron": "pnpm --filter @stello/edge electron",
     "build": "pnpm -r build",
-    "db:migrate": "pnpm --filter @petpooja/api prisma:migrate",
-    "db:seed": "pnpm --filter @petpooja/api prisma:seed"
+    "db:migrate": "pnpm --filter @stello/api prisma:migrate",
+    "db:seed": "pnpm --filter @stello/api prisma:seed"
   }
 }

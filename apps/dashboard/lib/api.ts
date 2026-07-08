@@ -55,7 +55,7 @@ import type {
   VendorDto,
   VendorInput,
   WastageInput,
-} from "@petpooja/shared";
+} from "@stello/shared";
 
 const BASE = "/api/v1";
 

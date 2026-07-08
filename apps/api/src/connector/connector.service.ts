@@ -6,10 +6,11 @@ import type {
   ConnectorIngestResult,
   MenuPushRowDto,
   ReconciliationRowDto,
-} from "@petpooja/shared";
+} from "@stello/shared";
 import { Prisma } from "@prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
 import { OrdersService } from "../orders/orders.service";
+import { RealtimeGateway } from "../realtime/realtime.gateway";
 
 // Aggregator platform → the sales-channel name that carries its pricing/maps.
 const PLATFORM_CHANNEL: Record<string, string> = {
@@ -24,34 +25,26 @@ export class ConnectorService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly orders: OrdersService,
+    private readonly realtime: RealtimeGateway,
   ) {}
 
-  /** Ingest a normalised aggregator order: map external items, create the POS order. */
+  /**
+   * Ingest a normalised aggregator order. Idempotent + atomic: the idempotency
+   * key and the internal order/KOT/stock are created in ONE transaction, guarded
+   * by `@@unique([platform, externalOrderId])`. A concurrent re-delivery loses
+   * the unique race and its whole transaction rolls back (no double KOT, no
+   * double depletion); a crash can't orphan an order because nothing commits
+   * until the whole thing does.
+   */
   async ingest(input: ConnectorIngestInput): Promise<ConnectorIngestResult> {
     const outlet = await this.prisma.outlet.findUnique({ where: { id: input.outletId } });
     if (!outlet) throw new NotFoundException("Unknown outlet");
 
-    // Idempotency: a re-delivered webhook must not double-create.
-    const existing = await this.prisma.aggregatorOrder.findUnique({
-      where: { platform_externalOrderId: { platform: input.platform, externalOrderId: input.externalOrderId } },
-    });
-    if (existing) {
-      return {
-        aggregatorOrderId: existing.id,
-        orderId: existing.orderId,
-        kotNumber: null,
-        matched: 0,
-        unmatched: Array.isArray(existing.unmatchedItems) ? (existing.unmatchedItems as string[]) : [],
-        duplicate: true,
-      };
-    }
-
-    const channelName = PLATFORM_CHANNEL[input.platform];
+    // Map external item ids → internal via aggregator_menu_maps (read-only, safe
+    // to compute before the transaction).
     const channel = await this.prisma.channel.findFirst({
-      where: { outletId: input.outletId, name: channelName },
+      where: { outletId: input.outletId, name: PLATFORM_CHANNEL[input.platform] },
     });
-
-    // Map external item ids → internal via aggregator_menu_maps for this channel.
     const matched: { itemId: string; quantity: number }[] = [];
     const unmatched: string[] = [];
     if (channel) {
@@ -68,38 +61,61 @@ export class ConnectorService {
       unmatched.push(...input.items.map((i) => i.externalItemId));
     }
 
-    let orderId: string | null = null;
-    let kotNumber: number | null = null;
-    if (matched.length > 0) {
-      const result = await this.orders.ingestAggregatorOrder({
-        tenantId: outlet.tenantId,
-        outletId: input.outletId,
-        items: matched.map((m) => ({ itemId: m.itemId, quantity: m.quantity, addonIds: [] })),
-        customerName: input.customerName ?? null,
-        customerPhone: input.customerPhoneMasked ?? null,
+    try {
+      const result = await this.prisma.$transaction(async (tx) => {
+        // Reserve the idempotency key first — the unique constraint is the guard.
+        const agg = await tx.aggregatorOrder.create({
+          data: {
+            tenantId: outlet.tenantId,
+            outletId: input.outletId,
+            platform: input.platform,
+            externalOrderId: input.externalOrderId,
+            orderId: null,
+            status: "RECEIVED",
+            customerName: input.customerName ?? null,
+            customerPhoneMasked: input.customerPhoneMasked ?? null,
+            orderValue: input.orderValue,
+            unmatchedItems: unmatched.length ? unmatched : Prisma.JsonNull,
+            rawPayload: (input.rawPayload as Prisma.InputJsonValue) ?? Prisma.JsonNull,
+          },
+        });
+
+        let orderId: string | null = null;
+        let kotNumber: number | null = null;
+        if (matched.length > 0) {
+          const r = await this.orders.ingestAggregatorOrderTx(tx, {
+            tenantId: outlet.tenantId,
+            outletId: input.outletId,
+            items: matched.map((m) => ({ itemId: m.itemId, quantity: m.quantity, addonIds: [] })),
+            customerName: input.customerName ?? null,
+            customerPhone: input.customerPhoneMasked ?? null,
+          });
+          orderId = r.orderId;
+          kotNumber = r.kotNumber;
+          await tx.aggregatorOrder.update({ where: { id: agg.id }, data: { orderId, status: "ACCEPTED" } });
+        }
+        return { aggregatorOrderId: agg.id, orderId, kotNumber, matched: matched.length, unmatched, duplicate: false };
       });
-      orderId = result.orderId;
-      kotNumber = result.kotNumber;
+
+      if (result.orderId) this.realtime.notifyOutlet(input.outletId);
+      return result;
+    } catch (e) {
+      // Duplicate delivery: the unique constraint fired. Return the winner's row.
+      if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") {
+        const existing = await this.prisma.aggregatorOrder.findUnique({
+          where: { platform_externalOrderId: { platform: input.platform, externalOrderId: input.externalOrderId } },
+        });
+        return {
+          aggregatorOrderId: existing?.id ?? "",
+          orderId: existing?.orderId ?? null,
+          kotNumber: null,
+          matched: 0,
+          unmatched: Array.isArray(existing?.unmatchedItems) ? (existing!.unmatchedItems as string[]) : [],
+          duplicate: true,
+        };
+      }
+      throw e;
     }
-
-    const agg = await this.prisma.aggregatorOrder.create({
-      data: {
-        tenantId: outlet.tenantId,
-        outletId: input.outletId,
-        platform: input.platform,
-        externalOrderId: input.externalOrderId,
-        orderId,
-        // Accepted the moment we successfully relay it into the kitchen.
-        status: orderId ? "ACCEPTED" : "RECEIVED",
-        customerName: input.customerName ?? null,
-        customerPhoneMasked: input.customerPhoneMasked ?? null,
-        orderValue: input.orderValue,
-        unmatchedItems: unmatched.length ? unmatched : Prisma.JsonNull,
-        rawPayload: (input.rawPayload as Prisma.InputJsonValue) ?? Prisma.JsonNull,
-      },
-    });
-
-    return { aggregatorOrderId: agg.id, orderId, kotNumber, matched: matched.length, unmatched, duplicate: false };
   }
 
   async updateStatus(platform: string, externalOrderId: string, status: string) {

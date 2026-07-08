@@ -1,5 +1,5 @@
 import { Body, Controller, Get, Post } from "@nestjs/common";
-import { LoginSchema, type LoginInput, type AuthUser } from "@petpooja/shared";
+import { LoginSchema, type LoginInput, type AuthUser } from "@stello/shared";
 import { AuthService } from "./auth.service";
 import { ZodValidationPipe } from "../common/zod.pipe";
 import { CurrentUser, Public } from "../common/decorators";

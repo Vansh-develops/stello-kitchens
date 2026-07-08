@@ -1,5 +1,5 @@
 import { Controller, Get, Param, Post } from "@nestjs/common";
-import type { AuthUser } from "@petpooja/shared";
+import type { AuthUser } from "@stello/shared";
 import { HardwareService } from "./hardware.service";
 import { CurrentUser, Public, RequirePermission } from "../common/decorators";
 
