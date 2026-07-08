@@ -1,18 +1,15 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
 :root {
-  --ink: #14110f;
-  --slate: #1d1a17;
-  --slate-2: #262220;
-  --line: #363029;
-  --cream: #f4ede2;
-  --muted: #a1968a;
-  --faint: #6f665c;
-  --saffron: #f5a623;
-  --saffron-deep: #d98613;
-  --chili: #e2542a;
-  --leaf: #57a55a;
-  --mint: #2dd4a7;
-  --mono: "IBM Plex Mono", ui-monospace, monospace;
-  --sans: "Space Grotesk", system-ui, sans-serif;
+  --bg:#f8fafc; --panel:#ffffff; --panel-2:#f1f5f9; --card-bg:#ffffff;
+  --ink:#0f172a; --muted:#64748b; --faint:#94a3b8; --line:#e2e8f0;
+  --accent:#6366f1; --accent-ink:#ffffff; --accent-soft:#e6e7fd;
+  --veg:#16a34a; --nonveg:#dc2626; --good:#2f7d47; --warn:#c07a09; --crit:#b23a32;
+  --radius:14px; --radius-sm:9px; --gap:12px; --shadow:0 10px 26px rgba(15,23,42,.06);
+  --font-display:ui-sans-serif,system-ui,sans-serif; --font-body:ui-sans-serif,system-ui,sans-serif;
+  --font-num:ui-sans-serif,system-ui,sans-serif; --label-tt:none; --label-ls:0;
 }
 
 * {
@@ -25,9 +22,9 @@ body,
   margin: 0;
 }
 body {
-  font-family: var(--sans);
-  background: var(--ink);
-  color: var(--cream);
+  font-family: var(--font-body);
+  background: var(--bg);
+  color: var(--ink);
   -webkit-font-smoothing: antialiased;
   overscroll-behavior: none;
 }
@@ -40,23 +37,24 @@ button {
 }
 button:focus-visible,
 input:focus-visible {
-  outline: 2px solid var(--saffron);
+  outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
 .wordmark {
+  font-family: var(--font-display);
   font-weight: 700;
   letter-spacing: 0.12em;
-  color: var(--saffron);
+  color: var(--accent);
 }
 .boot {
   display: grid;
   place-items: center;
   height: 100%;
   color: var(--muted);
-  font-family: var(--mono);
+  font-family: var(--font-num);
 }
 .form-error {
-  color: var(--chili);
+  color: var(--crit);
   margin: 0;
   font-size: 14px;
 }
@@ -66,19 +64,19 @@ input:focus-visible {
   height: 100%;
   display: grid;
   place-items: center;
-  background: radial-gradient(120% 100% at 50% 0%, #211c17 0%, var(--ink) 60%);
+  background: radial-gradient(120% 100% at 50% 0%, color-mix(in srgb, var(--bg) 80%, black) 0%, var(--bg) 60%);
   padding: 24px;
 }
 .login-card {
   width: min(400px, 100%);
-  background: var(--slate);
+  background: var(--card-bg);
   border: 1px solid var(--line);
   border-radius: 16px;
   padding: 40px 36px;
   display: flex;
   flex-direction: column;
   gap: 18px;
-  box-shadow: 0 30px 80px -40px #000;
+  box-shadow: var(--shadow);
 }
 .login-card .wordmark {
   font-size: 20px;
@@ -93,35 +91,35 @@ input:focus-visible {
   flex-direction: column;
   gap: 6px;
   font-size: 12px;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+  letter-spacing: var(--label-ls);
+  text-transform: var(--label-tt);
   color: var(--muted);
 }
 .login-card input {
-  background: var(--ink);
+  background: var(--bg);
   border: 1px solid var(--line);
   border-radius: 8px;
   padding: 12px 14px;
-  color: var(--cream);
+  color: var(--ink);
   font-size: 16px;
 }
 .login-hint {
-  font-family: var(--mono);
+  font-family: var(--font-num);
   font-size: 12px;
   color: var(--faint);
   text-align: center;
   margin: 0;
 }
 .btn-primary {
-  background: var(--saffron);
-  color: #241a08;
+  background: var(--accent);
+  color: var(--accent-ink);
   font-weight: 600;
   padding: 13px 18px;
   border-radius: 9px;
   font-size: 15px;
 }
 .btn-primary:disabled {
-  background: var(--slate-2);
+  background: var(--panel-2);
   color: var(--faint);
   cursor: not-allowed;
 }
@@ -147,7 +145,7 @@ input:focus-visible {
 }
 .outlet-card {
   text-align: left;
-  background: var(--slate);
+  background: var(--card-bg);
   border: 1px solid var(--line);
   border-radius: 14px;
   padding: 22px;
@@ -156,7 +154,7 @@ input:focus-visible {
   gap: 6px;
 }
 .outlet-card:hover {
-  border-color: var(--saffron-deep);
+  border-color: var(--accent);
 }
 .outlet-name {
   font-size: 19px;
@@ -180,7 +178,7 @@ input:focus-visible {
   gap: 20px;
   padding: 14px 22px;
   border-bottom: 1px solid var(--line);
-  background: var(--ink);
+  background: var(--panel);
 }
 .kds-brand {
   display: flex;
@@ -192,10 +190,10 @@ input:focus-visible {
   font-size: 20px;
 }
 .kds-sub {
-  font-family: var(--mono);
+  font-family: var(--font-num);
   font-size: 11px;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
+  letter-spacing: var(--label-ls);
+  text-transform: var(--label-tt);
   color: var(--muted);
 }
 
@@ -211,7 +209,7 @@ input:focus-visible {
   gap: 8px;
   padding: 10px 16px;
   border-radius: 999px;
-  background: var(--slate);
+  background: var(--panel-2);
   border: 1px solid var(--line);
   color: var(--muted);
   font-size: 15px;
@@ -219,15 +217,16 @@ input:focus-visible {
   white-space: nowrap;
 }
 .st-tab:hover {
-  color: var(--cream);
+  color: var(--ink);
 }
 .st-tab.active {
-  background: var(--saffron);
-  border-color: var(--saffron);
-  color: #241a08;
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-ink);
 }
 .st-count {
-  font-family: var(--mono);
+  font-family: var(--font-num);
+  font-variant-numeric: tabular-nums;
   font-size: 12px;
   background: rgba(0, 0, 0, 0.25);
   border-radius: 999px;
@@ -236,8 +235,8 @@ input:focus-visible {
   text-align: center;
 }
 .st-tab:not(.active) .st-count {
-  background: var(--slate-2);
-  color: var(--saffron);
+  background: var(--panel-2);
+  color: var(--accent);
 }
 
 .kds-meta {
@@ -249,18 +248,18 @@ input:focus-visible {
 .cook-toggle {
   padding: 9px 15px;
   border-radius: 8px;
-  background: var(--slate);
+  background: var(--panel-2);
   border: 1px solid var(--line);
   color: var(--muted);
   font-size: 14px;
   font-weight: 500;
 }
 .cook-toggle.on {
-  border-color: var(--saffron);
-  color: var(--saffron);
+  border-color: var(--accent);
+  color: var(--accent);
 }
 .conn {
-  font-family: var(--mono);
+  font-family: var(--font-num);
   font-size: 11px;
   letter-spacing: 0.1em;
   display: flex;
@@ -274,34 +273,35 @@ input:focus-visible {
   border-radius: 50%;
 }
 .conn.live {
-  color: var(--mint);
+  color: var(--good);
 }
 .conn.live::before {
-  background: var(--mint);
-  box-shadow: 0 0 8px var(--mint);
+  background: var(--good);
+  box-shadow: 0 0 8px var(--good);
 }
 .conn.down {
-  color: var(--chili);
+  color: var(--crit);
 }
 .conn.down::before {
-  background: var(--chili);
+  background: var(--crit);
 }
 .clock {
-  font-family: var(--mono);
+  font-family: var(--font-num);
+  font-variant-numeric: tabular-nums;
   font-size: 18px;
-  color: var(--cream);
+  color: var(--ink);
   letter-spacing: 0.04em;
 }
 .exit {
   width: 34px;
   height: 34px;
   border-radius: 8px;
-  background: var(--slate);
+  background: var(--panel-2);
   color: var(--muted);
   font-size: 15px;
 }
 .exit:hover {
-  color: var(--cream);
+  color: var(--ink);
 }
 
 /* ---------- Board lanes ---------- */
@@ -314,7 +314,7 @@ input:focus-visible {
   overflow: hidden;
 }
 .lane {
-  background: var(--ink);
+  background: var(--panel);
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -327,17 +327,18 @@ input:focus-visible {
   border-bottom: 1px solid var(--line);
 }
 .lane-label {
-  font-family: var(--mono);
+  font-family: var(--font-num);
   font-size: 12px;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
+  letter-spacing: var(--label-ls);
+  text-transform: var(--label-tt);
   color: var(--muted);
 }
 .lane-ready .lane-label {
-  color: var(--mint);
+  color: var(--good);
 }
 .lane-count {
-  font-family: var(--mono);
+  font-family: var(--font-num);
+  font-variant-numeric: tabular-nums;
   font-size: 14px;
   color: var(--faint);
 }
@@ -352,7 +353,7 @@ input:focus-visible {
 }
 .lane-empty {
   color: var(--line);
-  font-family: var(--mono);
+  font-family: var(--font-num);
   text-align: center;
   margin-top: 20px;
   font-size: 20px;
@@ -361,7 +362,7 @@ input:focus-visible {
 /* ---------- Ticket ---------- */
 .ticket {
   text-align: left;
-  background: var(--slate);
+  background: var(--card-bg);
   border: 1px solid var(--line);
   border-left-width: 5px;
   border-radius: 10px;
@@ -372,7 +373,7 @@ input:focus-visible {
   transition: transform 0.08s ease, border-color 0.12s ease;
 }
 .ticket:hover {
-  border-color: var(--saffron-deep);
+  border-color: var(--accent);
 }
 .ticket:active {
   transform: scale(0.985);
@@ -381,26 +382,26 @@ input:focus-visible {
   opacity: 0.55;
 }
 .ticket.tone-fresh {
-  border-left-color: var(--leaf);
+  border-left-color: var(--good);
 }
 .ticket.tone-warm {
-  border-left-color: var(--saffron);
+  border-left-color: var(--warn);
 }
 .ticket.tone-late {
-  border-left-color: var(--chili);
+  border-left-color: var(--crit);
   animation: pulse-late 1.6s ease-in-out infinite;
 }
 .ticket.tone-done {
-  border-left-color: var(--mint);
+  border-left-color: var(--faint);
   opacity: 0.72;
 }
 @keyframes pulse-late {
   0%,
   100% {
-    box-shadow: 0 0 0 0 rgba(226, 84, 42, 0);
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--crit) 0%, transparent);
   }
   50% {
-    box-shadow: 0 0 0 2px rgba(226, 84, 42, 0.4);
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--crit) 40%, transparent);
   }
 }
 .ticket-top {
@@ -409,27 +410,28 @@ input:focus-visible {
   justify-content: space-between;
 }
 .ticket-kot {
-  font-family: var(--mono);
+  font-family: var(--font-num);
   font-size: 13px;
   letter-spacing: 0.08em;
   color: var(--muted);
 }
 .ticket-age {
-  font-family: var(--mono);
+  font-family: var(--font-num);
+  font-variant-numeric: tabular-nums;
   font-size: 20px;
   font-weight: 600;
 }
 .tone-fresh .ticket-age {
-  color: var(--leaf);
+  color: var(--good);
 }
 .tone-warm .ticket-age {
-  color: var(--saffron);
+  color: var(--warn);
 }
 .tone-late .ticket-age {
-  color: var(--chili);
+  color: var(--crit);
 }
 .tone-done .ticket-age {
-  color: var(--mint);
+  color: var(--faint);
 }
 .ticket-ctx {
   display: flex;
@@ -443,10 +445,10 @@ input:focus-visible {
   text-transform: capitalize;
 }
 .ticket-station {
-  font-family: var(--mono);
+  font-family: var(--font-num);
   font-size: 10px;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+  letter-spacing: var(--label-ls);
+  text-transform: var(--label-tt);
   color: var(--faint);
   border: 1px solid var(--line);
   border-radius: 5px;
@@ -468,10 +470,11 @@ input:focus-visible {
   align-items: start;
 }
 .ti-qty {
-  font-family: var(--mono);
+  font-family: var(--font-num);
+  font-variant-numeric: tabular-nums;
   font-size: 17px;
   font-weight: 600;
-  color: var(--cream);
+  color: var(--ink);
 }
 .ti-name {
   font-size: 16px;
@@ -490,22 +493,22 @@ input:focus-visible {
   font-size: 13px;
 }
 .ti-note {
-  color: var(--saffron) !important;
+  color: var(--accent) !important;
   font-weight: 500;
 }
 .ticket-action {
   align-self: flex-end;
-  font-family: var(--mono);
+  font-family: var(--font-num);
   font-size: 11px;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
+  letter-spacing: var(--label-ls);
+  text-transform: var(--label-tt);
   color: var(--faint);
 }
 .ticket:hover .ticket-action {
-  color: var(--saffron);
+  color: var(--accent);
 }
 .tone-done .ticket-action {
-  color: var(--mint);
+  color: var(--faint);
 }
 
 /* ---------- Cook list ---------- */
@@ -536,7 +539,7 @@ input:focus-visible {
   grid-template-columns: 64px 1fr auto;
   align-items: center;
   gap: 16px;
-  background: var(--slate);
+  background: var(--card-bg);
   border: 1px solid var(--line);
   border-radius: 10px;
   padding: 14px 18px;
@@ -545,10 +548,11 @@ input:focus-visible {
   opacity: 0.55;
 }
 .cook-qty {
-  font-family: var(--mono);
+  font-family: var(--font-num);
+  font-variant-numeric: tabular-nums;
   font-size: 28px;
   font-weight: 700;
-  color: var(--saffron);
+  color: var(--accent);
   text-align: right;
 }
 .cook-name {
@@ -561,18 +565,18 @@ input:focus-visible {
 .btn-86 {
   padding: 8px 16px;
   border-radius: 8px;
-  border: 1px solid var(--chili);
-  color: var(--chili);
-  font-family: var(--mono);
+  border: 1px solid var(--crit);
+  color: var(--crit);
+  font-family: var(--font-num);
   font-size: 13px;
   font-weight: 600;
   letter-spacing: 0.06em;
 }
 .btn-86:hover {
-  background: rgba(226, 84, 42, 0.12);
+  background: color-mix(in srgb, var(--crit) 12%, transparent);
 }
 .btn-86.active {
-  background: var(--slate-2);
+  background: var(--panel-2);
   border-color: var(--line);
   color: var(--muted);
 }
