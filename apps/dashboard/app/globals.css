@@ -2568,7 +2568,11 @@ select:focus-visible {
   letter-spacing: 0.08em;
   padding: 2px 6px;
   border-radius: 5px;
-  color: var(--ink);
+  /* Fixed dark text: the t-printer/t-kiosk/t-display variants below use fixed
+     categorical pastel backgrounds (not themed), so text must stay a fixed
+     dark colour too rather than following the themed --ink token, which is
+     light on dark themes and would produce illegible low-contrast text. */
+  color: #141210;
   background: var(--muted);
 }
 .type-badge.t-pos { background: var(--saffron); }
