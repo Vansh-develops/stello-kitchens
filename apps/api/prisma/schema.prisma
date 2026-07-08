@@ -25,6 +25,7 @@ model Brand {
   id       String @id @default(cuid())
   tenantId String
   name     String
+  themeId  String @default("counter")
 
   tenant  Tenant   @relation(fields: [tenantId], references: [id])
   outlets Outlet[]
