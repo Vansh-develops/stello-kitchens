@@ -22,6 +22,7 @@ import { HardwareModule } from "./hardware/hardware.module";
 import { CombosModule } from "./combos/combos.module";
 import { DevicesModule } from "./devices/devices.module";
 import { LoyaltyModule } from "./loyalty/loyalty.module";
+import { BrandsModule } from "./brands/brands.module";
 
 @Module({
   imports: [
@@ -46,6 +47,7 @@ import { LoyaltyModule } from "./loyalty/loyalty.module";
     CombosModule,
     DevicesModule,
     LoyaltyModule,
+    BrandsModule,
   ],
   providers: [{ provide: APP_GUARD, useClass: JwtAuthGuard }],
 })

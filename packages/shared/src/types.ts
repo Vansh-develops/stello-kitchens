@@ -143,6 +143,8 @@ export interface OutletDto {
   id: string;
   name: string;
   brandName: string;
+  brandId: string;
+  themeId: string;
   address: string | null;
 }
 
@@ -729,6 +731,7 @@ export interface SyncPushResultDto {
 export interface SyncSnapshotDto {
   menu: MenuCategoryDto[];
   areas: AreaDto[];
+  themeId: string;
   serverTime: string;
 }
 

@@ -23,6 +23,7 @@ import { ScanOrderTab } from "./ScanOrderTab";
 import { CombosTab } from "./CombosTab";
 import { PrepTab } from "./PrepTab";
 import { FleetTab } from "./FleetTab";
+import { AppearanceTab } from "./AppearanceTab";
 
 const rupee = (n: number) => `₹${n.toFixed(0)}`;
 type Tab =
@@ -40,7 +41,8 @@ type Tab =
   | "scan"
   | "combos"
   | "prep"
-  | "fleet";
+  | "fleet"
+  | "settings";
 
 export function Console({
   user,
@@ -131,6 +133,7 @@ export function Console({
               "central",
               "scan",
               "fleet",
+              "settings",
             ] as const
           ).map((t) => {
             const labels: Record<string, string> = {
@@ -149,6 +152,7 @@ export function Console({
               central: "Central kitchen",
               scan: "Scan & Order",
               fleet: "Fleet",
+              settings: "Settings",
             };
             return (
               <button key={t} className={`top-tab ${tab === t ? "active" : ""}`} onClick={() => setTab(t)}>
@@ -453,6 +457,7 @@ export function Console({
       {tab === "combos" && <CombosTab outletId={outlet.id} />}
       {tab === "prep" && <PrepTab outletId={outlet.id} />}
       {tab === "fleet" && <FleetTab outletId={outlet.id} />}
+      {tab === "settings" && <AppearanceTab outlet={outlet} />}
 
       {itemDialog && (
         <ItemDialog

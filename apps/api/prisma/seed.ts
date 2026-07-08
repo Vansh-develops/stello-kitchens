@@ -14,7 +14,7 @@ async function main() {
 
   const tenant = await prisma.tenant.create({ data: { name: "Demo Restaurants" } });
   const brand = await prisma.brand.create({
-    data: { tenantId: tenant.id, name: "Stello Kitchens" },
+    data: { tenantId: tenant.id, name: "Stello Kitchens", themeId: "counter" },
   });
 
   const outlet1 = await prisma.outlet.create({

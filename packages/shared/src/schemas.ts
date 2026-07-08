@@ -468,3 +468,11 @@ export const UpdateDeviceSchema = z.object({
   config: z.record(z.unknown()).optional(),
 });
 export type UpdateDeviceInput = z.infer<typeof UpdateDeviceSchema>;
+
+// ---------- Brand theme ----------
+
+import { THEMES } from "./theme";
+export const UpdateBrandThemeSchema = z.object({
+  themeId: z.enum(THEMES.map((t) => t.id) as [string, ...string[]]),
+});
+export type UpdateBrandThemeInput = z.infer<typeof UpdateBrandThemeSchema>;
