@@ -2629,3 +2629,89 @@ select:focus-visible {
   align-items: center;
   gap: 12px;
 }
+
+/* ---------- Settings / Appearance ---------- */
+.appearance {
+  padding: 24px 26px;
+  max-width: 980px;
+}
+.appearance h2 {
+  font-size: 24px;
+  font-weight: 500;
+  margin: 0 0 6px;
+}
+.appearance .muted {
+  color: var(--muted);
+  font-size: 13px;
+}
+.theme-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 14px;
+  margin: 20px 0;
+}
+.theme-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  background: var(--slate);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  overflow: hidden;
+  text-align: left;
+  padding: 0;
+}
+.theme-card:hover {
+  border-color: var(--saffron-deep);
+}
+.theme-card.sel {
+  border-color: var(--saffron);
+  box-shadow: 0 0 0 2px rgba(245, 166, 35, 0.35);
+}
+.theme-prev {
+  height: 74px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+.theme-prev .tw {
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+}
+.theme-prev .tbtn {
+  align-self: flex-start;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 4px 10px;
+  border-radius: 6px;
+}
+.theme-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  font-size: 13px;
+  border-top: 1px solid var(--line);
+}
+.mode {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--faint);
+}
+.mode.dark {
+  color: var(--mint);
+}
+.appearance-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+  max-width: 480px;
+}

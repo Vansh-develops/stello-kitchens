@@ -307,4 +307,11 @@ export const api = {
   deviceBackup: (outletId: string) => request<OutletBackupDto>(`/outlets/${outletId}/devices/backup`),
   deviceHeartbeat: (deviceToken: string) =>
     request<{ ok: boolean }>(`/public/devices/heartbeat`, { method: "POST", body: JSON.stringify({ deviceToken }) }),
+
+  // Brand appearance
+  setBrandTheme: (brandId: string, themeId: string) =>
+    request<{ id: string; themeId: string }>(`/brands/${brandId}/theme`, {
+      method: "PATCH",
+      body: JSON.stringify({ themeId }),
+    }),
 };
