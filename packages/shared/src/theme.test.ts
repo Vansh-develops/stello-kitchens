@@ -54,7 +54,10 @@ describe("theme registry", () => {
     const set: Record<string, string> = {};
     const attrs: Record<string, string> = {};
     const target = {
-      style: { setProperty: (p: string, v: string) => { set[p] = v; } },
+      style: {
+        setProperty: (p: string, v: string) => { set[p] = v; },
+        removeProperty: (_p: string) => {},
+      },
       setAttribute: (n: string, v: string) => { attrs[n] = v; },
     };
     const theme = getTheme("line");
@@ -62,5 +65,23 @@ describe("theme registry", () => {
     expect(set["--accent"]).toBe(theme.tokens["--accent"]);
     expect(attrs["data-theme"]).toBe("line");
     expect(attrs["data-mode"]).toBe("dark");
+  });
+
+  it("applyTheme removes optional tokens not present in the incoming theme", () => {
+    const set: Record<string, string> = {};
+    const removed: string[] = [];
+    const target = {
+      style: {
+        setProperty: (p: string, v: string) => { set[p] = v; },
+        removeProperty: (p: string) => { removed.push(p); delete set[p]; },
+      },
+      setAttribute: (_n: string, _v: string) => {},
+    };
+    applyTheme(getTheme("aurora") as Theme, target);
+    expect(set["--card-blur"]).toBe(getTheme("aurora").tokens["--card-blur"]);
+
+    applyTheme(getTheme("counter") as Theme, target);
+    expect(removed).toContain("--card-blur");
+    expect(set["--card-blur"]).toBeUndefined();
   });
 });

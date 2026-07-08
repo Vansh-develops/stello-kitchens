@@ -11,7 +11,7 @@ export interface Theme {
 
 /** Structural target so this file stays DOM-free (shared tsconfig has no DOM lib). */
 export type StyleTarget = {
-  style: { setProperty(prop: string, value: string): void };
+  style: { setProperty(prop: string, value: string): void; removeProperty(prop: string): void };
   setAttribute(name: string, value: string): void;
 };
 
@@ -110,8 +110,17 @@ const BY_ID = new Map(THEMES.map((t) => [t.id, t]));
 export function isThemeId(id: string): boolean { return BY_ID.has(id); }
 export function getTheme(id: string): Theme { return BY_ID.get(id) ?? BY_ID.get(DEFAULT_THEME_ID)!; }
 
+const REQUIRED_TOKEN_SET = new Set(REQUIRED_TOKENS);
+/** Every token key that appears in some theme but isn't required by all themes. */
+const OPTIONAL_TOKENS: string[] = Array.from(
+  new Set(THEMES.flatMap((t) => Object.keys(t.tokens)).filter((k) => !REQUIRED_TOKEN_SET.has(k)))
+);
+
 export function applyTheme(theme: Theme, root: StyleTarget): void {
   for (const [k, v] of Object.entries(theme.tokens)) root.style.setProperty(k, v);
+  for (const key of OPTIONAL_TOKENS) {
+    if (!(key in theme.tokens)) root.style.removeProperty(key);
+  }
   root.setAttribute("data-theme", theme.id);
   root.setAttribute("data-mode", theme.mode);
 }

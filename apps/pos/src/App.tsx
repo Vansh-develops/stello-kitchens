@@ -34,16 +34,24 @@ export function App() {
     setOutlet(null);
   };
 
-  if (loading) return <div className="boot">Loading…</div>;
+  if (loading) {
+    return (
+      <ThemeProvider themeId={outlet?.themeId}>
+        <div className="boot">Loading…</div>
+      </ThemeProvider>
+    );
+  }
 
   if (!session) {
     return (
-      <LoginScreen
-        onLoggedIn={async () => {
-          setLoading(true);
-          await bootstrap();
-        }}
-      />
+      <ThemeProvider themeId={outlet?.themeId}>
+        <LoginScreen
+          onLoggedIn={async () => {
+            setLoading(true);
+            await bootstrap();
+          }}
+        />
+      </ThemeProvider>
     );
   }
 
