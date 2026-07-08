@@ -41,7 +41,7 @@ function make(id: string, letter: string, name: string, description: string,
 export const THEMES: Theme[] = [
   make("mise","A","Mise en Place","Warm premium hospitality","light",{
     "--bg":"#fbf7ef","--panel":"#fdfbf5","--panel-2":"#f2ebdd","--card-bg":"#fffdf7","--ink":"#2a2018",
-    "--muted":"#7c6f5c","--faint":"#a99e88","--line":"#e6dcc8","--accent":"#c2691a","--accent-ink":"#fdfbf5",
+    "--muted":"#7c6f5c","--faint":"#a99e88","--line":"#e6dcc8","--accent":"#af5e17","--accent-ink":"#fdfbf5",
     "--accent-soft":"#f3e2cd","--veg":"#3f7d4f","--nonveg":"#ba4a1e","--radius":"16px","--radius-sm":"11px",
     "--shadow":"0 10px 30px rgba(120,90,40,.10)","--font-display":SERIF,"--font-num":SERIF }),
   make("line","B","Line","Sleek dark operator console","dark",{
@@ -52,12 +52,12 @@ export const THEMES: Theme[] = [
     "--label-tt":"uppercase","--label-ls":".08em" }),
   make("counter","C","Counter","Bright modern SaaS","light",{
     "--bg":"#f8fafc","--panel":"#ffffff","--panel-2":"#f1f5f9","--card-bg":"#ffffff","--ink":"#0f172a",
-    "--muted":"#64748b","--faint":"#94a3b8","--line":"#e2e8f0","--accent":"#6366f1","--accent-ink":"#ffffff",
+    "--muted":"#64748b","--faint":"#94a3b8","--line":"#e2e8f0","--accent":"#5b5ef0","--accent-ink":"#ffffff",
     "--accent-soft":"#e6e7fd","--veg":"#16a34a","--nonveg":"#dc2626","--radius":"14px","--radius-sm":"9px",
     "--shadow":"0 10px 26px rgba(15,23,42,.06)","--font-display":SANS,"--font-num":SANS }),
   make("thali","D","Thali","Vibrant Indian editorial","light",{
     "--bg":"#fff8ec","--panel":"#fffdf8","--panel-2":"#ffeccd","--card-bg":"#fffdf8","--ink":"#241a3a",
-    "--muted":"#7a6a86","--faint":"#b3a4bd","--line":"#f0dcc0","--accent":"#e77817","--accent-ink":"#fff8ec",
+    "--muted":"#7a6a86","--faint":"#b3a4bd","--line":"#f0dcc0","--accent":"#e77817","--accent-ink":"#2a1a05",
     "--accent-soft":"#ffe1bd","--veg":"#2f9e44","--nonveg":"#d1391f","--radius":"15px","--radius-sm":"10px",
     "--shadow":"0 12px 30px rgba(120,60,10,.13)","--font-display":SERIF,"--font-num":SANS }),
   make("slate","E","Slate","Swiss minimalist monochrome","light",{
@@ -81,7 +81,7 @@ export const THEMES: Theme[] = [
     "--label-tt":"uppercase","--label-ls":".07em" }),
   make("console","H","Countertop Console","Neo-brutalist industrial","light",{
     "--bg":"#d8d3c4","--panel":"#e6e2d6","--panel-2":"#cfcabb","--card-bg":"#efece1","--ink":"#1b1c18",
-    "--muted":"#54564b","--faint":"#8a8c7e","--line":"#1b1c18","--accent":"#ff5a1f","--accent-ink":"#1b1c18",
+    "--muted":"#54564b","--faint":"#8a8c7e","--line":"#1b1c18","--accent":"#ff5a1f","--accent-ink":"#1b1c18","--warn":"#a56908",
     "--accent-soft":"#ffd9c7","--veg":"#2f7d32","--nonveg":"#b3261e","--radius":"2px","--radius-sm":"1px",
     "--shadow":"4px 4px 0 0 #1b1c18","--font-display":SANS,"--font-num":MONO,
     "--label-tt":"uppercase","--label-ls":".08em","--btn-shadow":"3px 3px 0 0 #1b1c18" }),
@@ -94,13 +94,13 @@ export const THEMES: Theme[] = [
   make("herb","J","Herb & Honey","Fresh-market botanical","light",{
     "--bg":"#f4f6ee","--panel":"#fbfcf7","--panel-2":"#eef2e4","--card-bg":"#ffffff","--ink":"#22301f",
     "--muted":"#5e6d55","--faint":"#94a189","--line":"#dde3cf","--accent":"#2f7d3f","--accent-ink":"#f4f9ef",
-    "--accent-soft":"#e2efd6","--veg":"#5fbf5f","--nonveg":"#c0492f","--radius":"18px","--radius-sm":"11px",
+    "--accent-soft":"#e2efd6","--veg":"#4f9f4f","--nonveg":"#c0492f","--radius":"18px","--radius-sm":"11px",
     "--shadow":"0 6px 20px -8px rgba(47,80,40,.28)","--font-display":SERIF,"--font-num":MONO,
     "--label-tt":"uppercase","--label-ls":".08em" }),
   make("tiffin","K","Tiffin Pop","Neo-bento QSR","light",{
     "--bg":"#fbf3ee","--panel":"#ffffff","--panel-2":"#fdece4","--card-bg":"#ffffff","--ink":"#2c2320",
-    "--muted":"#7d6f68","--faint":"#b8a89f","--line":"#f0ddd2","--accent":"#ff5a5f","--accent-ink":"#ffffff",
-    "--accent-soft":"#ffe4e1","--veg":"#2fb37a","--nonveg":"#e8543a","--radius":"20px","--radius-sm":"12px",
+    "--muted":"#736560","--faint":"#b8a89f","--line":"#f0ddd2","--accent":"#ff5a5f","--accent-ink":"#3a1012",
+    "--accent-soft":"#ffe4e1","--veg":"#2a9f6d","--nonveg":"#e8543a","--radius":"20px","--radius-sm":"12px",
     "--shadow":"0 6px 0 #f2d9cd,0 12px 24px -12px rgba(255,90,95,.35)","--font-display":SANS,"--font-num":MONO,
     "--label-tt":"uppercase","--label-ls":".06em","--btn-shadow":"0 4px 0 #e8443f" }),
 ];
