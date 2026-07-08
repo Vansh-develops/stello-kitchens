@@ -196,16 +196,16 @@ body,
   border-radius: 50%;
 }
 .veg {
-  border-color: var(--mint);
+  border-color: var(--veg);
 }
 .veg::after {
-  background: var(--mint);
+  background: var(--veg);
 }
 .nonveg {
-  border-color: var(--chili);
+  border-color: var(--nonveg);
 }
 .nonveg::after {
-  background: var(--chili);
+  background: var(--nonveg);
 }
 .item h3 {
   margin: 0;
