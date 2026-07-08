@@ -77,7 +77,17 @@ export class SyncService {
       tables: a.tables.map((t) => ({ id: t.id, name: t.name, seats: t.seats, occupiedByOrderId: null })),
     }));
 
-    return { menu, areas: areaDtos, serverTime: new Date().toISOString() };
+    const outlet = await this.prisma.outlet.findUniqueOrThrow({
+      where: { id: outletId },
+      select: { brand: { select: { themeId: true } } },
+    });
+
+    return {
+      menu,
+      areas: areaDtos,
+      themeId: outlet.brand.themeId,
+      serverTime: new Date().toISOString(),
+    };
   }
 
   /**

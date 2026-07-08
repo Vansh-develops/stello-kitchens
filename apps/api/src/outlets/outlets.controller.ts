@@ -18,6 +18,8 @@ export class OutletsController {
       id: o.id,
       name: o.name,
       brandName: o.brand.name,
+      brandId: o.brandId,
+      themeId: o.brand.themeId,
       address: o.address,
     }));
   }
