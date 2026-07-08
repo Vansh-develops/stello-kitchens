@@ -1,18 +1,26 @@
 @import url("https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap");
 
 :root {
-  --ink: #14110f;
-  --slate: #1d1a17;
-  --slate-2: #262220;
-  --line: #363029;
-  --cream: #f4ede2;
-  --muted: #a1968a;
-  --faint: #6f665c;
-  --saffron: #f5a623;
-  --saffron-deep: #d98613;
-  --chili: #e2542a;
-  --leaf: #57a55a;
-  --mint: #2dd4a7;
+  /* shared token defaults = counter theme; applyTheme overrides these on <html> at runtime */
+  --bg:#f8fafc; --panel:#ffffff; --panel-2:#f1f5f9; --card-bg:#ffffff;
+  --ink:#0f172a; --muted:#64748b; --faint:#94a3b8; --line:#e2e8f0;
+  --accent:#6366f1; --accent-ink:#ffffff; --accent-soft:#e6e7fd;
+  --veg:#16a34a; --nonveg:#dc2626; --good:#2f7d47; --warn:#c07a09; --crit:#b23a32;
+  --radius:14px; --radius-sm:9px; --gap:12px; --shadow:0 10px 26px rgba(15,23,42,.06);
+  --font-display:ui-sans-serif,system-ui,sans-serif; --font-body:ui-sans-serif,system-ui,sans-serif;
+  --font-num:ui-sans-serif,system-ui,sans-serif; --label-tt:none; --label-ls:0;
+
+  /* Console palette aliased to the theme tokens (was a fixed dark palette) */
+  --slate: var(--panel);
+  --slate-2: var(--panel-2);
+  --cream: var(--ink);
+  --saffron: var(--accent);
+  --saffron-deep: var(--accent);
+  --chili: var(--crit);
+  --leaf: var(--good);
+  --mint: var(--good);
+
+  /* Console keeps its own type identity */
   --mono: "IBM Plex Mono", ui-monospace, monospace;
   --sans: "Space Grotesk", system-ui, sans-serif;
 }
@@ -28,7 +36,7 @@ body {
 }
 body {
   font-family: var(--sans);
-  background: var(--ink);
+  background: var(--bg);
   color: var(--cream);
   -webkit-font-smoothing: antialiased;
 }
@@ -42,7 +50,7 @@ button {
 input,
 select {
   font-family: inherit;
-  background: var(--ink);
+  background: var(--bg);
   border: 1px solid var(--line);
   border-radius: 8px;
   padding: 10px 12px;
@@ -140,7 +148,7 @@ select:focus-visible {
   min-height: 100vh;
   display: grid;
   place-items: center;
-  background: radial-gradient(120% 100% at 50% 0%, #211c17 0%, var(--ink) 60%);
+  background: radial-gradient(120% 100% at 50% 0%, #211c17 0%, var(--bg) 60%);
   padding: 24px;
 }
 .login-card {
@@ -242,7 +250,7 @@ select:focus-visible {
   border-bottom: 1px solid var(--line);
   position: sticky;
   top: 0;
-  background: var(--ink);
+  background: var(--bg);
   z-index: 5;
 }
 .top-brand {
@@ -721,7 +729,7 @@ select:focus-visible {
 .veg-toggle {
   display: flex;
   gap: 4px;
-  background: var(--ink);
+  background: var(--bg);
   border: 1px solid var(--line);
   border-radius: 8px;
   padding: 3px;
@@ -1198,7 +1206,7 @@ select:focus-visible {
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  background: var(--ink);
+  background: var(--bg);
   border: 1px solid var(--line);
   border-radius: 10px;
   padding: 14px 18px;
@@ -1550,7 +1558,7 @@ select:focus-visible {
 }
 .share-track {
   height: 8px;
-  background: var(--ink);
+  background: var(--bg);
   border-radius: 999px;
   overflow: hidden;
 }
@@ -1646,7 +1654,7 @@ select:focus-visible {
 .ze-chip {
   font-family: var(--mono);
   font-size: 12px;
-  background: var(--ink);
+  background: var(--bg);
   border: 1px solid var(--line);
   border-radius: 6px;
   padding: 5px 10px;
@@ -1688,7 +1696,7 @@ select:focus-visible {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: 12px;
-  background: var(--ink);
+  background: var(--bg);
   border: 1px solid var(--line);
   border-radius: 10px;
   padding: 14px 16px;
