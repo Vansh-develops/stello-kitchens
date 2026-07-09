@@ -1,0 +1,120 @@
+# Stello Kitchens — production stack. Every public service binds to 127.0.0.1
+# only; the host's nginx terminates TLS for the six subdomains and proxies to
+# these ports (see deploy/nginx-host.conf.example). Postgres/Redis stay internal
+# to the compose network. The Electron `edge` app is a store-device client and is
+# not part of this server deployment.
+name: stello-kitchen
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: stello
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: stello
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U stello"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    volumes:
+      - redisdata:/data
+
+  api:
+    image: stello-build:latest
+    restart: unless-stopped
+    working_dir: /repo/apps/api
+    # Apply migrations (idempotent) then boot. Seeding is a separate one-shot.
+    command: sh -c "pnpm exec prisma migrate deploy && node dist/main.js"
+    environment:
+      NODE_ENV: production
+      PORT: "3001"
+      DATABASE_URL: postgresql://stello:${POSTGRES_PASSWORD}@postgres:5432/stello?schema=public
+      JWT_SECRET: ${JWT_SECRET}
+      CONNECTOR_KEY: ${CONNECTOR_KEY}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:18081:3001"
+
+  connector:
+    image: stello-build:latest
+    restart: unless-stopped
+    working_dir: /repo/apps/connector
+    command: node dist/main.js
+    environment:
+      NODE_ENV: production
+      PORT: "3003"
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+      MAIN_API_URL: http://api:3001/api/v1
+      CONNECTOR_KEY: ${CONNECTOR_KEY}
+    depends_on:
+      - redis
+      - api
+    ports:
+      - "127.0.0.1:18086:3003"
+
+  dashboard:
+    image: stello-build:latest
+    restart: unless-stopped
+    working_dir: /repo/apps/dashboard
+    command: pnpm start
+    environment:
+      NODE_ENV: production
+      API_ORIGIN: http://api:3001
+    depends_on:
+      - api
+    ports:
+      - "127.0.0.1:18082:3002"
+
+  pos:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.static
+      args:
+        APP: pos
+    image: stello-pos:latest
+    restart: unless-stopped
+    depends_on:
+      - api
+    ports:
+      - "127.0.0.1:18083:80"
+
+  kds:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.static
+      args:
+        APP: kds
+    image: stello-kds:latest
+    restart: unless-stopped
+    depends_on:
+      - api
+    ports:
+      - "127.0.0.1:18084:80"
+
+  order:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.static
+      args:
+        APP: order
+    image: stello-order:latest
+    restart: unless-stopped
+    depends_on:
+      - api
+    ports:
+      - "127.0.0.1:18085:80"
+
+volumes:
+  pgdata:
+  redisdata:
