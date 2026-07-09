@@ -36,7 +36,36 @@ server {
   }
 }
 
-# admin. — Next.js admin console
+# app. — the UNIFIED staff app (one login → POS / KDS / Console by role).
+# This is the same Next.js service as admin. (port 18082); admin. stays as an
+# alias during the transition. The KDS board's WebSocket goes straight to the API
+# for a real upgrade; everything else is served by the Next app.
+server {
+  listen 80;
+  server_name app.example.com;
+  client_max_body_size 20m;
+  location /socket.io/ {
+    proxy_pass http://127.0.0.1:18081;   # API — real WebSocket upgrade for the KDS board
+    proxy_http_version 1.1;
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection $connection_upgrade;
+    proxy_set_header Host $host;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_read_timeout 3600s;
+  }
+  location / {
+    proxy_pass http://127.0.0.1:18082;   # unified Next.js staff app
+    proxy_http_version 1.1;
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection $connection_upgrade;
+    proxy_set_header Host $host;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+  }
+}
+
+# admin. — same unified app (alias kept during transition)
 server {
   listen 80;
   server_name admin.example.com;
