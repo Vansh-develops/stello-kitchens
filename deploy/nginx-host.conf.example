@@ -1,0 +1,105 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# HOST nginx vhosts for Stello Kitchens. This is a TEMPLATE for the server admin —
+# it is NOT applied automatically (the deploy never touches the host nginx).
+#
+# 1. Replace  example.com  with your real root domain.
+# 2. Create the six DNS A/AAAA records (all → this server's public IP):
+#       api, admin, pos, kds, order, connector
+# 3. Drop this file into the host nginx (e.g. /etc/nginx/sites-available/stello,
+#    symlink into sites-enabled), then issue certs:
+#       sudo certbot --nginx -d api.example.com -d admin.example.com \
+#         -d pos.example.com -d kds.example.com -d order.example.com \
+#         -d connector.example.com
+#    (certbot will insert the listen 443/ssl + cert lines into each block.)
+# 4. sudo nginx -t && sudo systemctl reload nginx
+#
+# Each block just proxies one subdomain to the stack's 127.0.0.1 port. The apps
+# are same-origin, so no CORS or path rewriting is needed here.
+# ─────────────────────────────────────────────────────────────────────────────
+
+map $http_upgrade $connection_upgrade { default upgrade; '' close; }
+
+# api. — REST + Socket.IO (needs WebSocket upgrade)
+server {
+  listen 80;
+  server_name api.example.com;
+  client_max_body_size 20m;
+  location / {
+    proxy_pass http://127.0.0.1:18081;
+    proxy_http_version 1.1;
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection $connection_upgrade;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+  }
+}
+
+# admin. — Next.js admin console
+server {
+  listen 80;
+  server_name admin.example.com;
+  client_max_body_size 20m;
+  location / {
+    proxy_pass http://127.0.0.1:18082;
+    proxy_http_version 1.1;
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection $connection_upgrade;
+    proxy_set_header Host $host;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+  }
+}
+
+# pos. — cashier billing SPA (self-proxies /api internally)
+server {
+  listen 80;
+  server_name pos.example.com;
+  location / {
+    proxy_pass http://127.0.0.1:18083;
+    proxy_set_header Host $host;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+  }
+}
+
+# kds. — kitchen display (self-proxies /api + /socket.io internally)
+server {
+  listen 80;
+  server_name kds.example.com;
+  location / {
+    proxy_pass http://127.0.0.1:18084;
+    proxy_http_version 1.1;
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection $connection_upgrade;
+    proxy_set_header Host $host;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+  }
+}
+
+# order. — diner Scan & Order PWA (QR / kiosk / board)
+server {
+  listen 80;
+  server_name order.example.com;
+  location / {
+    proxy_pass http://127.0.0.1:18085;
+    proxy_set_header Host $host;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+  }
+}
+
+# connector. — aggregator webhooks (Zomato/Swiggy/ONDC POST here)
+server {
+  listen 80;
+  server_name connector.example.com;
+  client_max_body_size 5m;
+  location / {
+    proxy_pass http://127.0.0.1:18086;
+    proxy_set_header Host $host;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+  }
+}

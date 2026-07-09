@@ -1,0 +1,12 @@
+node_modules
+**/node_modules
+.git
+**/dist
+**/.next
+apps/edge/edge-data
+apps/edge/dist
+**/*.log
+stello.zip
+*.docx
+**/.turbo
+**/.vite

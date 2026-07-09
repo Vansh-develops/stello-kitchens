@@ -1,0 +1,4 @@
+# Deployment scripts/config run on Linux — always check out with LF endings.
+*.sh text eol=lf
+deploy/** text eol=lf
+.dockerignore text eol=lf

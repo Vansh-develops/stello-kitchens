@@ -1,0 +1,40 @@
+# Single builder image for the whole server-side workspace. Installs the pnpm
+# workspace (excluding the Electron `edge` app), builds shared, generates the
+# Prisma client, and builds all six server-hosted apps. Runtime images either run
+# this image directly (api/connector/dashboard) or copy static dist out of it
+# (pos/kds/order).
+FROM node:24-slim
+
+# openssl → Prisma engines; python3/make/g++ → any node-gyp deps pulled in transitively.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+      openssl ca-certificates python3 make g++ \
+ && rm -rf /var/lib/apt/lists/*
+RUN corepack enable
+
+WORKDIR /repo
+
+# The dashboard bakes its /api rewrite target at build time (Next routes-manifest),
+# so it must point at the API service on the compose network.
+ARG API_ORIGIN=http://api:3001
+ENV API_ORIGIN=$API_ORIGIN
+
+# NODE_ENV must NOT be "production" here or pnpm would skip devDeps needed to build.
+COPY . .
+
+RUN pnpm install --frozen-lockfile \
+      --filter "@stello/shared..." \
+      --filter "@stello/api..." \
+      --filter "@stello/connector..." \
+      --filter "@stello/dashboard..." \
+      --filter "@stello/pos..." \
+      --filter "@stello/kds..." \
+      --filter "@stello/order..."
+
+RUN pnpm --filter @stello/shared build
+RUN pnpm --filter @stello/api exec prisma generate
+RUN pnpm --filter @stello/api build \
+ && pnpm --filter @stello/connector build \
+ && pnpm --filter @stello/dashboard build \
+ && pnpm --filter @stello/pos build \
+ && pnpm --filter @stello/kds build \
+ && pnpm --filter @stello/order build

@@ -1,0 +1,9 @@
+# Serves one built Vite SPA (pos | kds | order) via nginx, and reverse-proxies
+# /api (+ /socket.io for kds) to the API service so the app stays same-origin.
+ARG APP
+FROM stello-build:latest AS build
+
+FROM nginx:alpine
+ARG APP
+COPY --from=build /repo/apps/${APP}/dist /usr/share/nginx/html
+COPY deploy/nginx-${APP}.conf /etc/nginx/conf.d/default.conf
