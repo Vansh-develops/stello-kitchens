@@ -59,13 +59,13 @@ import type {
 
 const BASE = "/api/v1";
 
-let token: string | null = typeof window !== "undefined" ? localStorage.getItem("dash.token") : null;
+let token: string | null = typeof window !== "undefined" ? localStorage.getItem("stello.token") : null;
 
 export function setToken(t: string | null) {
   token = t;
   if (typeof window === "undefined") return;
-  if (t) localStorage.setItem("dash.token", t);
-  else localStorage.removeItem("dash.token");
+  if (t) localStorage.setItem("stello.token", t);
+  else localStorage.removeItem("stello.token");
 }
 
 export function hasToken() {
