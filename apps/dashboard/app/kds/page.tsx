@@ -5,6 +5,7 @@ import { useSearchParams } from "next/navigation";
 import { Shell } from "@/components/Shell";
 import { App as Kds } from "@/components/kds/App";
 import { useAuthGuard, OutletPicker } from "@/components/OutletPicker";
+import { ThemeProvider } from "@/components/ThemeProvider";
 
 export default function KdsPage() {
   // useSearchParams() opts this page out of static rendering and requires a
@@ -28,7 +29,11 @@ function KdsRoute() {
   if (wall) {
     if (loading || !user) return <div className="boot">Loading…</div>;
     if (!outlet) return <OutletPicker outlets={outlets} onPick={setOutlet} onSignOut={logout} />;
-    return <div className="kds-wall">{board}</div>;
+    return (
+      <ThemeProvider themeId={outlet.themeId}>
+        <div className="kds-wall">{board}</div>
+      </ThemeProvider>
+    );
   }
 
   return <Shell surface="kds">{board}</Shell>;
