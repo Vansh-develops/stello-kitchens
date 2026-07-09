@@ -1,140 +1,23 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
-import type { AuthUser, OutletDto } from "@stello/shared";
-import { api, hasToken, setToken } from "@/lib/api";
-import { Console } from "@/components/Console";
-import { ThemeProvider } from "@/components/ThemeProvider";
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
+import { surfaceAccess } from "@stello/shared";
+import { useSession } from "@/components/SessionProvider";
 
-export default function Page() {
-  const [user, setUser] = useState<AuthUser | null>(null);
-  const [outlets, setOutlets] = useState<OutletDto[] | null>(null);
-  const [outlet, setOutlet] = useState<OutletDto | null>(null);
-  const [loading, setLoading] = useState(true);
-
-  const bootstrap = useCallback(async () => {
-    try {
-      const me = await api.me();
-      const list = await api.outlets();
-      setUser(me);
-      setOutlets(list);
-      if (list.length === 1) setOutlet(list[0]);
-    } catch {
-      setToken(null);
-      setUser(null);
-      setOutlets(null);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+export default function Home() {
+  const { user, loading } = useSession();
+  const router = useRouter();
 
   useEffect(() => {
-    if (hasToken()) void bootstrap();
-    else setLoading(false);
-  }, [bootstrap]);
-
-  const logout = () => {
-    setToken(null);
-    setUser(null);
-    setOutlets(null);
-    setOutlet(null);
-  };
-
-  if (loading)
-    return (
-      <ThemeProvider themeId={outlet?.themeId}>
-        <div className="boot">Loading console…</div>
-      </ThemeProvider>
-    );
-
-  if (!user || !outlets) {
-    return (
-      <ThemeProvider themeId={outlet?.themeId}>
-        <Login
-          onLoggedIn={async () => {
-            setLoading(true);
-            await bootstrap();
-          }}
-        />
-      </ThemeProvider>
-    );
-  }
-
-  if (!outlet) {
-    return (
-      <ThemeProvider>
-        <div className="pick-outlet">
-          <span className="wordmark">STELLO KITCHENS · CONSOLE</span>
-          <h1>Select outlet</h1>
-          <div className="outlet-list">
-            {outlets.map((o) => (
-              <button key={o.id} className="outlet-card" onClick={() => setOutlet(o)}>
-                <span className="outlet-brand">{o.brandName}</span>
-                <span className="outlet-name">{o.name}</span>
-                <span className="outlet-addr">{o.address}</span>
-              </button>
-            ))}
-            {outlets.length === 0 && <p>No outlets assigned.</p>}
-          </div>
-          <button className="text-btn" onClick={logout}>
-            Sign out
-          </button>
-        </div>
-      </ThemeProvider>
-    );
-  }
-
-  return (
-    <ThemeProvider themeId={outlet?.themeId}>
-      <Console
-        user={user}
-        outlet={outlet}
-        onSwitchOutlet={outlets.length > 1 ? () => setOutlet(null) : undefined}
-        onLogout={logout}
-      />
-    </ThemeProvider>
-  );
-}
-
-function Login({ onLoggedIn }: { onLoggedIn: () => void }) {
-  const [email, setEmail] = useState("admin@demo.com");
-  const [password, setPassword] = useState("password123");
-  const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
-
-  const submit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setBusy(true);
-    setError(null);
-    try {
-      const res = await api.login(email, password);
-      setToken(res.accessToken);
-      onLoggedIn();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Login failed");
-      setBusy(false);
+    if (loading) return;
+    if (!user) {
+      router.replace("/login");
+      return;
     }
-  };
+    const { primary } = surfaceAccess(user.permissions);
+    router.replace(primary ? `/${primary}` : "/no-access");
+  }, [user, loading, router]);
 
-  return (
-    <div className="login">
-      <form className="login-card" onSubmit={submit}>
-        <span className="wordmark">STELLO KITCHENS · CONSOLE</span>
-        <h1>Sign in to manage the menu</h1>
-        <label>
-          Email
-          <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
-        </label>
-        <label>
-          Password
-          <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} required />
-        </label>
-        {error && <p className="form-error">{error}</p>}
-        <button className="btn-primary" type="submit" disabled={busy}>
-          {busy ? "Signing in…" : "Sign in"}
-        </button>
-        <p className="login-hint">Demo: admin@demo.com / password123 (Owner)</p>
-      </form>
-    </div>
-  );
+  return <div className="boot">Loading…</div>;
 }
