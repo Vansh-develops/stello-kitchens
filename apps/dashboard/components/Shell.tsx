@@ -3,22 +3,21 @@
 import { useEffect } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { surfaceAccess, type Surface } from "@stello/shared";
-import { useSession } from "@/components/SessionProvider";
+import { useAuthGuard, OutletPicker } from "@/components/OutletPicker";
 import { ThemeProvider } from "@/components/ThemeProvider";
 
 const LABEL: Record<Surface, string> = { console: "Console", pos: "POS", kds: "KDS" };
 
 export function Shell({ surface, children }: { surface: Surface; children: React.ReactNode }) {
-  const { user, loading, outlets, outlet, setOutlet, logout } = useSession();
+  const { user, loading, outlets, outlet, setOutlet, logout } = useAuthGuard();
   const router = useRouter();
   const pathname = usePathname();
 
   const access = user ? surfaceAccess(user.permissions) : { allowed: [], primary: null };
 
   useEffect(() => {
-    if (loading) return;
-    if (!user) router.replace("/login");
-    else if (!access.allowed.includes(surface)) router.replace("/");
+    if (loading || !user) return;
+    if (!access.allowed.includes(surface)) router.replace("/");
   }, [loading, user, surface, router, access.allowed]);
 
   if (loading || !user) return <div className="boot">Loading…</div>;
@@ -26,25 +25,7 @@ export function Shell({ surface, children }: { surface: Surface; children: React
 
   // Outlet selection is shared across surfaces: pick once, all surfaces use it.
   if (!outlet) {
-    return (
-      <ThemeProvider>
-        <div className="pick-outlet">
-          <span className="wordmark">STELLO KITCHENS</span>
-          <h1>Select outlet</h1>
-          <div className="outlet-list">
-            {outlets.map((o) => (
-              <button key={o.id} className="outlet-card" onClick={() => setOutlet(o)}>
-                <span className="outlet-brand">{o.brandName}</span>
-                <span className="outlet-name">{o.name}</span>
-                <span className="outlet-addr">{o.address}</span>
-              </button>
-            ))}
-            {outlets.length === 0 && <p>No outlets assigned.</p>}
-          </div>
-          <button className="text-btn" onClick={logout}>Sign out</button>
-        </div>
-      </ThemeProvider>
-    );
+    return <OutletPicker outlets={outlets} onPick={setOutlet} onSignOut={logout} />;
   }
 
   return (

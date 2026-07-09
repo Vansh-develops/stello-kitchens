@@ -2746,3 +2746,6 @@ select:focus-visible {
 .shell-right { margin-left: auto; display: flex; align-items: center; gap: 14px; color: var(--muted); font-size: 14px; }
 .shell-user { color: var(--ink); font-weight: 600; }
 .shell-body { flex: 1; min-height: 0; }
+
+/* KDS wall mode: full-screen board, no shell chrome (dedicated kitchen screen). */
+.kds-wall { height: 100vh; }
