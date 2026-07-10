@@ -81,33 +81,6 @@ server {
   }
 }
 
-# pos. — cashier billing SPA (self-proxies /api internally)
-server {
-  listen 80;
-  server_name pos.example.com;
-  location / {
-    proxy_pass http://127.0.0.1:18083;
-    proxy_set_header Host $host;
-    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-    proxy_set_header X-Forwarded-Proto $scheme;
-  }
-}
-
-# kds. — kitchen display (self-proxies /api + /socket.io internally)
-server {
-  listen 80;
-  server_name kds.example.com;
-  location / {
-    proxy_pass http://127.0.0.1:18084;
-    proxy_http_version 1.1;
-    proxy_set_header Upgrade $http_upgrade;
-    proxy_set_header Connection $connection_upgrade;
-    proxy_set_header Host $host;
-    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-    proxy_set_header X-Forwarded-Proto $scheme;
-  }
-}
-
 # order. — diner Scan & Order PWA (QR / kiosk / board)
 server {
   listen 80;

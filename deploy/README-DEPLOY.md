@@ -9,8 +9,6 @@ containers; nothing on the host is modified except the images/volumes Docker own
 |---|---|---|---|---|
 | api | 3001 | `127.0.0.1:18081` | `api.` | NestJS REST + Socket.IO |
 | dashboard | 3002 | `127.0.0.1:18082` | `app.` / `admin.` | Unified staff app — one login → POS / KDS / Console by role (was: Console only) |
-| pos | 80 | `127.0.0.1:18083` | `pos.` | Vite SPA, self-proxies `/api` |
-| kds | 80 | `127.0.0.1:18084` | `kds.` | Vite SPA, self-proxies `/api` + `/socket.io` |
 | order | 80 | `127.0.0.1:18085` | `order.` | Vite PWA (diner Scan & Order) |
 | connector | 3003 | `127.0.0.1:18086` | `connector.` | Aggregator webhooks (BullMQ) |
 | postgres | 5432 | internal only | — | data in `pgdata` volume |

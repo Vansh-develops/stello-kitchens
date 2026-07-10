@@ -26,8 +26,6 @@ RUN pnpm install --frozen-lockfile \
       --filter "@stello/api..." \
       --filter "@stello/connector..." \
       --filter "@stello/dashboard..." \
-      --filter "@stello/pos..." \
-      --filter "@stello/kds..." \
       --filter "@stello/order..."
 
 RUN pnpm --filter @stello/shared build
@@ -35,6 +33,4 @@ RUN pnpm --filter @stello/api exec prisma generate
 RUN pnpm --filter @stello/api build \
  && pnpm --filter @stello/connector build \
  && pnpm --filter @stello/dashboard build \
- && pnpm --filter @stello/pos build \
- && pnpm --filter @stello/kds build \
  && pnpm --filter @stello/order build

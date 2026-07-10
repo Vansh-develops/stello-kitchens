@@ -76,32 +76,6 @@ services:
     ports:
       - "127.0.0.1:18082:3002"
 
-  pos:
-    build:
-      context: ..
-      dockerfile: deploy/Dockerfile.static
-      args:
-        APP: pos
-    image: stello-pos:latest
-    restart: unless-stopped
-    depends_on:
-      - api
-    ports:
-      - "127.0.0.1:18083:80"
-
-  kds:
-    build:
-      context: ..
-      dockerfile: deploy/Dockerfile.static
-      args:
-        APP: kds
-    image: stello-kds:latest
-    restart: unless-stopped
-    depends_on:
-      - api
-    ports:
-      - "127.0.0.1:18084:80"
-
   order:
     build:
       context: ..
