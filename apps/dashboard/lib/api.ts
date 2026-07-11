@@ -8,7 +8,9 @@ import type {
   CashSessionDto,
   CentralKitchenContextDto,
   ChannelInput,
+  CreateAreaInput,
   CreateIndentInput,
+  CreateTablesInput,
   EwayBillDto,
   IndentDto,
   OrderRequestDto,
@@ -49,9 +51,11 @@ import type {
   RawMaterialDto,
   ReceiveStockInput,
   SetRecipeInput,
+  TenantSummaryDto,
   UpdateCategoryInput,
   UpdateItemInput,
   UpdateMaterialInput,
+  UpdateOutletInput,
   VendorDto,
   VendorInput,
   WastageInput,
@@ -314,4 +318,21 @@ export const api = {
       method: "PATCH",
       body: JSON.stringify({ themeId }),
     }),
+
+  // Onboarding
+  getTenant: () => request<TenantSummaryDto>("/tenant"),
+  updateOutlet: (outletId: string, input: UpdateOutletInput) =>
+    request<{ id: string }>(`/outlets/${outletId}`, { method: "PATCH", body: JSON.stringify(input) }),
+  applyMenuTemplate: (outletId: string) =>
+    request<{ categoriesCreated: number; itemsCreated: number }>(`/outlets/${outletId}/menu/apply-template`, {
+      method: "POST",
+    }),
+  createArea: (outletId: string, input: CreateAreaInput) =>
+    request<{ id: string; name: string }>(`/outlets/${outletId}/areas`, { method: "POST", body: JSON.stringify(input) }),
+  createTables: (outletId: string, input: CreateTablesInput) =>
+    request<{ tables: { id: string; name: string; publicToken: string }[] }>(`/outlets/${outletId}/tables`, {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+  completeOnboarding: () => request<{ onboardedAt: string }>("/tenant/onboarding/complete", { method: "POST" }),
 };
