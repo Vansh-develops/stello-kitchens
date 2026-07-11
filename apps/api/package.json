@@ -10,7 +10,8 @@
     "prisma:migrate": "prisma migrate dev",
     "prisma:seed": "prisma db seed",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "provision:platform-admin": "ts-node prisma/provision-platform-admin.ts"
   },
   "prisma": {
     "seed": "ts-node prisma/seed.ts"
