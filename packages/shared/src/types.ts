@@ -892,3 +892,13 @@ export interface OutletBackupDto {
   menu: { category: string; items: { name: string; price: number }[] }[];
   tables: { area: string; name: string }[];
 }
+
+// ---------- Onboarding wizard ----------
+
+export interface TenantSummaryDto {
+  id: string;
+  name: string;
+  status: string;
+  createdVia: string;
+  onboardedAt: string | null;
+}
