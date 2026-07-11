@@ -13,6 +13,7 @@ import { Prisma } from "@prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
 import { RealtimeGateway } from "../realtime/realtime.gateway";
 import { CombosService } from "../combos/combos.service";
+import { STARTER_TEMPLATE } from "./starter-template";
 
 @Injectable()
 export class MenuAdminService {
@@ -385,6 +386,32 @@ export class MenuAdminService {
     await this.prisma.channel.delete({ where: { id } });
     this.realtime.notifyOutlet(outletId);
     return { id };
+  }
+
+  async applyStarterTemplate(user: AuthUser, outletId: string): Promise<{ categoriesCreated: number; itemsCreated: number }> {
+    this.assertOutlet(user, outletId);
+    let categoriesCreated = 0;
+    let itemsCreated = 0;
+    await this.prisma.$transaction(async (tx) => {
+      let sort = 0;
+      for (const block of STARTER_TEMPLATE) {
+        const cat = await tx.menuCategory.create({
+          data: { tenantId: user.tenantId, outletId, name: block.category, sortOrder: sort++ },
+        });
+        categoriesCreated++;
+        for (const item of block.items) {
+          await tx.item.create({
+            data: {
+              tenantId: user.tenantId, outletId, categoryId: cat.id,
+              name: item.name, price: item.price, isVeg: item.isVeg,
+            },
+          });
+          itemsCreated++;
+        }
+      }
+    });
+    this.realtime.notifyOutlet(outletId);
+    return { categoriesCreated, itemsCreated };
   }
 
   private async requireCategory(user: AuthUser, outletId: string, id: string) {
