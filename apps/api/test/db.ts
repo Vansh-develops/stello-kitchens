@@ -1,6 +1,7 @@
 import { execSync } from "node:child_process";
 import { PrismaClient } from "@prisma/client";
 import { beforeAll, beforeEach } from "vitest";
+import { clearTenantContext } from "../src/common/tenant-context";
 
 // A dedicated throwaway database on the dev Postgres (port 5455).
 const TEST_URL =
@@ -31,5 +32,6 @@ export async function resetDb(): Promise<void> {
 }
 
 beforeEach(async () => {
+  clearTenantContext();
   await resetDb();
 });

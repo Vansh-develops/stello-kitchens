@@ -40,3 +40,12 @@ export function getTenantId(): string | null {
 export function isUnscoped(): boolean {
   return als.getStore()?.unscoped ?? false;
 }
+
+/**
+ * Reset the ambient tenant context to "no tenant, not unscoped". Intended for
+ * test harnesses so state from one test's `enterTenant`/`runUnscoped` call
+ * can't leak into the next test's ambient context.
+ */
+export function clearTenantContext(): void {
+  als.enterWith({ tenantId: null, unscoped: false });
+}
