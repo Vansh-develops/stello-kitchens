@@ -19,11 +19,16 @@ export class CrmController {
   constructor(private readonly svc: CrmService) {}
 
   // Customers
+  // Bulk customer/PII reads require crm.manage — otherwise any low-privilege
+  // POS user could enumerate the whole customer list with phone numbers and
+  // spend history. Single-record `by-phone` stays open for POS loyalty lookup.
+  @RequirePermission("crm.manage")
   @Get("customers")
   customers(@CurrentUser() user: AuthUser, @Param("outletId") outletId: string) {
     return this.svc.customers(user, outletId);
   }
 
+  @RequirePermission("crm.manage")
   @Get("customers/summary")
   summary(@CurrentUser() user: AuthUser, @Param("outletId") outletId: string) {
     return this.svc.summary(user, outletId);
@@ -38,6 +43,7 @@ export class CrmController {
     return this.svc.lookupByPhone(user, outletId, phone ?? "");
   }
 
+  @RequirePermission("crm.manage")
   @Get("customers/:id")
   detail(@CurrentUser() user: AuthUser, @Param("outletId") outletId: string, @Param("id") id: string) {
     return this.svc.customerDetail(user, outletId, id);

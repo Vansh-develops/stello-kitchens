@@ -60,7 +60,13 @@ export function Board({ outlet, onExit }: { outlet: OutletDto; onExit: () => voi
 
   // Real-time: join the outlet room, refetch on signal; poll as a fallback.
   useEffect(() => {
-    const socket: Socket = io({ path: "/socket.io", transports: ["websocket", "polling"] });
+    const authToken =
+      typeof window !== "undefined" ? localStorage.getItem("stello.token") : null;
+    const socket: Socket = io({
+      path: "/socket.io",
+      transports: ["websocket", "polling"],
+      auth: { token: authToken },
+    });
     const onChange = (msg: { outletId: string }) => {
       if (msg.outletId === outlet.id) void refresh();
     };
