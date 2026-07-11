@@ -27,11 +27,9 @@ export function OnboardingWizard({ user, outlet }: { user: AuthUser; outlet: Out
 
   // Step 1: brand & theme. Only a theme change is persisted (the only
   // brand-update endpoint the API exposes, `PATCH /brands/:id/theme` — see
-  // AppearanceTab); the restaurant-name field is required client-side but
-  // has no dedicated persistence endpoint today.
-  const [brandName, setBrandName] = useState(outlet.brandName);
+  // AppearanceTab). The restaurant name is set at provisioning and shown
+  // read-only here — there is no endpoint to edit it in onboarding.
   const [themeId, setThemeId] = useState(outlet.themeId);
-  const [step1Done, setStep1Done] = useState(false);
 
   // Step 2: outlet & GST.
   const [outletName, setOutletName] = useState(outlet.name);
@@ -39,7 +37,6 @@ export function OnboardingWizard({ user, outlet }: { user: AuthUser; outlet: Out
   const [gstin, setGstin] = useState("");
   const [placeOfSupply, setPlaceOfSupply] = useState("");
   const [upiVpa, setUpiVpa] = useState("");
-  const [step2Done, setStep2Done] = useState(false);
 
   // Step 3: starter menu.
   const [menuChoice, setMenuChoice] = useState<MenuChoice>("sample");
@@ -76,21 +73,13 @@ export function OnboardingWizard({ user, outlet }: { user: AuthUser; outlet: Out
     setStep((s) => Math.max(0, s - 1));
   };
 
-  // Step 1: theme (name is local-only — required, but has no backend to persist to).
+  // Step 1: theme. Idempotent PATCH — always re-submit so edits made after
+  // going Back are not silently discarded.
   const submitStep1 = async () => {
-    if (!brandName.trim()) {
-      setError("Restaurant name is required.");
-      return;
-    }
     setError(null);
-    if (step1Done) {
-      setStep(1);
-      return;
-    }
     setBusy(true);
     try {
       await api.setBrandTheme(outlet.brandId, themeId);
-      setStep1Done(true);
       setStep(1);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not save the theme");
@@ -99,17 +88,14 @@ export function OnboardingWizard({ user, outlet }: { user: AuthUser; outlet: Out
     }
   };
 
-  // Step 2: outlet name/address/GST.
+  // Step 2: outlet name/address/GST. Idempotent PATCH — always re-submit so
+  // edits made after going Back are not silently discarded.
   const submitStep2 = async () => {
     if (!outletName.trim() || !address.trim()) {
       setError("Outlet name and address are required.");
       return;
     }
     setError(null);
-    if (step2Done) {
-      setStep(2);
-      return;
-    }
     setBusy(true);
     try {
       const input: UpdateOutletInput = { name: outletName.trim(), address: address.trim() };
@@ -117,7 +103,6 @@ export function OnboardingWizard({ user, outlet }: { user: AuthUser; outlet: Out
       if (placeOfSupply.trim()) input.placeOfSupply = placeOfSupply.trim();
       if (upiVpa.trim()) input.upiVpa = upiVpa.trim();
       await api.updateOutlet(outletId, input);
-      setStep2Done(true);
       setStep(2);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not save outlet details");
@@ -226,10 +211,9 @@ export function OnboardingWizard({ user, outlet }: { user: AuthUser; outlet: Out
           <>
             <h2>Brand &amp; theme</h2>
             <p className="muted">Name your restaurant and pick the look that will apply across POS, KDS, Console and Scan &amp; Order.</p>
-            <label className="field">
-              Restaurant name
-              <input value={brandName} onChange={(e) => setBrandName(e.target.value)} placeholder="Spice Route" />
-            </label>
+            <p className="field">
+              Restaurant: <b>{outlet.brandName}</b>
+            </p>
             <div className="theme-grid">
               {THEMES.map((t) => (
                 <button
