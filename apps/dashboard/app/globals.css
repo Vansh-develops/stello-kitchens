@@ -2815,7 +2815,8 @@ select:focus-visible {
 }
 .onboard-summary li span { color: var(--muted); }
 @media print {
-  body * { visibility: hidden; }
-  .onboard-print-area, .onboard-print-area * { visibility: visible; }
-  .onboard-print-area { position: absolute; top: 0; left: 0; width: 100%; }
+  body:has(.onboard-wrap) * { visibility: hidden; }
+  body:has(.onboard-wrap) .onboard-print-area,
+  body:has(.onboard-wrap) .onboard-print-area * { visibility: visible; }
+  body:has(.onboard-wrap) .onboard-print-area { position: absolute; top: 0; left: 0; width: 100%; }
 }

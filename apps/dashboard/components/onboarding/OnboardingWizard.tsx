@@ -6,6 +6,7 @@ import QRCode from "qrcode";
 import { THEMES } from "@stello/shared";
 import type { AuthUser, OutletDto, UpdateOutletInput } from "@stello/shared";
 import { api } from "@/lib/api";
+import { useSession } from "@/components/SessionProvider";
 
 // Same scheme as ScanOrderTab.tsx: the diner PWA served on :5176 in dev, or the
 // ordering site's own origin in prod.
@@ -19,6 +20,7 @@ type MenuChoice = "sample" | "blank";
 
 export function OnboardingWizard({ user, outlet }: { user: AuthUser; outlet: OutletDto }) {
   const router = useRouter();
+  const { refresh } = useSession();
   const outletId = user.outletIds[0] as string | undefined;
 
   const [step, setStep] = useState(0);
@@ -182,6 +184,7 @@ export function OnboardingWizard({ user, outlet }: { user: AuthUser; outlet: Out
     setBusy(true);
     try {
       await api.completeOnboarding();
+      await refresh();
       router.replace("/console");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not finish setup");
