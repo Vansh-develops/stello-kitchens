@@ -1,5 +1,10 @@
 import { Module } from "@nestjs/common";
 import { ProvisioningService } from "./provisioning.service";
+import { PlatformController } from "./platform.controller";
 
-@Module({ providers: [ProvisioningService], exports: [ProvisioningService] })
+@Module({
+  controllers: [PlatformController],
+  providers: [ProvisioningService],
+  exports: [ProvisioningService],
+})
 export class ProvisioningModule {}
