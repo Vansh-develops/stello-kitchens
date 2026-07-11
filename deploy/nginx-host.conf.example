@@ -3,12 +3,13 @@
 # it is NOT applied automatically (the deploy never touches the host nginx).
 #
 # 1. Replace  example.com  with your real root domain.
-# 2. Create the six DNS A/AAAA records (all → this server's public IP):
-#       api, admin, pos, kds, order, connector
+# 2. Create the five DNS A/AAAA records (all → this server's public IP):
+#       api, app, admin, order, connector
+#    (pos + kds are retired — the unified staff app on app. serves both by role.)
 # 3. Drop this file into the host nginx (e.g. /etc/nginx/sites-available/stello,
 #    symlink into sites-enabled), then issue certs:
-#       sudo certbot --nginx -d api.example.com -d admin.example.com \
-#         -d pos.example.com -d kds.example.com -d order.example.com \
+#       sudo certbot --nginx -d api.example.com -d app.example.com \
+#         -d admin.example.com -d order.example.com \
 #         -d connector.example.com
 #    (certbot will insert the listen 443/ssl + cert lines into each block.)
 # 4. sudo nginx -t && sudo systemctl reload nginx
