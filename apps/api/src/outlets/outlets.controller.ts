@@ -1,7 +1,9 @@
-import { Controller, ForbiddenException, Get, Param } from "@nestjs/common";
-import type { AreaDto, AuthUser, OutletDto } from "@stello/shared";
+import { Body, Controller, ForbiddenException, Get, NotFoundException, Param, Patch } from "@nestjs/common";
+import type { AreaDto, AuthUser, OutletDto, UpdateOutletInput } from "@stello/shared";
+import { UpdateOutletSchema } from "@stello/shared";
 import { PrismaService } from "../prisma/prisma.service";
-import { CurrentUser } from "../common/decorators";
+import { CurrentUser, RequirePermission } from "../common/decorators";
+import { ZodValidationPipe } from "../common/zod.pipe";
 
 @Controller("outlets")
 export class OutletsController {
@@ -50,5 +52,24 @@ export class OutletsController {
         occupiedByOrderId: occupied.get(t.id) ?? null,
       })),
     }));
+  }
+
+  @RequirePermission("settings.manage")
+  @Patch(":outletId")
+  async update(
+    @CurrentUser() user: AuthUser,
+    @Param("outletId") outletId: string,
+    @Body(new ZodValidationPipe(UpdateOutletSchema)) body: UpdateOutletInput,
+  ) {
+    if (!user.outletIds.includes(outletId)) throw new ForbiddenException("No access to outlet");
+    // Scoped ownership read before the id-keyed update (the tenant-guard passes
+    // update-by-id through unscoped, so a path check alone is not enough).
+    const owned = await this.prisma.outlet.findFirst({
+      where: { id: outletId, tenantId: user.tenantId },
+      select: { id: true },
+    });
+    if (!owned) throw new NotFoundException("Outlet not found");
+    const updated = await this.prisma.outlet.update({ where: { id: outletId }, data: body });
+    return { id: updated.id };
   }
 }
