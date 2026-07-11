@@ -476,3 +476,11 @@ export const UpdateBrandThemeSchema = z.object({
   themeId: z.enum(THEMES.map((t) => t.id) as [string, ...string[]]),
 });
 export type UpdateBrandThemeInput = z.infer<typeof UpdateBrandThemeSchema>;
+
+export const ProvisionTenantSchema = z.object({
+  restaurantName: z.string().min(2).max(120),
+  ownerName: z.string().min(1).max(120),
+  ownerEmail: z.string().email(),
+  ownerPassword: z.string().min(8).max(200),
+});
+export type ProvisionTenantInput = z.infer<typeof ProvisionTenantSchema>;
