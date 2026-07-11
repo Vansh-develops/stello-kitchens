@@ -24,6 +24,7 @@ import { CombosModule } from "./combos/combos.module";
 import { DevicesModule } from "./devices/devices.module";
 import { LoyaltyModule } from "./loyalty/loyalty.module";
 import { BrandsModule } from "./brands/brands.module";
+import { HealthModule } from "./health/health.module";
 
 @Module({
   imports: [
@@ -52,6 +53,7 @@ import { BrandsModule } from "./brands/brands.module";
     DevicesModule,
     LoyaltyModule,
     BrandsModule,
+    HealthModule,
   ],
   providers: [
     // ThrottlerGuard first so rate limiting applies even to unauthenticated

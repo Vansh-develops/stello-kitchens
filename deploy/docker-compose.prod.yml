@@ -5,10 +5,19 @@
 # not part of this server deployment.
 name: stello-kitchen
 
+# Rotate container logs so they can't fill the shared VPS disk (10MB × 3 each).
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
 services:
   postgres:
     image: postgres:16-alpine
     restart: unless-stopped
+    logging: *default-logging
+    mem_limit: 1g
     environment:
       POSTGRES_USER: stello
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
@@ -24,12 +33,23 @@ services:
   redis:
     image: redis:7-alpine
     restart: unless-stopped
+    logging: *default-logging
+    mem_limit: 256m
+    # Persist to disk (append-only) so a restart doesn't drop queued jobs.
+    command: ["redis-server", "--appendonly", "yes"]
     volumes:
       - redisdata:/data
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli ping | grep -q PONG"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
 
   api:
     image: stello-build:latest
     restart: unless-stopped
+    logging: *default-logging
+    mem_limit: 768m
     working_dir: /repo/apps/api
     # Apply migrations (idempotent) then boot. Seeding is a separate one-shot.
     command: sh -c "pnpm exec prisma migrate deploy && node dist/main.js"
@@ -44,10 +64,20 @@ services:
         condition: service_healthy
     ports:
       - "127.0.0.1:18081:3001"
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - node -e "require('http').get('http://127.0.0.1:3001/api/v1/health',r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))"
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
 
   connector:
     image: stello-build:latest
     restart: unless-stopped
+    logging: *default-logging
+    mem_limit: 384m
     working_dir: /repo/apps/connector
     command: node dist/main.js
     environment:
@@ -58,23 +88,44 @@ services:
       MAIN_API_URL: http://api:3001/api/v1
       CONNECTOR_KEY: ${CONNECTOR_KEY}
     depends_on:
-      - redis
-      - api
+      redis:
+        condition: service_healthy
+      api:
+        condition: service_healthy
     ports:
       - "127.0.0.1:18086:3003"
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - node -e "require('net').connect(3003,'127.0.0.1').on('connect',()=>process.exit(0)).on('error',()=>process.exit(1))"
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
 
   dashboard:
     image: stello-build:latest
     restart: unless-stopped
+    logging: *default-logging
+    mem_limit: 768m
     working_dir: /repo/apps/dashboard
     command: pnpm start
     environment:
       NODE_ENV: production
       API_ORIGIN: http://api:3001
     depends_on:
-      - api
+      api:
+        condition: service_healthy
     ports:
       - "127.0.0.1:18082:3002"
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - node -e "require('http').get('http://127.0.0.1:3002/',r=>process.exit(r.statusCode<500?0:1)).on('error',()=>process.exit(1))"
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 40s
 
   order:
     build:
@@ -84,10 +135,18 @@ services:
         APP: order
     image: stello-order:latest
     restart: unless-stopped
+    logging: *default-logging
+    mem_limit: 128m
     depends_on:
       - api
     ports:
       - "127.0.0.1:18085:80"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1/ || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
 
 volumes:
   pgdata:
