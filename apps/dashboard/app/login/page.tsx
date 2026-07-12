@@ -38,6 +38,7 @@ export default function LoginPage() {
         <label>Password<input type="password" value={password} onChange={(e) => setPassword(e.target.value)} required /></label>
         {error && <p className="form-error">{error}</p>}
         <button className="btn-primary" type="submit" disabled={busy}>{busy ? "Signing in…" : "Sign in"}</button>
+        <a className="text-btn login-forgot" href="/forgot-password">Forgot password?</a>
         <p className="login-hint">Demo: admin@demo.com / password123</p>
       </form>
     </div>
