@@ -2660,6 +2660,44 @@ select:focus-visible {
   gap: 12px;
 }
 
+/* ---------- Invite staff ---------- */
+.invite-new {
+  display: flex;
+  gap: 10px;
+  margin: 14px 0;
+  flex-wrap: wrap;
+}
+.invite-new input,
+.invite-new select {
+  background: var(--bg);
+  border: 1px solid var(--line);
+  color: var(--cream);
+  padding: 9px 12px;
+  border-radius: 10px;
+  font-family: inherit;
+  font-size: 14px;
+}
+.invite-new input {
+  min-width: 260px;
+}
+.invite-link-row {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  max-width: 640px;
+  margin-top: 8px;
+}
+.invite-link-field {
+  flex: 1;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  color: var(--muted);
+  padding: 9px 12px;
+  border-radius: 10px;
+  font-family: inherit;
+  font-size: 13px;
+}
+
 /* ---------- Settings / Appearance ---------- */
 .appearance {
   padding: 24px 26px;
