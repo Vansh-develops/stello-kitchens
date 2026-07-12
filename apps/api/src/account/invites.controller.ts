@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Post, UseGuards } from "@nestjs/common";
+import { Body, Controller, Get, Post } from "@nestjs/common";
 import { Throttle } from "@nestjs/throttler";
 import { JwtService } from "@nestjs/jwt";
 import { CreateInviteSchema, AcceptInviteSchema, type AuthUser, type CreateInviteInput, type AcceptInviteInput } from "@stello/shared";

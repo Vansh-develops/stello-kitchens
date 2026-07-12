@@ -1,4 +1,4 @@
-import { BadRequestException, ConflictException, ForbiddenException, Inject, Injectable, NotFoundException } from "@nestjs/common";
+import { BadRequestException, ConflictException, Inject, Injectable, NotFoundException } from "@nestjs/common";
 import * as bcrypt from "bcryptjs";
 import type { AuthUser, CreateInviteInput, AcceptInviteInput } from "@stello/shared";
 import { PrismaService } from "../prisma/prisma.service";
