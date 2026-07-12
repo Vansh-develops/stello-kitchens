@@ -186,7 +186,7 @@ export function Menu({ mode, token }: { mode: "table" | "kiosk"; token: string }
 
   return (
     <ThemeProvider themeId={menu?.themeId}>
-    <div className="menu">
+    <div className={`menu${mode === "kiosk" ? " menu-kiosk" : ""}`}>
       <header className="menu-head">
         <div className="brand-row">
           <span className="mark">Stello Kitchens</span>
