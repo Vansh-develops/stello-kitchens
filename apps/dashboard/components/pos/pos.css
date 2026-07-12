@@ -1528,4 +1528,158 @@
   white-space: nowrap;
 }
 
+/* ---------------------------------------------------------------------- */
+/* Small tablet / phone layout (<=768px)                                  */
+/* Desktop (>768px) styles above are untouched. The 3-column POS frame    */
+/* (rail | menu | bill) collapses to a single column:                    */
+/*   - .rail becomes a horizontal strip pinned to the top                 */
+/*   - .menu-pane takes the primary, flexible middle area                 */
+/*   - .bill-pane stacks full-width below the menu with a capped height   */
+/*     so its own header + footer (running total / KOT / Settle) stay     */
+/*     visible without scrolling away — only the line-item list scrolls.  */
+/* This is CSS-only: no JSX/state changes were needed.                    */
+/* ---------------------------------------------------------------------- */
+@media (max-width: 768px) {
+  .pos-root .pos {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto minmax(0, 1fr) auto;
+    overflow: hidden;
+  }
+
+  /* --- rail: vertical sidebar -> horizontal top strip --- */
+  .pos-root .rail {
+    flex-direction: row;
+    align-items: stretch;
+    border-right: none;
+    border-bottom: 1px solid var(--line);
+    padding: 0;
+    min-height: 0;
+  }
+
+  .pos-root .rail-top {
+    flex: none;
+    flex-direction: row;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    border-bottom: none;
+    border-right: 1px solid var(--line);
+    white-space: nowrap;
+  }
+
+  .pos-root .rail-top .wordmark {
+    font-size: 14px;
+    line-height: 1;
+  }
+
+  .pos-root .rail-outlet {
+    white-space: nowrap;
+  }
+
+  .pos-root .cat-nav {
+    flex: 1;
+    flex-direction: row;
+    align-items: center;
+    overflow-x: auto;
+    overflow-y: hidden;
+    padding: 6px 8px;
+    gap: 6px;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .pos-root .cat-btn {
+    flex: none;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+    white-space: nowrap;
+    padding: 8px 12px;
+    min-height: 44px;
+    justify-content: center;
+  }
+
+  .pos-root .cat-btn.active {
+    box-shadow: inset 0 -3px 0 var(--accent);
+  }
+
+  .pos-root .rail-bottom {
+    flex: none;
+    flex-direction: row;
+    align-items: center;
+    border-top: none;
+    border-left: 1px solid var(--line);
+    padding: 0 10px;
+    margin-top: 0;
+    gap: 8px;
+  }
+
+  .pos-root .rail-user,
+  .pos-root .rail-role {
+    display: none;
+  }
+
+  .pos-root .rail-bottom .drawer-chip {
+    width: auto;
+    margin: 0;
+    padding: 8px 10px;
+    white-space: nowrap;
+  }
+
+  /* --- menu: full width, primary content area --- */
+  .pos-root .menu-pane {
+    min-height: 0;
+  }
+
+  .pos-root .item-grid {
+    grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+  }
+
+  /* --- bill/cart: stacked full-width below the menu, capped height --- */
+  .pos-root .bill-pane {
+    border-left: none;
+    border-top: 1px solid var(--line);
+    max-height: 46vh;
+    min-height: 200px;
+  }
+
+  /* the perforated-edge decoration was designed for a left border; hide
+     it now that the bill pane sits below the menu instead of beside it */
+  .pos-root .bill-pane::before {
+    display: none;
+  }
+
+  .pos-root .bill-buttons {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .pos-root .bill-buttons .btn-primary,
+  .pos-root .bill-buttons .btn-kot {
+    grid-column: 1 / -1;
+  }
+
+  .pos-root .bill-foot {
+    padding-bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+  }
+
+  /* --- touch targets: comfortable ~44px hit areas --- */
+  .pos-root .qty-stepper button {
+    width: 44px;
+    height: 44px;
+  }
+
+  .pos-root .bl-stepper {
+    gap: 6px;
+  }
+
+  .pos-root .bl-stepper button {
+    width: 32px;
+    height: 32px;
+  }
+
+  .pos-root .modal-x {
+    width: 40px;
+    height: 40px;
+  }
+}
+
 
