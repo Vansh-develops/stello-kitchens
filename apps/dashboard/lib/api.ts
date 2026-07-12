@@ -50,6 +50,7 @@ import type {
   OutletDto,
   RawMaterialDto,
   ReceiveStockInput,
+  RoleDto,
   SetRecipeInput,
   TenantSummaryDto,
   UpdateCategoryInput,
@@ -335,4 +336,19 @@ export const api = {
       body: JSON.stringify(input),
     }),
   completeOnboarding: () => request<{ onboardedAt: string }>("/tenant/onboarding/complete", { method: "POST" }),
+
+  // Account lifecycle
+  signup: (body: { restaurantName: string; ownerName: string; email: string; password: string }) =>
+    request<{ status: string }>("/signup", { method: "POST", body: JSON.stringify(body) }),
+  verifySignup: (token: string) =>
+    request<LoginResponse>("/signup/verify", { method: "POST", body: JSON.stringify({ token }) }),
+  forgotPassword: (email: string) =>
+    request<{ status: string }>("/auth/forgot-password", { method: "POST", body: JSON.stringify({ email }) }),
+  resetPassword: (token: string, newPassword: string) =>
+    request<{ status: string }>("/auth/reset-password", { method: "POST", body: JSON.stringify({ token, newPassword }) }),
+  tenantRoles: () => request<RoleDto[]>("/tenant/roles"),
+  createInvite: (email: string, roleId: string) =>
+    request<{ inviteLink: string }>("/tenant/invites", { method: "POST", body: JSON.stringify({ email, roleId }) }),
+  acceptInvite: (token: string, name: string, password: string) =>
+    request<LoginResponse>("/invite/accept", { method: "POST", body: JSON.stringify({ token, name, password }) }),
 };
