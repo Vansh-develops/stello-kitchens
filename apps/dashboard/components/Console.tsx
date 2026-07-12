@@ -24,6 +24,7 @@ import { CombosTab } from "./CombosTab";
 import { PrepTab } from "./PrepTab";
 import { FleetTab } from "./FleetTab";
 import { AppearanceTab } from "./AppearanceTab";
+import { InviteStaffTab } from "./InviteStaffTab";
 
 const rupee = (n: number) => `₹${n.toFixed(0)}`;
 type Tab =
@@ -42,6 +43,7 @@ type Tab =
   | "combos"
   | "prep"
   | "fleet"
+  | "invite"
   | "settings";
 
 export function Console({
@@ -129,6 +131,7 @@ export function Console({
               "central",
               "scan",
               "fleet",
+              "invite",
               "settings",
             ] as const
           ).map((t) => {
@@ -148,6 +151,7 @@ export function Console({
               central: "Central kitchen",
               scan: "Scan & Order",
               fleet: "Fleet",
+              invite: "Invite staff",
               settings: "Settings",
             };
             return (
@@ -445,6 +449,7 @@ export function Console({
       {tab === "combos" && <CombosTab outletId={outlet.id} />}
       {tab === "prep" && <PrepTab outletId={outlet.id} />}
       {tab === "fleet" && <FleetTab outletId={outlet.id} />}
+      {tab === "invite" && <InviteStaffTab />}
       {tab === "settings" && <AppearanceTab outlet={outlet} />}
 
       {itemDialog && (
