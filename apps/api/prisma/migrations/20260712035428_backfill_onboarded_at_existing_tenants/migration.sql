@@ -1,0 +1,12 @@
+-- Data backfill (no schema change).
+--
+-- Phase 1 added tenants.onboardedAt defaulting to NULL, and Phase 2 routes any owner
+-- whose tenant has onboardedAt = NULL into the first-run onboarding wizard. Any tenant
+-- that already existed before onboarding shipped is already fully set up (menu, tables,
+-- etc.), so forcing its owner through the wizard would be wrong. Mark every currently
+-- un-onboarded tenant as onboarded, using its creation time, so existing owners land
+-- straight in the Console.
+--
+-- This runs once. Tenants provisioned AFTER this migration correctly start with
+-- onboardedAt = NULL and go through onboarding as intended.
+UPDATE "tenants" SET "onboardedAt" = "createdAt" WHERE "onboardedAt" IS NULL;

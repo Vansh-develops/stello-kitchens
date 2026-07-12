@@ -484,3 +484,23 @@ export const ProvisionTenantSchema = z.object({
   ownerPassword: z.string().min(8).max(200),
 });
 export type ProvisionTenantInput = z.infer<typeof ProvisionTenantSchema>;
+
+// ---------- Onboarding wizard ----------
+
+export const UpdateOutletSchema = z.object({
+  name: z.string().min(1).max(120).optional(),
+  address: z.string().max(400).optional(),
+  gstin: z.string().max(20).optional(),
+  placeOfSupply: z.string().max(4).optional(),
+  upiVpa: z.string().max(120).optional(),
+});
+export type UpdateOutletInput = z.infer<typeof UpdateOutletSchema>;
+
+export const CreateAreaSchema = z.object({ name: z.string().min(1).max(80) });
+export type CreateAreaInput = z.infer<typeof CreateAreaSchema>;
+
+export const CreateTablesSchema = z.object({
+  areaId: z.string().min(1),
+  count: z.number().int().min(1).max(50),
+});
+export type CreateTablesInput = z.infer<typeof CreateTablesSchema>;

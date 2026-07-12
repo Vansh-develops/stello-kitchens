@@ -28,6 +28,11 @@ export class MenuAdminController {
     return this.svc.adminMenu(user, outletId);
   }
 
+  @Post("menu/apply-template")
+  applyTemplate(@CurrentUser() user: AuthUser, @Param("outletId") outletId: string) {
+    return this.svc.applyStarterTemplate(user, outletId);
+  }
+
   // Categories
   @Post("menu/categories")
   createCategory(
