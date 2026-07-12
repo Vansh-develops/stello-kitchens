@@ -11,3 +11,6 @@ build/
 # Local archive artifacts
 stello.zip
 *.zip
+
+# Local DB snapshots (backup-db.sh)
+backups/

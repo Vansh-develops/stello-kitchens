@@ -1,4 +1,4 @@
-import { Controller, ForbiddenException, Get, Param, Patch, Body } from "@nestjs/common";
+import { Controller, ForbiddenException, Get, NotFoundException, Param, Patch, Body } from "@nestjs/common";
 import type { AuthUser, ComboDto, MenuCategoryDto } from "@stello/shared";
 import { PrismaService } from "../prisma/prisma.service";
 import { RealtimeGateway } from "../realtime/realtime.gateway";
@@ -79,6 +79,14 @@ export class MenuController {
     @Body() body: { inStock: boolean },
   ) {
     this.assertOutlet(user, outletId);
+    // Verify the item actually belongs to this tenant + outlet before mutating.
+    // The Prisma tenant-guard passes update-by-id through unscoped, so without
+    // this scoped read a caller could flip stock on any item in any tenant.
+    const owned = await this.prisma.item.findFirst({
+      where: { id: itemId, tenantId: user.tenantId, outletId },
+      select: { id: true },
+    });
+    if (!owned) throw new NotFoundException("Item not found");
     const item = await this.prisma.item.update({
       where: { id: itemId },
       data: { inStock: !!body.inStock },

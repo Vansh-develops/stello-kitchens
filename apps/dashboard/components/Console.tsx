@@ -47,13 +47,9 @@ type Tab =
 export function Console({
   user,
   outlet,
-  onSwitchOutlet,
-  onLogout,
 }: {
   user: AuthUser;
   outlet: OutletDto;
-  onSwitchOutlet?: () => void;
-  onLogout: () => void;
 }) {
   const [menu, setMenu] = useState<AdminMenuDto | null>(null);
   const [tab, setTab] = useState<Tab>("menu");
@@ -163,14 +159,6 @@ export function Console({
         </nav>
         <div className="top-user">
           <span>{user.name}</span>
-          {onSwitchOutlet && (
-            <button className="text-btn" onClick={onSwitchOutlet}>
-              Switch outlet
-            </button>
-          )}
-          <button className="text-btn" onClick={onLogout}>
-            Sign out
-          </button>
         </div>
       </header>
 

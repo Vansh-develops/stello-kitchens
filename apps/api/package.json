@@ -8,7 +8,10 @@
     "start:dev": "nest start --watch",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
-    "prisma:seed": "prisma db seed"
+    "prisma:seed": "prisma db seed",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "provision:platform-admin": "ts-node prisma/provision-platform-admin.ts"
   },
   "prisma": {
     "seed": "ts-node prisma/seed.ts"
@@ -20,10 +23,12 @@
     "@nestjs/jwt": "^11.0.0",
     "@nestjs/platform-express": "^11.0.0",
     "@nestjs/platform-socket.io": "^11.0.0",
+    "@nestjs/throttler": "^6.5.0",
     "@nestjs/websockets": "^11.0.0",
-    "@stello/shared": "workspace:*",
     "@prisma/client": "^6.8.0",
+    "@stello/shared": "workspace:*",
     "bcryptjs": "^3.0.0",
+    "helmet": "^8.2.0",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.0",
     "socket.io": "^4.8.0",
@@ -31,10 +36,16 @@
   },
   "devDependencies": {
     "@nestjs/cli": "^11.0.0",
+    "@nestjs/testing": "^11.1.28",
+    "@swc/core": "^1.15.43",
     "@types/express": "^5.0.0",
     "@types/node": "^22.0.0",
+    "@types/supertest": "^7.2.0",
     "prisma": "^6.8.0",
+    "supertest": "^7.2.2",
     "ts-node": "^10.9.2",
-    "typescript": "^5.8.0"
+    "typescript": "^5.8.0",
+    "unplugin-swc": "^1.5.9",
+    "vitest": "^2.1.9"
   }
 }

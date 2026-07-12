@@ -9,10 +9,26 @@ datasource db {
 
 // ---------- Identity & tenancy ----------
 
+enum TenantStatus {
+  TRIAL
+  ACTIVE
+  SUSPENDED
+}
+
+enum TenantOrigin {
+  SEED
+  ADMIN
+  SIGNUP
+}
+
 model Tenant {
-  id        String   @id @default(cuid())
-  name      String
-  createdAt DateTime @default(now())
+  id          String        @id @default(cuid())
+  name        String
+  status      TenantStatus  @default(TRIAL)
+  trialEndsAt DateTime?
+  onboardedAt DateTime?
+  createdVia  TenantOrigin  @default(SEED)
+  createdAt   DateTime      @default(now())
 
   brands Brand[]
   users  User[]
@@ -112,6 +128,8 @@ model User {
   name         String
   roleId       String
   isActive     Boolean @default(true)
+  isPlatformAdmin Boolean @default(false)
+  emailVerified   Boolean @default(false)
 
   tenant      Tenant       @relation(fields: [tenantId], references: [id])
   role        Role         @relation(fields: [roleId], references: [id])

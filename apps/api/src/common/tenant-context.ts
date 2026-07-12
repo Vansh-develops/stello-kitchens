@@ -15,10 +15,22 @@ export function enterTenant(tenantId: string): void {
   als.enterWith({ tenantId, unscoped: false });
 }
 
-/** Run `fn` with tenant scoping switched off — for audited cross-tenant/system paths only. */
-export function runUnscoped<T>(fn: () => T): T {
+/**
+ * Run `fn` with tenant scoping switched off — for audited cross-tenant/system
+ * paths only.
+ *
+ * `fn`'s result is awaited *inside* the ALS scope (not just returned). A lazy
+ * Prisma query (e.g. `prisma.role.findFirst(...)`) doesn't execute until
+ * awaited, and PrismaService's tenant-scope extension reads `isUnscoped()` at
+ * execution time — so if the caller awaited the returned promise outside this
+ * function, the query would run under whatever ambient tenant context the
+ * caller happens to be in, not this unscoped one. Awaiting here keeps the
+ * unscoped context current for the entire lifetime of `fn()`, including
+ * standalone (non-transaction) reads.
+ */
+export function runUnscoped<T>(fn: () => Promise<T> | T): Promise<T> {
   const cur = als.getStore();
-  return als.run({ tenantId: cur?.tenantId ?? null, unscoped: true }, fn);
+  return als.run({ tenantId: cur?.tenantId ?? null, unscoped: true }, async () => await fn());
 }
 
 export function getTenantId(): string | null {
@@ -27,4 +39,13 @@ export function getTenantId(): string | null {
 
 export function isUnscoped(): boolean {
   return als.getStore()?.unscoped ?? false;
+}
+
+/**
+ * Reset the ambient tenant context to "no tenant, not unscoped". Intended for
+ * test harnesses so state from one test's `enterTenant`/`runUnscoped` call
+ * can't leak into the next test's ambient context.
+ */
+export function clearTenantContext(): void {
+  als.enterWith({ tenantId: null, unscoped: false });
 }

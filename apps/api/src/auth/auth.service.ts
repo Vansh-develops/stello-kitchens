@@ -46,6 +46,7 @@ export class AuthService {
     name: string;
     role: { name: string; permissions: unknown };
     userOutlets: { outletId: string }[];
+    isPlatformAdmin: boolean;
   }): AuthUser {
     return {
       id: user.id,
@@ -55,6 +56,7 @@ export class AuthService {
       roleName: user.role.name,
       permissions: Array.isArray(user.role.permissions) ? (user.role.permissions as string[]) : [],
       outletIds: user.userOutlets.map((uo) => uo.outletId),
+      isPlatformAdmin: user.isPlatformAdmin,
     };
   }
 }

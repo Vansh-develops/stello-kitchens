@@ -8,6 +8,7 @@ export interface AuthUser {
   roleName: string;
   permissions: string[];
   outletIds: string[];
+  isPlatformAdmin: boolean;
 }
 
 export interface LoginResponse {
