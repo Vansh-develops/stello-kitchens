@@ -902,3 +902,8 @@ export interface TenantSummaryDto {
   createdVia: string;
   onboardedAt: string | null;
 }
+
+export interface RoleDto {
+  id: string;
+  name: string;
+}

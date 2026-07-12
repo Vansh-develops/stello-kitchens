@@ -504,3 +504,23 @@ export const CreateTablesSchema = z.object({
   count: z.number().int().min(1).max(50),
 });
 export type CreateTablesInput = z.infer<typeof CreateTablesSchema>;
+
+// ---------- Account lifecycle ----------
+
+export const SignupSchema = z.object({
+  restaurantName: z.string().min(2).max(120),
+  ownerName: z.string().min(1).max(120),
+  email: z.string().email(),
+  password: z.string().min(8).max(200),
+});
+export type SignupInput = z.infer<typeof SignupSchema>;
+export const VerifyTokenSchema = z.object({ token: z.string().min(1) });
+export type VerifyTokenInput = z.infer<typeof VerifyTokenSchema>;
+export const ForgotPasswordSchema = z.object({ email: z.string().email() });
+export type ForgotPasswordInput = z.infer<typeof ForgotPasswordSchema>;
+export const ResetPasswordSchema = z.object({ token: z.string().min(1), newPassword: z.string().min(8).max(200) });
+export type ResetPasswordInput = z.infer<typeof ResetPasswordSchema>;
+export const CreateInviteSchema = z.object({ email: z.string().email(), roleId: z.string().min(1) });
+export type CreateInviteInput = z.infer<typeof CreateInviteSchema>;
+export const AcceptInviteSchema = z.object({ token: z.string().min(1), name: z.string().min(1).max(120), password: z.string().min(8).max(200) });
+export type AcceptInviteInput = z.infer<typeof AcceptInviteSchema>;
