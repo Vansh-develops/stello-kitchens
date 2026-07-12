@@ -1,4 +1,5 @@
 import { expect, it } from "vitest";
+import * as bcrypt from "bcryptjs";
 import { PrismaService } from "../src/prisma/prisma.service";
 import { SignupService } from "../src/account/signup.service";
 import { ProvisioningService } from "../src/provisioning/provisioning.service";
@@ -14,6 +15,7 @@ it("pending signup then verify provisions a real tenant", async () => {
   const { ownerId } = await svc().verify(raw);
   const owner = await testPrisma.user.findUnique({ where: { id: ownerId } });
   expect(owner!.email).toBe("ava@x.com");
+  expect(await bcrypt.compare("secret12", owner!.passwordHash)).toBe(true);
   expect(await testPrisma.pendingSignup.count({ where: { email: "ava@x.com" } })).toBe(0); // consumed
 });
 it("rejects duplicate email and invalid/expired token", async () => {
