@@ -261,6 +261,7 @@ select:focus-visible {
   top: 0;
   background: var(--bg);
   z-index: 5;
+  flex-wrap: wrap;
 }
 .top-brand {
   display: flex;
@@ -281,6 +282,13 @@ select:focus-visible {
   display: flex;
   gap: 4px;
   flex: 1;
+  overflow-x: auto;
+  flex-wrap: nowrap;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+.top-tabs::-webkit-scrollbar {
+  display: none;
 }
 .top-tab {
   padding: 9px 16px;
@@ -288,6 +296,7 @@ select:focus-visible {
   color: var(--muted);
   font-size: 14px;
   font-weight: 500;
+  flex: 0 0 auto;
 }
 .top-tab:hover {
   color: var(--cream);
@@ -2785,7 +2794,7 @@ select:focus-visible {
 }
 
 .shell { min-height: 100vh; display: flex; flex-direction: column; }
-.shell-bar { display: flex; align-items: center; gap: 20px; padding: 10px 18px; border-bottom: 1px solid var(--line); background: var(--panel); }
+.shell-bar { display: flex; align-items: center; gap: 20px; padding: 10px 18px; border-bottom: 1px solid var(--line); background: var(--panel); flex-wrap: wrap; }
 .shell-bar .wordmark { font-weight: 800; letter-spacing: .06em; color: var(--accent); }
 .surface-switch { display: flex; gap: 4px; }
 .surface-switch button { padding: 7px 14px; border-radius: var(--radius-sm); border: 1px solid transparent; background: transparent; color: var(--muted); font-weight: 600; cursor: pointer; }
@@ -2866,4 +2875,86 @@ select:focus-visible {
   body:has(.onboard-wrap) .onboard-print-area,
   body:has(.onboard-wrap) .onboard-print-area * { visibility: visible; }
   body:has(.onboard-wrap) .onboard-print-area { position: absolute; top: 0; left: 0; width: 100%; }
+}
+
+/* ---------- Phone responsive fixes ---------- */
+
+/* Console data tables: scroll horizontally inside themselves instead of
+   pushing the whole page sideways. Broadened to `.tab-pane table` so it
+   also covers `.mini-table` (used inside AccountingTab's invoice modal and
+   ReportsTab), not just `.data-table` — every table in the console lives
+   inside a `.tab-pane` wrapper. Desktop rendering (table display) is
+   untouched above this breakpoint. */
+@media (max-width: 768px) {
+  .tab-pane table {
+    display: block;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    white-space: nowrap;
+  }
+}
+
+/* Menu layout: sidebar + item grid stacks to a single column so the fixed
+   240px sidebar track doesn't force page-width overflow. */
+@media (max-width: 600px) {
+  .menu-layout {
+    grid-template-columns: 1fr;
+  }
+  .cat-side {
+    min-height: auto;
+    max-height: 40vh;
+    overflow-y: auto;
+    border-right: none;
+    border-bottom: 1px solid var(--line);
+  }
+}
+
+@media (max-width: 480px) {
+  /* Safety net: fixed-track row-grids elsewhere in the console (channel
+     rows, var rows, indent rows, etc.) are narrow enough in practice not to
+     need individual treatment, but this guards against any stray few px of
+     overflow rather than masking a real layout bug — the offenders called
+     out in the audit are fixed explicitly above/below instead of relying
+     on this alone. */
+  body {
+    overflow-x: hidden;
+  }
+
+  /* Onboarding + modal field pairs stack instead of squeezing side by side */
+  .field-row {
+    flex-direction: column;
+  }
+  .radio-group {
+    flex-direction: column;
+  }
+
+  /* Recipe editor rows: keep the tabular grid intact but let it scroll
+     horizontally inside the modal body rather than crushing the columns. */
+  .modal-body {
+    overflow-x: auto;
+  }
+  .recipe-row {
+    min-width: 420px;
+  }
+
+  /* Custom report builder rows: same pattern — scroll container + min-width
+     instead of collapsing the fixed-width label/value columns. */
+  .cr-rows {
+    overflow-x: auto;
+  }
+  .cr-row {
+    min-width: 280px;
+  }
+
+  /* Tap targets: comfortable 44px hit area for small text links/buttons.
+     Scoped to the phone breakpoint (rather than the base .text-btn rule)
+     so desktop table row-actions / card actions that reuse this class keep
+     their current compact height — only sizing/overflow changes on small
+     screens, not desktop look. */
+  .text-btn,
+  .login-forgot {
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+  }
 }
