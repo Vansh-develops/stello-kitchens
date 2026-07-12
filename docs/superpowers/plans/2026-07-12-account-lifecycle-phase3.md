@@ -37,8 +37,8 @@ import { describe, expect, it } from "vitest";
 import { SignupSchema, ResetPasswordSchema, CreateInviteSchema, AcceptInviteSchema } from "./schemas";
 describe("account schemas", () => {
   it("SignupSchema requires valid email + password>=8", () => {
-    expect(SignupSchema.safeParse({ restaurantName: "R", ownerName: "O", email: "a@b.com", password: "secret12" }).success).toBe(true);
-    expect(SignupSchema.safeParse({ restaurantName: "R", ownerName: "O", email: "x", password: "short" }).success).toBe(false);
+    expect(SignupSchema.safeParse({ restaurantName: "Cafe", ownerName: "O", email: "a@b.com", password: "secret12" }).success).toBe(true);
+    expect(SignupSchema.safeParse({ restaurantName: "X", ownerName: "O", email: "x", password: "short" }).success).toBe(false);
   });
   it("ResetPasswordSchema requires token + newPassword>=8", () => {
     expect(ResetPasswordSchema.safeParse({ token: "t", newPassword: "secret12" }).success).toBe(true);
