@@ -368,6 +368,8 @@ body,
 }
 .cl-name {
   font-weight: 500;
+  min-width: 0;
+  overflow-wrap: break-word;
 }
 .cl-opts {
   display: block;
@@ -384,7 +386,7 @@ body,
 .stepper {
   display: flex;
   align-items: center;
-  gap: 20px;
+  gap: 10px;
   background: var(--ink-3);
   border: 1px solid var(--line);
   border-radius: 10px;
