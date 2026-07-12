@@ -913,3 +913,39 @@ model LoyaltyOtp {
   @@index([outletId, phone])
   @@map("loyalty_otps")
 }
+
+// ---------- Account lifecycle (signup, reset, invites) ----------
+
+enum AuthTokenType {
+  PASSWORD_RESET
+  INVITE
+}
+
+model PendingSignup {
+  id             String   @id @default(cuid())
+  email          String   @unique
+  passwordHash   String
+  restaurantName String
+  ownerName      String
+  tokenHash      String   @unique
+  expiresAt      DateTime
+  createdAt      DateTime @default(now())
+
+  @@map("pending_signups")
+}
+
+model AuthToken {
+  id        String        @id @default(cuid())
+  type      AuthTokenType
+  tenantId  String?
+  userId    String?
+  email     String?
+  roleId    String?
+  tokenHash String        @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime      @default(now())
+
+  @@index([tokenHash])
+  @@map("auth_tokens")
+}
