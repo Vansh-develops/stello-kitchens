@@ -350,6 +350,20 @@
   font-size: 20px;
 }
 
+/* ---------- Small-screen board (phone/tablet) ----------
+   KDS is primarily a wall display; this rule only kicks in below 700px so
+   the desktop/wall board (>700px, incl. `.kds-wall` on the kitchen screen)
+   is completely unchanged. Lanes reflow from a fixed 3-column grid into
+   wrapped, min-240px columns, and the board scrolls vertically instead of
+   clipping ticket content. */
+@media (max-width: 700px) {
+  .kds-root .board {
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    overflow: hidden;
+    overflow-y: auto;
+  }
+}
+
 /* ---------- Ticket ---------- */
 .kds-root .ticket {
   text-align: left;
