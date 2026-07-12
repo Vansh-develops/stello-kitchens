@@ -28,6 +28,7 @@ import { HealthModule } from "./health/health.module";
 import { ProvisioningModule } from "./provisioning/provisioning.module";
 import { OnboardingModule } from "./onboarding/onboarding.module";
 import { TenantModule } from "./tenant/tenant.module";
+import { EmailModule } from "./email/email.module";
 
 @Module({
   imports: [
@@ -60,6 +61,7 @@ import { TenantModule } from "./tenant/tenant.module";
     ProvisioningModule,
     OnboardingModule,
     TenantModule,
+    EmailModule,
   ],
   providers: [
     // ThrottlerGuard first so rate limiting applies even to unauthenticated
