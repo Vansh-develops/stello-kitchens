@@ -363,6 +363,7 @@ export function saasInvoiceAmounts(subtotal: number): { subtotal: number; taxAmo
 
 export interface PlanDto extends PlanDefinition {
   isActive: boolean;
+  providerPlanIds: { MONTHLY?: string; YEARLY?: string } | null;
 }
 
 export interface SubscriptionInvoiceDto {
@@ -435,6 +436,8 @@ export const UpdatePlanSchema = z.object({
   limits: z.object({ outlets: LimitValue, terminals: LimitValue, users: LimitValue }).optional(),
   features: z.array(z.string().min(1)).optional(),
   isActive: z.boolean().optional(),
+  // Plan ids at the payment provider (Razorpay `plan_…`), per billing cycle.
+  providerPlanIds: z.object({ MONTHLY: z.string().max(60).optional(), YEARLY: z.string().max(60).optional() }).optional(),
 });
 export type UpdatePlanInput = z.infer<typeof UpdatePlanSchema>;
 
