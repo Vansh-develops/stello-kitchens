@@ -4,3 +4,4 @@ export * from "./coupon";
 export * from "./money";
 export * from "./theme";
 export * from "./access";
+export * from "./printing";
