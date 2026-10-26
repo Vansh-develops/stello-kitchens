@@ -58,6 +58,8 @@ export class MenuController {
         isVeg: i.isVeg,
         inStock: i.inStock,
         taxRate: Number(i.taxRate),
+        availableStart: i.availableStart,
+        availableEnd: i.availableEnd,
         variations: i.variations.map((v) => ({ id: v.id, name: v.name, price: Number(v.price) })),
         addonGroups: i.addonGroups.map((ag) => ({
           id: ag.group.id,

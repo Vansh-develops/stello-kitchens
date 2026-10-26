@@ -14,12 +14,31 @@ import type {
   SettleOrderInput,
   SyncedOrderInput,
 } from "@stello/shared";
-import { computeOrderTotals, evaluateCoupon, fromPaise, lineTotalPaise, toPaise } from "@stello/shared";
+import type { BillPreviewDto, SettlePreviewInput } from "@stello/shared";
+import { computeBill, evaluateCoupon, fromPaise, lineTotalPaise, toPaise } from "@stello/shared";
 import { Prisma } from "@prisma/client";
 import { randomUUID } from "node:crypto";
 import { PrismaService } from "../prisma/prisma.service";
 import { RealtimeGateway } from "../realtime/realtime.gateway";
 import { LoyaltyOtpService } from "../loyalty/loyalty-otp.service";
+import { splitTax, stateOf } from "../invoices/invoices.service";
+import {
+  assertAvailable,
+  isAvailableNow,
+  loadBillingRules,
+  resolveChannelPrices,
+  serviceChargeFor,
+  type PriceSource,
+} from "../billing/billing-rules";
+
+/** Context for the CGST/SGST/IGST split of an order's tax (place of supply). */
+type TaxContext = { sellerState: string | null; buyerGstinByOrder: Map<string, string | null> };
+/** Split-check context: parent table names and per-parent check summaries. */
+type SplitContext = {
+  tableNameByOrder: Map<string, string | null>;
+  childrenByParent: Map<string, { id: string; splitIndex: number | null; status: string; total: Prisma.Decimal; billNumber: string | null }[]>;
+};
+type PunchOptions = { source: PriceSource; offline?: boolean; at?: Date };
 
 const orderInclude = {
   table: true,
@@ -67,7 +86,7 @@ export class OrdersService {
           createdById: user.id,
         },
       });
-      await this.punchItems(tx, user, order.id, input.outletId, input.items, input.combos);
+      await this.punchItems(tx, user, order.id, input.outletId, input.items, input.combos, { source: { kind: "POS", orderType: input.orderType } });
       await this.recomputeTotals(tx, order.id);
       await tx.auditLog.create({
         data: {
@@ -95,6 +114,7 @@ export class OrdersService {
     items: OrderItemInput[];
     customerName?: string | null;
     customerPhone?: string | null;
+    channelName?: string | null; // aggregator channel (e.g. "Zomato") whose prices apply
   }): Promise<{ orderId: string; kotNumber: number; total: number }> {
     const result = await this.prisma.$transaction((tx) => this.ingestAggregatorOrderTx(tx, params));
     this.realtime.notifyOutlet(params.outletId);
@@ -116,6 +136,7 @@ export class OrdersService {
       items: OrderItemInput[];
       customerName?: string | null;
       customerPhone?: string | null;
+      channelName?: string | null;
     },
   ): Promise<{ orderId: string; kotNumber: number; total: number }> {
     if (params.items.length === 0) throw new BadRequestException("No mappable items in order");
@@ -129,7 +150,7 @@ export class OrdersService {
         customerPhone: params.customerPhone ?? null,
       },
     });
-    await this.punchItems(tx, actor, order.id, params.outletId, params.items);
+    await this.punchItems(tx, actor, order.id, params.outletId, params.items, [], { source: { kind: "AGGREGATOR", channelName: params.channelName } });
     await this.recomputeTotals(tx, order.id);
     const withKot = await tx.order.findUniqueOrThrow({
       where: { id: order.id },
@@ -172,6 +193,7 @@ export class OrdersService {
       if (order) {
         await tx.$queryRaw`SELECT id FROM orders WHERE id = ${order.id} FOR UPDATE`;
         order = await tx.order.findFirst({ where: { id: order.id, status: "OPEN" } });
+        if (order?.splitCount) throw new BadRequestException("This table's bill is being split; ask staff to finish billing first");
       }
       if (!order) {
         order = await tx.order.create({
@@ -185,7 +207,7 @@ export class OrdersService {
           },
         });
       }
-      await this.punchItems(tx, actor, order.id, params.outletId, params.items, combos);
+      await this.punchItems(tx, actor, order.id, params.outletId, params.items, combos, { source: { kind: "SCAN", mode: params.mode } });
       await this.recomputeTotals(tx, order.id);
       return order.id;
     });
@@ -260,8 +282,14 @@ export class OrdersService {
           billNumber,
         },
       });
-      await this.punchItems(tx, actor, created.id, outletId, order.items, [], true);
-      await this.recomputeTotals(tx, created.id, new Prisma.Decimal(order.discountAmount ?? 0));
+      // Offline punches already happened on the device, so an item outside its
+      // sale window is flagged for review (audit) rather than rejected.
+      const punched = await this.punchItems(tx, actor, created.id, outletId, order.items, [], {
+        source: { kind: "SYNC", orderType: order.orderType },
+        offline: true,
+        at: new Date(order.clientUpdatedAt),
+      });
+      await this.recomputeTotals(tx, created.id, new Prisma.Decimal(order.discountAmount ?? 0), { plain: true });
       const synced = await tx.order.findUniqueOrThrow({ where: { id: created.id } });
       const paidPaise = order.payments.reduce((sum, payment) => sum + toPaise(payment.amount), 0);
       if (settled && (order.payments.length === 0 || paidPaise !== toPaise(Number(synced.total)))) {
@@ -281,6 +309,17 @@ export class OrdersService {
           data: { deviceId, clientId: order.clientId, status: order.status, offlineRef: order.offlineRef, billNumber },
         },
       });
+      if (punched.unavailable.length) {
+        await tx.auditLog.create({
+          data: {
+            tenantId,
+            action: "ORDER_SYNC_AVAILABILITY_FLAG",
+            entity: "order",
+            entityId: created.id,
+            data: { deviceId, clientId: order.clientId, items: punched.unavailable, at: order.clientUpdatedAt },
+          },
+        });
+      }
       return created.id;
       });
     } catch (e) {
@@ -301,8 +340,9 @@ export class OrdersService {
   async addItems(user: AuthUser, orderId: string, input: AddItemsInput): Promise<OrderDto> {
     const order = await this.requireOrder(user, orderId);
     await this.prisma.$transaction(async (tx) => {
-      await this.lockOpenOrder(tx, user, orderId);
-      await this.punchItems(tx, user, order.id, order.outletId, input.items, input.combos);
+      const locked = await this.lockOpenOrder(tx, user, orderId);
+      this.assertNotSplit(locked, "add items");
+      await this.punchItems(tx, user, order.id, order.outletId, input.items, input.combos, { source: { kind: "POS", orderType: order.orderType } });
       await this.recomputeTotals(tx, order.id);
     });
     this.realtime.notifyOutlet(order.outletId);
@@ -312,54 +352,18 @@ export class OrdersService {
   async settle(user: AuthUser, orderId: string, input: SettleOrderInput): Promise<OrderDto> {
     await this.prisma.$transaction(async (tx) => {
       const order = await this.lockOpenOrder(tx, user, orderId);
+      if (order.splitCount) throw new BadRequestException("This bill is split into checks — settle each check");
 
       const outletRow = await tx.outlet.findUniqueOrThrow({ where: { id: order.outletId } });
-      const subtotal = Number(order.subtotal);
       const phone = (input.customerPhone ?? order.customerPhone ?? "").trim();
       const name = input.customerName ?? order.customerName ?? null;
-
-      // Coupon discount (validated with the shared rule engine).
-      let coupon: { id: string; code: string } | null = null;
-      let couponDiscount = 0;
-      if (input.couponCode) {
-        const c = await tx.coupon.findFirst({
-          where: { outletId: order.outletId, code: input.couponCode.toUpperCase() },
-        });
-        const evalResult = evaluateCoupon(
-          c
-            ? {
-                type: c.type as "PERCENT" | "FLAT",
-                value: Number(c.value),
-                minOrder: Number(c.minOrder),
-                maxDiscount: c.maxDiscount ? Number(c.maxDiscount) : null,
-                validFrom: c.validFrom?.toISOString() ?? null,
-                validTo: c.validTo?.toISOString() ?? null,
-                usageLimit: c.usageLimit,
-                usedCount: c.usedCount,
-                isActive: c.isActive,
-              }
-            : null,
-          subtotal,
-          new Date().toISOString(),
-        );
-        if (!evalResult.valid) throw new BadRequestException(evalResult.message);
-        coupon = { id: c!.id, code: c!.code };
-        couponDiscount = evalResult.discount;
-      }
-
-      // Loyalty redemption. The authoritative balance check + decrement runs
-      // atomically inside the settle transaction (a conditional update below), so
-      // concurrent settlements can never over-redeem the same balance. Here we only
-      // need the phone (redemption requires a customer) and the discount value; a
-      // stale pre-transaction read would be a time-of-check/time-of-use hole.
-      const redeemPoints = input.redeemPoints ?? 0;
-      let redeemDiscount = 0;
-      if (redeemPoints > 0) {
-        if (!phone) throw new BadRequestException("A customer phone is required to redeem points");
-        redeemDiscount = redeemPoints * Number(outletRow.loyaltyPointValue);
-      }
-
-      const totalDiscount = Math.min((input.discountAmount ?? 0) + couponDiscount + redeemDiscount, subtotal);
+      const { coupon, couponDiscount, redeemPoints, totalDiscount } = await this.resolveDiscounts(
+        tx,
+        order,
+        input,
+        Number(outletRow.loyaltyPointValue),
+        phone,
+      );
 
       let earned = 0;
       // Points redemption is OTP-gated: verify + consume the code atomically here,
@@ -472,16 +476,132 @@ export class OrdersService {
             couponDiscount,
             pointsEarned: earned,
             pointsRedeemed: redeemPoints,
+            serviceCharge: Number(totals.serviceChargeAmount),
+            serviceChargeWaived: order.serviceChargeWaived,
+            roundOff: Number(totals.roundOff),
+            parentOrderId: order.parentOrderId,
           },
         },
       });
-    });
+      // A split check settling may complete its parent bill.
+      if (order.parentOrderId) await this.closeSplitParentIfDone(tx, user, order.parentOrderId);
+      return order.outletId;
+    }).then((outletId) => this.realtime.notifyOutlet(outletId));
     return this.getOne(user, orderId);
+  }
+
+  /**
+   * Coupon + loyalty + manual + split-allocated discounts for a settlement (or a
+   * preview of one). Loyalty here only values the points; the authoritative
+   * balance check + decrement runs atomically inside settle.
+   */
+  private async resolveDiscounts(
+    tx: Prisma.TransactionClient,
+    order: { outletId: string; subtotal: Prisma.Decimal; allocatedDiscount: Prisma.Decimal },
+    input: { discountAmount?: number; couponCode?: string; redeemPoints?: number },
+    pointValue: number,
+    phone: string,
+  ) {
+    const subtotal = Number(order.subtotal);
+    // Coupon discount (validated with the shared rule engine).
+    let coupon: { id: string; code: string } | null = null;
+    let couponDiscount = 0;
+    if (input.couponCode) {
+      const c = await tx.coupon.findFirst({
+        where: { outletId: order.outletId, code: input.couponCode.toUpperCase() },
+      });
+      const evalResult = evaluateCoupon(
+        c
+          ? {
+              type: c.type as "PERCENT" | "FLAT",
+              value: Number(c.value),
+              minOrder: Number(c.minOrder),
+              maxDiscount: c.maxDiscount ? Number(c.maxDiscount) : null,
+              validFrom: c.validFrom?.toISOString() ?? null,
+              validTo: c.validTo?.toISOString() ?? null,
+              usageLimit: c.usageLimit,
+              usedCount: c.usedCount,
+              isActive: c.isActive,
+            }
+          : null,
+        subtotal,
+        new Date().toISOString(),
+      );
+      if (!evalResult.valid) throw new BadRequestException(evalResult.message);
+      coupon = { id: c!.id, code: c!.code };
+      couponDiscount = evalResult.discount;
+    }
+
+    // Loyalty redemption needs a customer; the value is points × point value.
+    const redeemPoints = input.redeemPoints ?? 0;
+    let redeemDiscount = 0;
+    if (redeemPoints > 0) {
+      if (!phone) throw new BadRequestException("A customer phone is required to redeem points");
+      redeemDiscount = redeemPoints * pointValue;
+    }
+
+    const totalDiscount = Math.min(
+      Number(order.allocatedDiscount) + (input.discountAmount ?? 0) + couponDiscount + redeemDiscount,
+      subtotal,
+    );
+    return { coupon, couponDiscount, redeemPoints, redeemDiscount, totalDiscount };
+  }
+
+  /** What settling now would charge — the POS settle dialog's breakdown. Writes nothing. */
+  async preview(user: AuthUser, orderId: string, input: SettlePreviewInput): Promise<BillPreviewDto> {
+    const order = await this.requireOrder(user, orderId);
+    if (order.status !== "OPEN") throw new BadRequestException("Order is not open");
+    if (order.splitCount) throw new BadRequestException("This bill is split into checks — settle each check");
+    const outletRow = await this.prisma.outlet.findUniqueOrThrow({ where: { id: order.outletId } });
+    const phone = (input.customerPhone ?? order.customerPhone ?? "").trim();
+    const { bill, sc, discounts } = await this.prisma.$transaction(async (tx) => {
+      const discounts = await this.resolveDiscounts(tx, order, input, Number(outletRow.loyaltyPointValue), phone);
+      const { totals, sc } = await this.billFor(tx, order.id, discounts.totalDiscount);
+      return { bill: totals, sc, discounts };
+    });
+    const ctx = await this.dtoContext(user.tenantId, order.outletId, [order]);
+    const split = splitTax(bill.taxAmount, ctx.tax.sellerState, ctx.tax.buyerGstinByOrder.get(order.id));
+    return {
+      subtotal: bill.subtotal,
+      discountAmount: bill.discountAmount,
+      couponDiscount: discounts.couponDiscount,
+      redeemDiscount: discounts.redeemDiscount,
+      serviceChargeAmount: bill.serviceChargeAmount,
+      serviceChargePercent: sc?.percent ?? 0,
+      serviceChargeTaxable: sc?.taxable ?? false,
+      serviceChargeRemoved: order.serviceChargeWaived,
+      taxAmount: bill.taxAmount,
+      cgst: split.cgst,
+      sgst: split.sgst,
+      igst: split.igst,
+      roundOff: bill.roundOff,
+      total: bill.total,
+    };
+  }
+
+  /** Close a split parent once none of its checks are still open. Locks parent after child. */
+  private async closeSplitParentIfDone(tx: Prisma.TransactionClient, user: AuthUser, parentId: string) {
+    await tx.$queryRaw`SELECT id FROM orders WHERE id = ${parentId} AND "tenantId" = ${user.tenantId} FOR UPDATE`;
+    const open = await tx.order.count({ where: { tenantId: user.tenantId, parentOrderId: parentId, status: "OPEN" } });
+    if (open > 0) return;
+    const parent = await tx.order.findFirstOrThrow({ where: { id: parentId, tenantId: user.tenantId } });
+    if (parent.status !== "OPEN") return;
+    await tx.order.update({ where: { id: parentId }, data: { status: "SPLIT", version: { increment: 1 } } });
+    await tx.auditLog.create({
+      data: { tenantId: user.tenantId, userId: user.id, action: "ORDER_SPLIT_CLOSED", entity: "order", entityId: parentId },
+    });
+  }
+
+  /** Split parents and their checks are frozen: only the checks themselves settle. */
+  assertNotSplit(order: { splitCount: number | null; parentOrderId: string | null }, action: string) {
+    if (order.splitCount) throw new BadRequestException(`This bill is split into checks — unsplit it to ${action}`);
+    if (order.parentOrderId) throw new BadRequestException(`This is a split check — unsplit the parent bill to ${action}`);
   }
 
   async cancel(user: AuthUser, orderId: string): Promise<OrderDto> {
     const order = await this.prisma.$transaction(async (tx) => {
       const order = await this.lockOpenOrder(tx, user, orderId);
+      this.assertNotSplit(order, "void it");
       await tx.order.update({
         where: { id: order.id },
         data: { status: "CANCELLED", version: { increment: 1 } },
@@ -508,7 +628,8 @@ export class OrdersService {
       include: orderInclude,
       orderBy: { createdAt: "asc" },
     });
-    return orders.map((o) => this.toDto(o));
+    const ctx = await this.dtoContext(user.tenantId, outletId, orders);
+    return orders.map((o) => this.toDto(o, ctx));
   }
 
   async getOne(user: AuthUser, orderId: string): Promise<OrderDto> {
@@ -518,17 +639,64 @@ export class OrdersService {
     });
     if (!order || order.tenantId !== user.tenantId) throw new NotFoundException("Order not found");
     this.assertOutlet(user, order.outletId);
-    return this.toDto(order);
+    return this.toDto(order, await this.dtoContext(user.tenantId, order.outletId, [order]));
   }
 
-  private async requireOrder(user: AuthUser, orderId: string) {
+  /** Place-of-supply + split-check lookups needed to render a batch of orders. */
+  private async dtoContext(
+    tenantId: string,
+    outletId: string,
+    orders: { id: string; parentOrderId: string | null; splitCount: number | null }[],
+  ): Promise<{ tax: TaxContext; split: SplitContext }> {
+    const outlet = await this.prisma.outlet.findFirst({
+      where: { id: outletId, tenantId },
+      select: { placeOfSupply: true, gstin: true },
+    });
+    const ids = orders.map((o) => o.id);
+    const invoices = ids.length
+      ? await this.prisma.invoice.findMany({ where: { tenantId, orderId: { in: ids } }, select: { orderId: true, buyerGstin: true } })
+      : [];
+    const parentIds = [
+      ...new Set([
+        ...orders.filter((o) => o.parentOrderId).map((o) => o.parentOrderId as string),
+        ...orders.filter((o) => o.splitCount).map((o) => o.id),
+      ]),
+    ];
+    const split: SplitContext = { tableNameByOrder: new Map(), childrenByParent: new Map() };
+    if (parentIds.length) {
+      const parents = await this.prisma.order.findMany({
+        where: { tenantId, id: { in: parentIds } },
+        select: { id: true, table: { select: { name: true } } },
+      });
+      for (const p of parents) split.tableNameByOrder.set(p.id, p.table?.name ?? null);
+      const children = await this.prisma.order.findMany({
+        where: { tenantId, parentOrderId: { in: parentIds } },
+        select: { id: true, parentOrderId: true, splitIndex: true, status: true, total: true, billNumber: true },
+        orderBy: { splitIndex: "asc" },
+      });
+      for (const c of children) {
+        const list = split.childrenByParent.get(c.parentOrderId!) ?? [];
+        list.push(c);
+        split.childrenByParent.set(c.parentOrderId!, list);
+      }
+    }
+    return {
+      tax: {
+        sellerState: outlet?.placeOfSupply ?? stateOf(outlet?.gstin),
+        buyerGstinByOrder: new Map(invoices.map((i) => [i.orderId, i.buyerGstin])),
+      },
+      split,
+    };
+  }
+
+  async requireOrder(user: AuthUser, orderId: string) {
     const order = await this.prisma.order.findUnique({ where: { id: orderId } });
     if (!order || order.tenantId !== user.tenantId) throw new NotFoundException("Order not found");
     this.assertOutlet(user, order.outletId);
     return order;
   }
 
-  private async lockOpenOrder(tx: Prisma.TransactionClient, user: AuthUser, orderId: string) {
+  async lockOpenOrder(tx: Prisma.TransactionClient, user: AuthUser, orderId: string) {
     const rows = await tx.$queryRaw<{ id: string }[]>`
       SELECT id FROM orders WHERE id = ${orderId} AND "tenantId" = ${user.tenantId} FOR UPDATE`;
     if (!rows.length) throw new NotFoundException("Order not found");
@@ -538,7 +706,7 @@ export class OrdersService {
     return order;
   }
 
-  private async lockTable(tx: Prisma.TransactionClient, tenantId: string, outletId: string, tableId: string) {
+  async lockTable(tx: Prisma.TransactionClient, tenantId: string, outletId: string, tableId: string) {
     // All table-opening paths take this lock before checking occupancy.
     const rows = await tx.$queryRaw<{ id: string }[]>`
       SELECT id FROM dining_tables
@@ -554,10 +722,30 @@ export class OrdersService {
     outletId: string,
     inputs: OrderLineInput[],
     combos: ComboOrderInput[] = [],
-    useOfflineSnapshots = false,
-  ) {
+    opts: PunchOptions,
+  ): Promise<{ unavailable: string[] }> {
+    const useOfflineSnapshots = !!opts.offline;
     const ownedOutlet = await tx.outlet.findFirst({ where: { id: outletId, tenantId: actor.tenantId } });
     if (!ownedOutlet) throw new NotFoundException("Outlet not found");
+    // Sale windows are judged in the outlet's local time. Online punches outside
+    // a window are rejected; offline (already-punched) ones are only flagged.
+    const rules = await loadBillingRules(tx, actor.tenantId, outletId);
+    const at = opts.at ?? new Date();
+    const unavailable: string[] = [];
+    const checkWindow = (item: { name: string; availableStart: string | null; availableEnd: string | null }) => {
+      if (useOfflineSnapshots) {
+        if (!isAvailableNow(item, rules.timezone, at) && !unavailable.includes(item.name)) unavailable.push(item.name);
+      } else {
+        assertAvailable(item, rules.timezone, at);
+      }
+    };
+    const channelPrices = await resolveChannelPrices(
+      tx,
+      actor.tenantId,
+      outletId,
+      [...new Set(inputs.map((i) => i.itemId))],
+      opts.source,
+    );
     const itemIds = [...new Set(inputs.map((i) => i.itemId))];
     const items = await tx.item.findMany({
       where: { id: { in: itemIds }, tenantId: actor.tenantId, outletId, deletedAt: null },
@@ -590,13 +778,21 @@ export class OrdersService {
       const item = itemMap.get(input.itemId);
       if (!item) throw new BadRequestException(`Item not found: ${input.itemId}`);
       if (!item.inStock) throw new BadRequestException(`${item.name} is out of stock`);
+      checkWindow(item);
 
-      let unitPrice = useOfflineSnapshots && input.offlineUnitPrice !== undefined ? input.offlineUnitPrice : Number(item.price);
+      // Channel price (dine-in/takeaway/delivery/scan/aggregator) overrides the
+      // base price. Channel prices are per item, so a variation keeps the same
+      // channel markup/markdown (variation price + channel delta, floored at 0).
+      const channelPrice = channelPrices.get(item.id);
+      const channelDelta = channelPrice !== undefined ? channelPrice - Number(item.price) : 0;
+      let unitPrice = useOfflineSnapshots && input.offlineUnitPrice !== undefined ? input.offlineUnitPrice : channelPrice ?? Number(item.price);
       let variationName: string | null = null;
       if (input.variationId) {
         const variation = item.variations.find((v) => v.id === input.variationId);
         if (!variation) throw new BadRequestException(`Invalid variation for ${item.name}`);
-        unitPrice = useOfflineSnapshots && input.offlineUnitPrice !== undefined ? input.offlineUnitPrice : Number(variation.price);
+        unitPrice = useOfflineSnapshots && input.offlineUnitPrice !== undefined
+          ? input.offlineUnitPrice
+          : Math.max(0, fromPaise(toPaise(Number(variation.price)) + toPaise(channelDelta)));
         variationName = variation.name;
       }
 
@@ -694,6 +890,7 @@ export class OrdersService {
         const item = chosenMap.get(c.itemId);
         if (!item) throw new BadRequestException("A combo component is unavailable");
         if (!item.inStock) throw new BadRequestException(`${item.name} is out of stock`);
+        checkWindow(item);
         await tx.orderItem.create({
           data: {
             orderId,
@@ -736,50 +933,100 @@ export class OrdersService {
         },
       });
     }
+    return { unavailable };
   }
 
-  /** Recomputes subtotal/tax/total. Discount is applied before tax, proportionally. */
-  private async recomputeTotals(
+  /**
+   * The bill for an order's current lines under the outlet's rules (service
+   * charge for its order type unless waived, round-off). `plain` skips both —
+   * offline-synced orders were totalled on the device with the plain formula.
+   */
+  private async billFor(tx: Prisma.TransactionClient, orderId: string, discount: number, plain = false) {
+    const order = await tx.order.findUniqueOrThrow({
+      where: { id: orderId },
+      select: { tenantId: true, outletId: true, orderType: true, serviceChargeWaived: true },
+    });
+    const items = await tx.orderItem.findMany({ where: { orderId } });
+    const rules = plain ? null : await loadBillingRules(tx, order.tenantId, order.outletId);
+    const sc = rules ? serviceChargeFor(rules, order) : null;
+    // Integer-paise shared formula; with no service charge / round-off it is the
+    // exact formula the edge device uses, so offline and online totals agree.
+    const totals = computeBill(
+      items.map((i) => ({ lineTotalPaise: toPaise(Number(i.lineTotal)), taxRatePercent: Number(i.taxRate) })),
+      { discountRupees: discount, serviceCharge: sc, roundOff: !!rules?.roundOffEnabled },
+    );
+    return { totals, sc };
+  }
+
+  /**
+   * Recomputes subtotal/discount/service charge/tax/round-off/total. Discount is
+   * applied before tax, proportionally; a split check defaults to its allocated
+   * share of the parent's discount.
+   */
+  async recomputeTotals(
     tx: Prisma.TransactionClient,
     orderId: string,
     discount?: Prisma.Decimal,
+    opts: { plain?: boolean } = {},
   ) {
-    const items = await tx.orderItem.findMany({ where: { orderId } });
-    // Compute in integer paise via the shared formula the edge device also uses,
-    // so an order's totals are identical whether billed online or offline.
-    const totals = computeOrderTotals(
-      items.map((i) => ({ lineTotalPaise: toPaise(Number(i.lineTotal)), taxRatePercent: Number(i.taxRate) })),
-      Number(discount ?? 0),
-    );
+    let d = discount;
+    if (d === undefined) {
+      const row = await tx.order.findUniqueOrThrow({ where: { id: orderId }, select: { allocatedDiscount: true } });
+      d = row.allocatedDiscount;
+    }
+    const { totals, sc } = await this.billFor(tx, orderId, Number(d), !!opts.plain);
     return tx.order.update({
       where: { id: orderId },
       data: {
         subtotal: totals.subtotal,
         discountAmount: totals.discountAmount,
+        serviceChargeAmount: totals.serviceChargeAmount,
+        serviceChargeRate: sc?.percent ?? 0,
+        serviceChargeTaxable: sc?.taxable ?? false,
         taxAmount: totals.taxAmount,
+        roundOff: totals.roundOff,
         total: totals.total,
         version: { increment: 1 },
       },
     });
   }
 
-  private toDto(order: OrderWithRelations): OrderDto {
+  private toDto(order: OrderWithRelations, ctx: { tax: TaxContext; split: SplitContext }): OrderDto {
     const tax = Number(order.taxAmount);
+    // Same place-of-supply rule as the tax invoice: inter-state buyer → IGST.
+    const gst = splitTax(tax, ctx.tax.sellerState, ctx.tax.buyerGstinByOrder.get(order.id));
+    const children = ctx.split.childrenByParent.get(order.id) ?? [];
     return {
       id: order.id,
       billNumber: order.billNumber,
       orderType: order.orderType as OrderDto["orderType"],
       status: order.status as OrderDto["status"],
       tableId: order.tableId,
-      tableName: order.table?.name ?? null,
+      tableName: order.table?.name ?? (order.parentOrderId ? ctx.split.tableNameByOrder.get(order.parentOrderId) ?? null : null),
       customerName: order.customerName,
       customerPhone: order.customerPhone,
       subtotal: Number(order.subtotal),
       discountAmount: Number(order.discountAmount),
       taxAmount: tax,
-      cgst: Math.round((tax / 2) * 100) / 100,
-      sgst: Math.round((tax / 2) * 100) / 100,
+      cgst: gst.cgst,
+      sgst: gst.sgst,
+      igst: gst.igst,
       total: Number(order.total),
+      serviceChargeAmount: Number(order.serviceChargeAmount),
+      serviceChargePercent: Number(order.serviceChargeRate),
+      serviceChargeRemoved: order.serviceChargeWaived,
+      serviceChargeRemovedReason: order.serviceChargeWaivedReason,
+      roundOff: Number(order.roundOff),
+      parentOrderId: order.parentOrderId,
+      splitIndex: order.splitIndex,
+      splitCount: order.splitCount ?? (order.parentOrderId ? (ctx.split.childrenByParent.get(order.parentOrderId)?.length ?? null) : null),
+      splitChildren: children.map((c) => ({
+        id: c.id,
+        splitIndex: c.splitIndex ?? 0,
+        status: c.status as OrderDto["status"],
+        total: Number(c.total),
+        billNumber: c.billNumber,
+      })),
       items: order.items.map((i) => ({
         id: i.id,
         itemName: i.itemName,
@@ -793,6 +1040,7 @@ export class OrdersService {
         comboName: i.comboId && !i.isComboComponent ? i.itemName : null,
         comboGroupId: i.comboGroupId,
         isComboComponent: i.isComboComponent,
+        shareParts: i.splitParts,
       })),
       kots: order.kots.map((k) => ({
         id: k.id,

@@ -89,6 +89,7 @@ export class ConnectorService {
             items: matched.map((m) => ({ itemId: m.itemId, quantity: m.quantity, addonIds: [] })),
             customerName: input.customerName ?? null,
             customerPhone: input.customerPhoneMasked ?? null,
+            channelName: channel?.name ?? PLATFORM_CHANNEL[input.platform] ?? null,
           });
           orderId = r.orderId;
           kotNumber = r.kotNumber;

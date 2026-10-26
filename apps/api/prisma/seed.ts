@@ -675,6 +675,26 @@ async function main() {
   console.log(`  channels: ${channelDefs.map((c) => c.name).join(", ")}`);
   console.log(`  users: admin@demo.com (Owner), cashier@demo.com (Cashier), kitchen@demo.com (Kitchen) — all password123`);
   console.log(`  admin id: ${admin.id}`);
+
+  // ── Billing ─────
+  // Cashiers can hold/resume, move and split bills; removing a service charge
+  // stays with the Owner (*) — grant "orders.service_charge.remove" to managers.
+  await prisma.role.update({
+    where: { id: cashierRole.id },
+    data: { permissions: { push: ["orders.park", "orders.transfer", "orders.split"] } },
+  });
+  await prisma.outletBillingSettings.create({
+    data: {
+      tenantId: tenant.id,
+      outletId: outlet1.id,
+      serviceChargeEnabled: true,
+      serviceChargePercent: 5,
+      serviceChargeTaxable: true,
+      serviceChargeOrderTypes: ["DINE_IN"],
+      roundOffEnabled: true,
+    },
+  });
+  console.log("  billing: 5% dine-in service charge + round-off on outlet 1");
 }
 
 main()

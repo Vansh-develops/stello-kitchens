@@ -19,6 +19,7 @@ import { PrismaService } from "../prisma/prisma.service";
 import { OrdersService } from "../orders/orders.service";
 import { CombosService } from "../combos/combos.service";
 import { RealtimeGateway } from "../realtime/realtime.gateway";
+import { isAvailableNow, loadBillingRules, windowLabel } from "../billing/billing-rules";
 
 // The item shape a diner submits, stored as JSON on the request row.
 type SubmittedItem = {
@@ -292,10 +293,14 @@ export class ScanOrderService {
       where: { id: { in: itemIds }, outletId: params.outletId, deletedAt: null },
     });
     const found = new Set(items.map((i) => i.id));
+    const rules = await this.prisma.$transaction((tx) => loadBillingRules(tx, params.tenantId, params.outletId));
     for (const line of params.input.items) {
       const item = items.find((i) => i.id === line.itemId);
       if (!found.has(line.itemId)) throw new BadRequestException("An item is no longer on the menu");
       if (item && !item.inStock) throw new BadRequestException(`${item.name} is out of stock`);
+      if (item && !isAvailableNow(item, rules.timezone)) {
+        throw new BadRequestException(`${item.name} is not available right now (served ${windowLabel(item)})`);
+      }
     }
 
     // Validate every submitted combo exists at this outlet and is available.
@@ -346,6 +351,9 @@ export class ScanOrderService {
       },
     });
     const combos = await this.combos.listDtos(tenantId, outletId);
+    // Diners only see what can be ordered now (outlet-local sale windows).
+    const rules = await this.prisma.$transaction((tx) => loadBillingRules(tx, tenantId, outletId));
+    const now = new Date();
     const combosByCategory = new Map<string, typeof combos>();
     for (const combo of combos) {
       const list = combosByCategory.get(combo.categoryId) ?? [];
@@ -357,7 +365,7 @@ export class ScanOrderService {
       name: c.name,
       sortOrder: c.sortOrder,
       combos: combosByCategory.get(c.id) ?? [],
-      items: c.items.map((i) => ({
+      items: c.items.filter((i) => isAvailableNow(i, rules.timezone, now)).map((i) => ({
         id: i.id,
         name: i.name,
         shortCode: i.shortCode,

@@ -7,7 +7,7 @@ const TRIAL_DAYS = 14;
 
 const STANDARD_ROLES = [
   { name: "Owner", permissions: ["*"] },
-  { name: "Cashier", permissions: ["orders.create", "orders.settle", "menu.stock"] },
+  { name: "Cashier", permissions: ["orders.create", "orders.settle", "menu.stock", "orders.park", "orders.transfer", "orders.split"] },
   { name: "Kitchen", permissions: ["kds.operate", "menu.stock"] },
 ];
 

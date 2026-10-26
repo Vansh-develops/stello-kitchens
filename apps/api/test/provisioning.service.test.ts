@@ -23,7 +23,7 @@ it("creates the full tenant graph with matching tenantId and seed-parity roles",
   const roles = await prisma.role.findMany({ where: { tenantId } });
   const byName = Object.fromEntries(roles.map((r) => [r.name, r.permissions]));
   expect(byName["Owner"]).toEqual(["*"]);
-  expect(byName["Cashier"]).toEqual(["orders.create", "orders.settle", "menu.stock"]);
+  expect(byName["Cashier"]).toEqual(["orders.create", "orders.settle", "menu.stock", "orders.park", "orders.transfer", "orders.split"]);
   expect(byName["Kitchen"]).toEqual(["kds.operate", "menu.stock"]);
 
   const outlets = await prisma.outlet.findMany({ where: { tenantId } });
