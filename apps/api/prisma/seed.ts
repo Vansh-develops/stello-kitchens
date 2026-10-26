@@ -2,6 +2,7 @@ import { PrismaClient } from "@prisma/client";
 import * as bcrypt from "bcryptjs";
 import { randomBytes } from "node:crypto";
 import { STARTER_TEMPLATE } from "../src/menu/starter-template";
+import { hashPin } from "../src/edge/pin";
 
 const prisma = new PrismaClient();
 const publicToken = () => randomBytes(9).toString("base64url");
@@ -668,6 +669,16 @@ async function main() {
 
   console.log(`  materials: ${materialDefs.length} raw materials, ${Object.keys(recipes).length} recipes`);
   console.log(`  crm: ${couponDefs.length} coupons, ${customerDefs.length} customers`);
+  // Offline edge POS: demo PINs for PIN login on an edge terminal (owner 1234, cashier 1111).
+  const cashierUser = await prisma.user.findUniqueOrThrow({ where: { email: "cashier@demo.com" } });
+  await prisma.edgeStaffPin.createMany({
+    data: [
+      { tenantId: tenant.id, userId: admin.id, pinHash: hashPin("1234") },
+      { tenantId: tenant.id, userId: cashierUser.id, pinHash: hashPin("1111") },
+    ],
+  });
+  console.log("  edge PINs: admin 1234, cashier 1111");
+
   console.log("Seeded demo tenant:");
   console.log(`  tenant: ${tenant.name}`);
   console.log(`  outlets: ${outlet1.name}, ${outlet2.name}`);
