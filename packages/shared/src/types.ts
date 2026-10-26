@@ -46,6 +46,7 @@ export interface MenuItemDto {
   taxRate: number;
   variations: MenuVariationDto[];
   addonGroups: MenuAddonGroupDto[];
+  nameTranslations?: Record<string, string> | null; // locale code → display name
 }
 
 export interface ComboSlotOptionDto {
@@ -233,6 +234,7 @@ export interface AdminItemDto {
   variations: { id: string; name: string; price: number }[];
   addonGroupIds: string[];
   channels: ItemChannelConfigDto[];
+  nameTranslations?: Record<string, string> | null;
 }
 
 export interface AdminCategoryDto {

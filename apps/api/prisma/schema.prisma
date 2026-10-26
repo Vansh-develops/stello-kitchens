@@ -131,6 +131,7 @@ model User {
   isPlatformAdmin Boolean @default(false)
   emailVerified   Boolean @default(false)
   tokenVersion Int @default(0)
+  locale       String? // UI language preference (en, hi, ...); null = device default
 
   tenant      Tenant       @relation(fields: [tenantId], references: [id])
   role        Role         @relation(fields: [roleId], references: [id])
@@ -193,6 +194,7 @@ model MenuCategory {
   name      String
   sortOrder Int       @default(0)
   deletedAt DateTime?
+  masterCategoryId String? // linked brand master category (null = outlet-only)
 
   outlet  Outlet   @relation(fields: [outletId], references: [id])
   station Station? @relation(fields: [stationId], references: [id])
@@ -219,6 +221,9 @@ model Item {
   availableStart String? // "HH:MM" local; null = all day (e.g. breakfast till 11:00)
   availableEnd   String?
   deletedAt      DateTime?
+  masterItemId     String? // linked brand master item (null = outlet-only item)
+  masterVersion    Int? // master item version last applied to this outlet row
+  nameTranslations Json? // { hi: "...", ta: "..." } diner-facing names
 
   category      MenuCategory       @relation(fields: [categoryId], references: [id])
   variations    ItemVariation[]
@@ -296,6 +301,7 @@ model AddonGroup {
   name      String
   minSelect Int    @default(0)
   maxSelect Int    @default(1)
+  masterAddonGroupId String? // linked brand master addon group
 
   addons Addon[]
   items  ItemAddonGroup[]
@@ -342,6 +348,7 @@ model Combo {
   hsnCode    String?   @default("996331")
   sortOrder  Int       @default(0)
   deletedAt  DateTime?
+  masterComboId String? // linked brand master combo
 
   category MenuCategory @relation(fields: [categoryId], references: [id])
   slots    ComboSlot[]
@@ -954,4 +961,248 @@ model AuthToken {
 
   @@index([tokenHash])
   @@map("auth_tokens")
+}
+
+// ── Track 8: chains, SaaS billing, languages ─────
+
+// ---------- Brand master menu (franchise / chain central menu) ----------
+
+// One row per brand: the master menu's edit version. Every master edit bumps it;
+// an outlet is "in sync" when its OutletMenuSync.publishedVersion matches.
+model MasterMenu {
+  id        String   @id @default(cuid())
+  tenantId  String
+  brandId   String   @unique
+  version   Int      @default(1)
+  updatedAt DateTime @updatedAt
+
+  @@index([tenantId])
+  @@map("master_menus")
+}
+
+model MasterCategory {
+  id          String    @id @default(cuid())
+  tenantId    String
+  brandId     String
+  name        String
+  sortOrder   Int       @default(0)
+  stationName String? // outlet station matched by name on publish
+  deletedAt   DateTime?
+  updatedAt   DateTime  @updatedAt
+
+  items  MasterItem[]
+  combos MasterCombo[]
+
+  @@index([tenantId, brandId])
+  @@map("master_categories")
+}
+
+model MasterItem {
+  id               String    @id @default(cuid())
+  tenantId         String
+  brandId          String
+  categoryId       String
+  name             String
+  shortCode        String?
+  price            Decimal   @db.Decimal(10, 2)
+  isVeg            Boolean   @default(true)
+  taxRate          Decimal   @default(5) @db.Decimal(5, 2)
+  hsnCode          String?   @default("996331")
+  sortOrder        Int       @default(0)
+  availableStart   String?
+  availableEnd     String?
+  variations       Json? // [{ name, price }]
+  addonGroupIds    Json? // MasterAddonGroup ids
+  nameTranslations Json?
+  version          Int       @default(1) // bumped on every edit (drift detection)
+  deletedAt        DateTime?
+  updatedAt        DateTime  @updatedAt
+
+  category  MasterCategory       @relation(fields: [categoryId], references: [id])
+  overrides MasterItemOverride[]
+
+  @@index([tenantId, brandId])
+  @@map("master_items")
+}
+
+model MasterAddonGroup {
+  id        String    @id @default(cuid())
+  tenantId  String
+  brandId   String
+  name      String
+  minSelect Int       @default(0)
+  maxSelect Int       @default(1)
+  addons    Json // [{ name, price }]
+  deletedAt DateTime?
+  updatedAt DateTime  @updatedAt
+
+  @@index([tenantId, brandId])
+  @@map("master_addon_groups")
+}
+
+model MasterCombo {
+  id         String    @id @default(cuid())
+  tenantId   String
+  brandId    String
+  categoryId String
+  name       String
+  price      Decimal   @db.Decimal(10, 2)
+  isVeg      Boolean   @default(true)
+  taxRate    Decimal   @default(5) @db.Decimal(5, 2)
+  hsnCode    String?   @default("996331")
+  sortOrder  Int       @default(0)
+  slots      Json // [{ name, options: [{ masterItemId, priceDelta, isDefault }] }]
+  deletedAt  DateTime?
+  updatedAt  DateTime  @updatedAt
+
+  category MasterCategory @relation(fields: [categoryId], references: [id])
+
+  @@index([tenantId, brandId])
+  @@map("master_combos")
+}
+
+// Per-outlet override of a master item. Null fields inherit from the master.
+model MasterItemOverride {
+  id           String   @id @default(cuid())
+  tenantId     String
+  outletId     String
+  masterItemId String
+  price        Decimal? @db.Decimal(10, 2)
+  inStock      Boolean? // availability override; null = leave the outlet's own toggle alone
+  isHidden     Boolean  @default(false)
+  updatedAt    DateTime @updatedAt
+
+  masterItem MasterItem @relation(fields: [masterItemId], references: [id], onDelete: Cascade)
+
+  @@unique([outletId, masterItemId])
+  @@index([tenantId, outletId])
+  @@map("master_item_overrides")
+}
+
+model OutletMenuSync {
+  id               String    @id @default(cuid())
+  tenantId         String
+  brandId          String
+  outletId         String    @unique
+  publishedVersion Int       @default(0)
+  status           String    @default("NEVER") // NEVER | IN_SYNC | FAILED
+  lastPublishedAt  DateTime?
+  lastError        String?
+
+  @@index([tenantId, brandId])
+  @@map("outlet_menu_syncs")
+}
+
+model MenuPublication {
+  id            String   @id @default(cuid())
+  tenantId      String
+  brandId       String
+  version       Int
+  publishedById String?
+  outletIds     Json
+  summary       Json // per-outlet op counts
+  createdAt     DateTime @default(now())
+
+  @@index([tenantId, brandId, createdAt])
+  @@map("menu_publications")
+}
+
+// ---------- SaaS subscription billing (Stello's own plans) ----------
+
+enum SubscriptionStatus {
+  TRIAL
+  ACTIVE
+  PAST_DUE
+  SUSPENDED
+  CANCELLED
+}
+
+// Platform-wide plan catalogue (not tenant-owned). Prices in integer paise, excl. GST.
+model Plan {
+  id             String   @id @default(cuid())
+  code           String   @unique
+  name           String
+  priceMonthly   Int
+  priceYearly    Int
+  limits         Json // { outlets, terminals, users } (null = unlimited)
+  features       Json // module keys, e.g. ["pos","kds","chain_menu"]
+  providerPlanId Json? // { MONTHLY: "plan_...", YEARLY: "plan_..." } at the payment provider
+  isActive       Boolean  @default(true)
+  sortOrder      Int      @default(0)
+  createdAt      DateTime @default(now())
+
+  subscriptions TenantSubscription[]
+
+  @@map("plans")
+}
+
+model TenantSubscription {
+  id                     String             @id @default(cuid())
+  tenantId               String             @unique
+  planId                 String
+  status                 SubscriptionStatus @default(TRIAL)
+  billingCycle           String             @default("MONTHLY") // MONTHLY | YEARLY
+  trialEndsAt            DateTime?
+  currentPeriodStart     DateTime?
+  currentPeriodEnd       DateTime?
+  graceEndsAt            DateTime?
+  cancelAtPeriodEnd      Boolean            @default(false)
+  provider               String             @default("mock")
+  providerSubscriptionId String?            @unique
+  checkoutUrl            String?
+  createdAt              DateTime           @default(now())
+  updatedAt              DateTime           @updatedAt
+
+  plan     Plan                  @relation(fields: [planId], references: [id])
+  invoices SubscriptionInvoice[]
+
+  @@map("tenant_subscriptions")
+}
+
+model SubscriptionInvoice {
+  id             String    @id @default(cuid())
+  tenantId       String
+  subscriptionId String
+  number         String    @unique
+  planCode       String
+  billingCycle   String
+  periodStart    DateTime
+  periodEnd      DateTime
+  subtotal       Int // paise
+  taxAmount      Int // paise (18% GST)
+  total          Int // paise
+  status         String    @default("OPEN") // OPEN | PAID | FAILED | VOID
+  dueAt          DateTime
+  paidAt         DateTime?
+  attempts       Int       @default(0)
+  providerRef    String?
+  createdAt      DateTime  @default(now())
+
+  subscription TenantSubscription @relation(fields: [subscriptionId], references: [id])
+
+  @@index([tenantId, createdAt])
+  @@map("subscription_invoices")
+}
+
+// Lifecycle audit + webhook idempotency (providerEventId).
+model SubscriptionEvent {
+  id              String   @id @default(cuid())
+  tenantId        String
+  type            String
+  fromStatus      String?
+  toStatus        String?
+  providerEventId String?  @unique
+  data            Json?
+  createdAt       DateTime @default(now())
+
+  @@index([tenantId, createdAt])
+  @@map("subscription_events")
+}
+
+// Atomic counters (e.g. the SaaS invoice number series per financial year).
+model BillingCounter {
+  key   String @id
+  value Int    @default(0)
+
+  @@map("billing_counters")
 }
