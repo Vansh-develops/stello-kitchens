@@ -150,3 +150,55 @@ export function nationalPhone(phone: string): string {
   const d = phone.replace(/\D/g, "");
   return d.length > 10 ? d.slice(-10) : d;
 }
+
+// ---------- GST e-invoicing (GSP) ----------
+
+export const EInvoiceProfileSchema = z.object({
+  legalName: z.string().trim().min(3).max(100),
+  tradeName: z.string().trim().max(100).nullable().optional(),
+  address1: z.string().trim().min(3).max(100),
+  address2: z.string().trim().max(100).nullable().optional(),
+  location: z.string().trim().min(3).max(50),
+  pincode: z.number().int().min(100000).max(999999),
+  stateCode: z.string().trim().regex(/^\d{2}$/, "Two-digit GST state code"),
+  phone: z.string().trim().regex(/^\d{6,12}$/).nullable().optional(),
+  email: z.string().trim().email().nullable().optional(),
+});
+export type EInvoiceProfileInput = z.infer<typeof EInvoiceProfileSchema>;
+export interface EInvoiceProfileDto extends EInvoiceProfileInput {
+  gstin: string | null;
+  provider: string; // "masters-india" | "mock-gsp"
+  live: boolean;
+}
+
+const GSTIN_RE = /^\d{2}[A-Z]{5}\d{4}[A-Z][1-9A-Z]Z[0-9A-Z]$/;
+export const GenerateIrnSchema = z.object({
+  buyerGstin: z.string().trim().toUpperCase().regex(GSTIN_RE, "Invalid GSTIN").optional(),
+  // Overrides when the GSTIN master lookup lacks an address.
+  buyer: z
+    .object({
+      legalName: z.string().trim().min(3).max(100).optional(),
+      address1: z.string().trim().min(3).max(100).optional(),
+      location: z.string().trim().min(3).max(50).optional(),
+      pincode: z.number().int().min(100000).max(999999).optional(),
+    })
+    .optional(),
+});
+export type GenerateIrnInput = z.infer<typeof GenerateIrnSchema>;
+
+export const CancelIrnSchema = z.object({
+  reason: z.string().trim().min(3).max(100).default("Cancelled by merchant"),
+  reasonCode: z.enum(["1", "2", "3", "4"]).default("4"), // 1 duplicate · 2 data entry mistake · 3 order cancelled · 4 others
+});
+export type CancelIrnInput = z.infer<typeof CancelIrnSchema>;
+
+export const EwayBillByIrnSchema = z.object({
+  distanceKm: z.number().int().min(0).max(4000),
+  transporterId: z.string().trim().regex(GSTIN_RE).optional(),
+  transporterName: z.string().trim().max(100).optional(),
+  vehicleNumber: z.string().trim().toUpperCase().regex(/^[A-Z0-9]{6,15}$/).optional(),
+});
+export type EwayBillByIrnInput = z.infer<typeof EwayBillByIrnSchema>;
+
+/** The IRP accepts cancellation only within 24 hours of the acknowledgement. */
+export const IRN_CANCEL_WINDOW_MS = 24 * 60 * 60 * 1000;
