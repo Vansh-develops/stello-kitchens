@@ -942,7 +942,8 @@ export const IssueGiftCardSchema = z.object({
 });
 export type IssueGiftCardInput = z.infer<typeof IssueGiftCardSchema>;
 
-export const VoidGiftCardSchema = z.object({ reason: z.string().min(3).max(200) });
+export const ReasonSchema = z.object({ reason: z.string().min(3).max(200) });
+export const VoidGiftCardSchema = ReasonSchema;
 export type VoidGiftCardInput = z.infer<typeof VoidGiftCardSchema>;
 
 export type GiftCardKind = "GIFT_CARD" | "STORE_CREDIT";
@@ -989,7 +990,7 @@ export interface GiftCardBalanceDto {
   expiresOn: string | null;
 }
 
-/** Normalise a typed/scanned gift card code: upper-case, no spaces. */
+/** Normalise a typed/scanned gift card code: upper-case, no spaces or dashes. */
 export function normaliseGiftCode(code: string): string {
-  return code.trim().toUpperCase().replace(/\s+/g, "");
+  return code.trim().toUpperCase().replace(/[\s-]+/g, "");
 }

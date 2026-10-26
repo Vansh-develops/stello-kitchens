@@ -20,6 +20,7 @@ import { randomUUID } from "node:crypto";
 import { PrismaService } from "../prisma/prisma.service";
 import { RealtimeGateway } from "../realtime/realtime.gateway";
 import { LoyaltyOtpService } from "../loyalty/loyalty-otp.service";
+import { redeemGiftCardsTx } from "../gift-cards/gift-cards.service";
 
 const orderInclude = {
   table: true,
@@ -372,6 +373,14 @@ export class OrdersService {
       const paid = fromPaise(input.payments.reduce((s, p) => s + toPaise(p.amount), 0));
       if (toPaise(paid) !== toPaise(total)) {
         throw new BadRequestException(`Payments (${paid.toFixed(2)}) must equal order total (${total.toFixed(2)})`);
+      }
+      // Gift card tenders: lock, check and decrement each card in this transaction.
+      const giftPayments = input.payments.filter((p) => p.mode === "GIFT_CARD");
+      if (giftPayments.length) {
+        await redeemGiftCardsTx(tx, {
+          tenantId: user.tenantId, outletId: order.outletId, orderId: order.id, userId: user.id,
+          payments: giftPayments.map((p) => ({ code: p.giftCardCode!, amount: p.amount })),
+        });
       }
       const outlet = await tx.outlet.update({
         where: { id: order.outletId },
