@@ -20,3 +20,7 @@ apps/edge/edge-data/
 
 # Local agent/editor settings
 .claude/settings.local.json
+
+# Local build artifacts
+stello.zip
+*.docx

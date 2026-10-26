@@ -19,9 +19,7 @@ See [`docs/SPEC.md`](docs/SPEC.md) for the full product teardown and phased road
 | Package | Stack | Role |
 | --- | --- | --- |
 | `apps/api` | NestJS + Prisma + PostgreSQL + Socket.IO | Multi-tenant backend: auth/RBAC, menu, orders, KOT, settlement, KDS, channels, inventory, connector, CRM, reports, cash/payments, GST invoicing |
-| `apps/pos` | React + Vite | Counter billing screen (web-first) |
-| `apps/kds` | React + Vite + socket.io-client | Kitchen Display System (station routing, live tickets) |
-| `apps/dashboard` | Next.js | Admin console: menu, combos, channels, pricing, inventory, recipes, prep/production, online orders, customers, marketing, reports (+ custom builder), accounting, central kitchen, Scan & Order, device fleet |
+| `apps/dashboard` | Next.js | POS billing screen (`/pos`), Kitchen Display System (`/kds`, station routing, live tickets) and the admin console: menu, combos, channels, pricing, inventory, recipes, prep/production, online orders, customers, marketing, reports (+ custom builder), accounting, central kitchen, Scan & Order, device fleet |
 | `apps/connector` | NestJS + BullMQ (Redis) | Standalone aggregator connector: webhooks, adapters, retrying relay |
 | `apps/edge` | Node + better-sqlite3 + Electron | Offline-first edge POS: local master service (SQLite source of truth) + sync engine + Electron shell |
 | `apps/order` | React + Vite (PWA) | Diner-facing Scan & Order: per-table QR menu, self-service kiosk, token-display board |
@@ -65,9 +63,7 @@ pnpm --filter @stello/api prisma:seed
 
 # 4. Run each service (one terminal each)
 pnpm dev:api        # http://localhost:3001/api/v1
-pnpm dev:pos        # http://localhost:5173
-pnpm dev:kds        # http://localhost:5174
-pnpm dev:dashboard  # http://localhost:3002
+pnpm dev:dashboard  # http://localhost:3002  (POS at /pos, KDS at /kds, console at /console)
 pnpm dev:connector  # http://localhost:3003  (needs Redis)
 ```
 
@@ -101,7 +97,7 @@ Open tables appear as chips under the search bar; tap one to resume its bill.
 
 ## Using the KDS
 
-Sign in at `localhost:5174` as `kitchen@demo.com` (a screen assigned to one outlet
+Open `localhost:3002/kds` and sign in as `kitchen@demo.com` (a screen assigned to one outlet
 skips the picker). The board is a live wall display:
 
 - **Station tabs** (All / Tandoor / Main Kitchen / Beverages / Desserts) filter the
