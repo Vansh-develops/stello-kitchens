@@ -216,6 +216,8 @@ export const ClaimPrintJobsSchema = z.object({
   connections: z.array(PrinterConnectionEnum).max(3).optional(),
   /** Only jobs this user created (a terminal printing its own punches). */
   mine: z.boolean().optional(),
+  /** Only jobs nobody has picked up for this long (a fallback printer stepping in). */
+  olderThanSeconds: z.number().int().min(1).max(3600).optional(),
   limit: z.number().int().min(1).max(20).optional(),
 });
 export type ClaimPrintJobsInput = z.infer<typeof ClaimPrintJobsSchema>;

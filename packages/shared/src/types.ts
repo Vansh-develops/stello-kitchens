@@ -864,7 +864,7 @@ export interface CallerIdDto {
 
 // ---------- Device fleet management ----------
 
-export type DeviceType = "POS" | "KDS" | "PRINTER" | "KIOSK" | "DISPLAY";
+export type DeviceType = "POS" | "KDS" | "KIOSK" | "DISPLAY";
 
 export interface DeviceDto {
   id: string;

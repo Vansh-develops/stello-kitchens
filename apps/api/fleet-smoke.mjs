@@ -24,10 +24,9 @@ async function main() {
   console.log("\n[1] Fleet listing");
   const devices = await get(`/outlets/${outlet.id}/devices`, token);
   ok(devices.length >= 3, `${devices.length} devices registered`);
-  ok(devices.some((d) => d.type === "POS") && devices.some((d) => d.type === "KDS") && devices.some((d) => d.type === "PRINTER"), "POS, KDS and PRINTER present");
-  const printer = devices.find((d) => d.type === "PRINTER");
-  // The seeded printer may have been reconfigured by a prior run, so just assert a valid config.
-  ok(["58mm", "80mm"].includes(printer.config.paperWidth) && typeof printer.config.autoPrintKot === "boolean", "seeded printer carries a printer config");
+  ok(devices.some((d) => d.type === "POS") && devices.some((d) => d.type === "KDS"), "POS and KDS present");
+  // Printers moved out of the fleet into outlets/:id/printers.
+  ok(!devices.some((d) => d.type === "PRINTER"), "no legacy PRINTER devices");
 
   // 2. Register a device (defaults applied).
   console.log("\n[2] Register");
@@ -36,12 +35,11 @@ async function main() {
   const kds = await j(await call("POST", `/outlets/${outlet.id}/devices`, { name: "Expo Screen", type: "KDS" }, token));
   ok(kds.config.theme === "dark" && kds.config.columns === 3, "new KDS gets default theme + columns");
 
-  // 3. Configure a throwaway printer (defaults → update) so seeded state stays clean.
+  // 3. Configure a throwaway KDS (defaults → update) so seeded state stays clean.
   console.log("\n[3] Configure");
-  const testPrinter = await j(await call("POST", `/outlets/${outlet.id}/devices`, { name: "Test Printer", type: "PRINTER" }, token));
-  ok(testPrinter.config.paperWidth === "80mm" && testPrinter.config.autoPrintKot === true, "new printer gets default config (80mm, auto-KOT)");
-  const updated = await j(await call("PATCH", `/outlets/${outlet.id}/devices/${testPrinter.id}`, { config: { paperWidth: "58mm", autoPrintKot: false, autoPrintBill: true, copies: 2 } }, token));
-  ok(updated.config.paperWidth === "58mm" && updated.config.copies === 2, "printer config updated (58mm, 2 copies)");
+  const testPrinter = await j(await call("POST", `/outlets/${outlet.id}/devices`, { name: "Test Screen", type: "KDS" }, token));
+  const updated = await j(await call("PATCH", `/outlets/${outlet.id}/devices/${testPrinter.id}`, { config: { theme: "light", density: "compact", sound: false, columns: 4 } }, token));
+  ok(updated.config.theme === "light" && updated.config.columns === 4, "KDS config updated (light, 4 columns)");
 
   // 4. Heartbeat → online.
   console.log("\n[4] Heartbeat");
@@ -60,7 +58,7 @@ async function main() {
   const backup = await get(`/outlets/${outlet.id}/devices/backup`, token);
   ok(backup.counts.items > 0 && backup.counts.tables > 0, `backup counts: ${backup.counts.items} items, ${backup.counts.tables} tables, ${backup.counts.devices} devices`);
   ok(backup.menu.length === backup.counts.categories, "backup includes the full menu by category");
-  ok(backup.devices.some((d) => d.type === "PRINTER" && d.config.paperWidth === "58mm"), "backup reflects updated printer config");
+  ok(backup.devices.some((d) => d.type === "KDS" && d.config.columns === 4), "backup reflects updated device config");
   ok(backup.tables.length === backup.counts.tables, "backup lists every table");
 
   // 7. RBAC: a cashier (no devices.manage / no *) is blocked.

@@ -13,7 +13,6 @@ await prisma.terminal.updateMany({
 
 const defs = [
   { name: "Kitchen Screen", type: "KDS", config: { theme: "dark", density: "comfortable", sound: true, columns: 3 } },
-  { name: "Counter Printer", type: "PRINTER", config: { paperWidth: "80mm", autoPrintKot: true, autoPrintBill: true, copies: 1 } },
 ];
 let created = 0;
 for (const d of defs) {
