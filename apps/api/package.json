@@ -18,6 +18,7 @@
     "seed": "node -r ts-node/register prisma/seed.ts"
   },
   "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.32.2",
     "@nestjs/common": "^11.0.0",
     "@nestjs/config": "^4.0.0",
     "@nestjs/core": "^11.0.0",
@@ -29,6 +30,7 @@
     "@prisma/client": "^6.8.0",
     "@stello/shared": "workspace:*",
     "bcryptjs": "^3.0.0",
+    "exceljs": "^4.4.0",
     "helmet": "^8.2.0",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.0",

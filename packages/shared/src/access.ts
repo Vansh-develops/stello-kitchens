@@ -2,7 +2,7 @@ export type Surface = "console" | "pos" | "kds";
 
 /** A surface is allowed if the user holds ANY of its gate permissions ("*" = all). */
 const SURFACE_GATES: Record<Surface, string[]> = {
-  console: ["menu.manage", "reports.view", "inventory.manage", "crm.manage", "finance.manage", "devices.manage"],
+  console: ["menu.manage", "reports.view", "inventory.manage", "crm.manage", "finance.manage", "devices.manage", "settings.manage", "roles.manage", "audit.view", "integrations.manage"],
   pos: ["orders.settle"],
   kds: ["kds.operate"],
 };
