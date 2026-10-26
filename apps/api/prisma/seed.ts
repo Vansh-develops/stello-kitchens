@@ -666,6 +666,55 @@ async function main() {
     });
   }
 
+  // ---------- Procurement, stock control & insights ----------
+  // purchase.manage: POs, receiving, vendors, reorder planning, forecasts.
+  // purchase.approve: approve POs / procurement settings. payables.manage: supplier bills & payments.
+  // stocktake.count: run counts. stocktake.approve: post count variances to stock.
+  await prisma.role.create({
+    data: {
+      tenantId: tenant.id,
+      name: "Purchase Manager",
+      permissions: [
+        "inventory.manage", "purchase.manage", "purchase.approve", "payables.manage",
+        "stocktake.count", "stocktake.approve", "reports.view",
+      ],
+    },
+  });
+  await prisma.role.create({
+    data: {
+      tenantId: tenant.id,
+      name: "Storekeeper",
+      permissions: ["inventory.manage", "purchase.manage", "stocktake.count"],
+    },
+  });
+  const freshFarms = await prisma.vendor.create({
+    data: { tenantId: tenant.id, outletId: outlet1.id, name: "Fresh Farms Poultry", phone: "9845012345", paymentTermsDays: 15 },
+  });
+  const dairy = await prisma.vendor.create({
+    data: { tenantId: tenant.id, outletId: outlet1.id, name: "Nandini Dairy Depot", phone: "9845098765", paymentTermsDays: 7 },
+  });
+  const grocer = await prisma.vendor.create({
+    data: { tenantId: tenant.id, outletId: outlet1.id, name: "KR Market Wholesale", phone: "9900011223", paymentTermsDays: 30 },
+  });
+  const planningDefs: [string, string, string, number | null][] = [
+    ["chicken", "Meat & Dairy", freshFarms.id, 25],
+    ["paneer", "Meat & Dairy", dairy.id, 12],
+    ["butter", "Meat & Dairy", dairy.id, 10],
+    ["cream", "Meat & Dairy", dairy.id, 6],
+    ["onion", "Produce", grocer.id, 40],
+    ["tomato", "Produce", grocer.id, 35],
+    ["rice", "Dry store", grocer.id, null],
+    ["oil", "Dry store", grocer.id, null],
+    ["flour", "Dry store", grocer.id, null],
+    ["dal", "Dry store", grocer.id, null],
+    ["spice", "Dry store", grocer.id, null],
+  ];
+  for (const [key, category, vendorId, par] of planningDefs) {
+    await prisma.materialPlanning.create({
+      data: { tenantId: tenant.id, outletId: outlet1.id, rawMaterialId: materials[key], category, preferredVendorId: vendorId, parLevel: par },
+    });
+  }
+
   console.log(`  materials: ${materialDefs.length} raw materials, ${Object.keys(recipes).length} recipes`);
   console.log(`  crm: ${couponDefs.length} coupons, ${customerDefs.length} customers`);
   console.log("Seeded demo tenant:");
