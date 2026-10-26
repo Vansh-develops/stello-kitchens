@@ -539,6 +539,9 @@ model RawMaterial {
   // Multi-stage recipes: this material's own prep recipe, and uses of it as an input.
   prepRecipe  PrepRecipeIngredient[] @relation("PrepOutput")
   prepInputs  PrepRecipeIngredient[] @relation("PrepInput")
+  planning        MaterialPlanning?
+  poLines         PurchaseOrderLine[]
+  stockCountLines StockCountLine[]
 
   @@index([tenantId, outletId])
   @@map("raw_materials")
@@ -583,6 +586,13 @@ model Vendor {
 
   outlet    Outlet          @relation(fields: [outletId], references: [id])
   movements StockMovement[]
+  gstin            String?
+  email            String?
+  address          String?
+  paymentTermsDays Int?
+  purchaseOrders   PurchaseOrder[]
+  supplierBills    SupplierBill[]
+  supplierPayments SupplierPayment[]
 
   @@map("vendors")
 }
@@ -954,4 +964,251 @@ model AuthToken {
 
   @@index([tokenHash])
   @@map("auth_tokens")
+}
+
+// ── Procurement, stock control & insights ─────
+
+// Per-outlet procurement knobs: over-receipt tolerance, price-variance alert and
+// the forecast window used by reorder suggestions.
+model ProcurementSettings {
+  id                    String   @id @default(cuid())
+  tenantId              String
+  outletId              String   @unique
+  overReceiptPct        Decimal  @default(0) @db.Decimal(5, 2)
+  priceVarianceAlertPct Decimal  @default(5) @db.Decimal(5, 2)
+  coverDays             Int      @default(3)
+  leadDays              Int      @default(1)
+  lookbackDays          Int      @default(28)
+  updatedAt             DateTime @updatedAt
+
+  @@map("procurement_settings")
+}
+
+// Planning attributes of a material (reorder level stays on RawMaterial).
+model MaterialPlanning {
+  id                String   @id @default(cuid())
+  tenantId          String
+  outletId          String
+  rawMaterialId     String   @unique
+  category          String? // stocktake scope / grouping
+  parLevel          Decimal? @db.Decimal(12, 3) // order-up-to level
+  preferredVendorId String?
+  leadTimeDays      Int?
+  minOrderQty       Decimal? @db.Decimal(12, 3) // pack size; suggestions round up to it
+
+  material RawMaterial @relation(fields: [rawMaterialId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, outletId])
+  @@map("material_planning")
+}
+
+model PurchaseOrder {
+  id           String    @id @default(cuid())
+  tenantId     String
+  outletId     String
+  vendorId     String
+  poNumber     String
+  status       String    @default("DRAFT") // DRAFT | APPROVED | SENT | PARTIALLY_RECEIVED | RECEIVED | CLOSED | CANCELLED
+  expectedDate DateTime?
+  note         String?
+  subtotal     Decimal   @default(0) @db.Decimal(12, 2)
+  taxAmount    Decimal   @default(0) @db.Decimal(12, 2)
+  total        Decimal   @default(0) @db.Decimal(12, 2)
+  createdById  String?
+  approvedById String?
+  approvedAt   DateTime?
+  sentAt       DateTime?
+  closedAt     DateTime?
+  cancelledAt  DateTime?
+  cancelReason String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  vendor   Vendor              @relation(fields: [vendorId], references: [id])
+  lines    PurchaseOrderLine[]
+  receipts GoodsReceipt[]
+
+  @@unique([outletId, poNumber])
+  @@index([tenantId, outletId, status])
+  @@map("purchase_orders")
+}
+
+// Quantities/rates are in the purchase unit; unitFactor converts to material units.
+model PurchaseOrderLine {
+  id              String  @id @default(cuid())
+  tenantId        String
+  purchaseOrderId String
+  rawMaterialId   String
+  materialName    String
+  unit            String
+  unitFactor      Decimal @default(1) @db.Decimal(12, 6)
+  orderedQty      Decimal @db.Decimal(12, 3)
+  receivedQty     Decimal @default(0) @db.Decimal(12, 3)
+  rate            Decimal @db.Decimal(12, 4)
+  taxRate         Decimal @default(0) @db.Decimal(5, 2)
+  sortOrder       Int     @default(0)
+
+  purchaseOrder PurchaseOrder      @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
+  material      RawMaterial        @relation(fields: [rawMaterialId], references: [id])
+  receiptLines  GoodsReceiptLine[]
+
+  @@index([purchaseOrderId])
+  @@map("purchase_order_lines")
+}
+
+// Goods received note against a PO (partial receipts allowed).
+model GoodsReceipt {
+  id              String   @id @default(cuid())
+  tenantId        String
+  outletId        String
+  purchaseOrderId String
+  vendorId        String
+  grnNumber       String
+  invoiceNo       String?
+  note            String?
+  subtotal        Decimal  @default(0) @db.Decimal(12, 2)
+  taxAmount       Decimal  @default(0) @db.Decimal(12, 2)
+  total           Decimal  @default(0) @db.Decimal(12, 2)
+  varianceAmount  Decimal  @default(0) @db.Decimal(12, 2) // (actual − PO rate) × qty
+  receivedAt      DateTime @default(now())
+  createdById     String?
+
+  purchaseOrder PurchaseOrder      @relation(fields: [purchaseOrderId], references: [id])
+  lines         GoodsReceiptLine[]
+
+  @@unique([outletId, grnNumber])
+  @@index([tenantId, outletId, receivedAt])
+  @@map("goods_receipts")
+}
+
+model GoodsReceiptLine {
+  id                  String  @id @default(cuid())
+  tenantId            String
+  goodsReceiptId      String
+  purchaseOrderLineId String
+  rawMaterialId       String
+  quantity            Decimal @db.Decimal(12, 3) // purchase unit
+  rate                Decimal @db.Decimal(12, 4) // actual, per purchase unit
+  poRate              Decimal @db.Decimal(12, 4)
+  taxRate             Decimal @default(0) @db.Decimal(5, 2)
+  stockQty            Decimal @db.Decimal(12, 3) // material units added to stock
+  unitCost            Decimal @db.Decimal(12, 4) // per material unit
+  lineTotal           Decimal @db.Decimal(12, 2) // incl. tax
+  priceVariance       Decimal @default(0) @db.Decimal(12, 2)
+
+  receipt GoodsReceipt      @relation(fields: [goodsReceiptId], references: [id], onDelete: Cascade)
+  poLine  PurchaseOrderLine @relation(fields: [purchaseOrderLineId], references: [id])
+
+  @@index([rawMaterialId])
+  @@map("goods_receipt_lines")
+}
+
+// Vendor payables: supplier bills and payments allocated against them.
+model SupplierBill {
+  id              String    @id @default(cuid())
+  tenantId        String
+  outletId        String
+  vendorId        String
+  billNumber      String
+  billDate        DateTime
+  dueDate         DateTime?
+  amount          Decimal   @db.Decimal(12, 2)
+  paidAmount      Decimal   @default(0) @db.Decimal(12, 2)
+  status          String    @default("OPEN") // OPEN | PARTIAL | PAID | VOID
+  purchaseOrderId String?
+  goodsReceiptId  String?   @unique
+  note            String?
+  createdById     String?
+  createdAt       DateTime  @default(now())
+
+  vendor      Vendor                      @relation(fields: [vendorId], references: [id])
+  allocations SupplierPaymentAllocation[]
+
+  @@unique([vendorId, billNumber])
+  @@index([tenantId, outletId, status])
+  @@map("supplier_bills")
+}
+
+model SupplierPayment {
+  id          String   @id @default(cuid())
+  tenantId    String
+  outletId    String
+  vendorId    String
+  amount      Decimal  @db.Decimal(12, 2)
+  unallocated Decimal  @default(0) @db.Decimal(12, 2) // advance / credit with the vendor
+  mode        String // CASH | BANK | UPI | CHEQUE | OTHER
+  reference   String?
+  note        String?
+  paidAt      DateTime @default(now())
+  createdById String?
+  createdAt   DateTime @default(now())
+
+  vendor      Vendor                      @relation(fields: [vendorId], references: [id])
+  allocations SupplierPaymentAllocation[]
+
+  @@index([tenantId, outletId, vendorId])
+  @@map("supplier_payments")
+}
+
+model SupplierPaymentAllocation {
+  id        String  @id @default(cuid())
+  tenantId  String
+  paymentId String
+  billId    String
+  amount    Decimal @db.Decimal(12, 2)
+
+  payment SupplierPayment @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+  bill    SupplierBill    @relation(fields: [billId], references: [id])
+
+  @@index([billId])
+  @@map("supplier_payment_allocations")
+}
+
+// Stocktake: expected quantities are frozen at start; posting applies the
+// variance as a delta (ADJUSTMENT movement) so concurrent sales are preserved.
+model StockCount {
+  id            String    @id @default(cuid())
+  tenantId      String
+  outletId      String
+  countNumber   String
+  scope         String    @default("FULL") // FULL | CATEGORY
+  category      String?
+  status        String    @default("COUNTING") // COUNTING | SUBMITTED | POSTED | CANCELLED
+  note          String?
+  startedAt     DateTime  @default(now())
+  startedById   String?
+  submittedAt   DateTime?
+  postedAt      DateTime?
+  postedById    String?
+  cancelledAt   DateTime?
+  varianceValue Decimal   @default(0) @db.Decimal(12, 2)
+
+  lines StockCountLine[]
+
+  @@unique([outletId, countNumber])
+  @@index([tenantId, outletId, status])
+  @@map("stock_counts")
+}
+
+model StockCountLine {
+  id            String    @id @default(cuid())
+  tenantId      String
+  stockCountId  String
+  rawMaterialId String
+  materialName  String
+  unit          String
+  expectedQty   Decimal   @db.Decimal(12, 3) // frozen at start
+  unitCost      Decimal   @db.Decimal(12, 4) // frozen at start (posting uses current cost)
+  countedQty    Decimal?  @db.Decimal(12, 3)
+  countedAt     DateTime?
+  countedById   String?
+  note          String?
+  varianceQty   Decimal?  @db.Decimal(12, 3)
+  varianceValue Decimal?  @db.Decimal(12, 2)
+
+  stockCount StockCount  @relation(fields: [stockCountId], references: [id], onDelete: Cascade)
+  material   RawMaterial @relation(fields: [rawMaterialId], references: [id])
+
+  @@unique([stockCountId, rawMaterialId])
+  @@map("stock_count_lines")
 }
