@@ -6,7 +6,7 @@ export type OrderType = z.infer<typeof OrderType>;
 export const OrderStatus = z.enum(["OPEN", "BILLED", "SETTLED", "CANCELLED"]);
 export type OrderStatus = z.infer<typeof OrderStatus>;
 
-export const PaymentMode = z.enum(["CASH", "CARD", "UPI", "WALLET", "OTHER"]);
+export const PaymentMode = z.enum(["CASH", "CARD", "UPI", "WALLET", "OTHER", "GIFT_CARD"]);
 export type PaymentMode = z.infer<typeof PaymentMode>;
 
 export const LoginSchema = z.object({
@@ -305,7 +305,8 @@ export const SyncedOrderSchema = z.object({
     offlineTaxRate: z.number().nonnegative().optional(),
   })).min(1),
   payments: z
-    .array(z.object({ mode: PaymentMode, amount: z.number().positive().multipleOf(0.01) }))
+    // Gift cards are redeemed online only (the balance lives on the server).
+    .array(z.object({ mode: PaymentMode.exclude(["GIFT_CARD"]), amount: z.number().positive().multipleOf(0.01) }))
     .default([]),
   status: z.enum(["OPEN", "SETTLED", "CANCELLED"]),
   // Provisional device reference. The authoritative GST bill/invoice number is
@@ -359,7 +360,8 @@ export const SettleOrderSchema = z.object({
       z.object({
         mode: PaymentMode,
         amount: z.number().positive().multipleOf(0.01),
-      }),
+        giftCardCode: z.string().min(4).max(40).optional(), // required for GIFT_CARD
+      }).refine((p) => p.mode !== "GIFT_CARD" || !!p.giftCardCode, { message: "Gift card code required", path: ["giftCardCode"] }),
     )
     .min(1),
   discountAmount: z.number().min(0).optional(),
