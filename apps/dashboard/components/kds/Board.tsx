@@ -4,6 +4,9 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { io, type Socket } from "socket.io-client";
 import type { KdsStockItemDto, KdsTicketDto, OutletDto, PrepStatus, StationDto } from "@stello/shared";
 import { kdsApi as api } from "@/lib/kds-api";
+import { usePrintStation } from "@/lib/print/station";
+import { reprintKotNow } from "@/lib/print/actions";
+import { PrintPanel } from "../printing/PrintPanel";
 
 const NEXT: Record<PrepStatus, PrepStatus> = {
   PENDING: "PREPARING",
@@ -40,6 +43,14 @@ export function Board({ outlet, onExit }: { outlet: OutletDto; onExit: () => voi
   const [connectionError, setConnectionError] = useState(false);
   const [now, setNow] = useState(() => Date.now());
   const [busyKey, setBusyKey] = useState<string | null>(null);
+  // A kitchen screen can be the print station for its station printers.
+  const printStation = usePrintStation(outlet.id);
+  const [printOpen, setPrintOpen] = useState(false);
+  const [printError, setPrintError] = useState<string | null>(null);
+  const reprint = (kotId: string) =>
+    void reprintKotNow(outlet.id, kotId, printStation)
+      .then(() => setPrintError(null))
+      .catch((err) => setPrintError(err instanceof Error ? err.message : "Reprint failed"));
 
   const refresh = useCallback(async () => {
     const [t, s] = await Promise.all([api.tickets(outlet.id), api.stock(outlet.id)]);
@@ -187,6 +198,13 @@ export function Board({ outlet, onExit }: { outlet: OutletDto; onExit: () => voi
           >
             Cook list
           </button>
+          <button
+            className={`cook-toggle ${printStation.lastError || printError ? "on" : ""}`}
+            onClick={() => setPrintOpen(true)}
+            title={printStation.lastError ?? printError ?? "Printing"}
+          >
+            {printStation.lastError || printError ? "Printer issue" : "Print"}
+          </button>
           <span className={`conn ${connected ? "live" : "down"}`} role="status">
             {connected ? "LIVE" : connectionError ? "OFFLINE · POLLING" : "RECONNECTING"}
           </span>
@@ -244,6 +262,25 @@ export function Board({ outlet, onExit }: { outlet: OutletDto; onExit: () => voi
                       <div className="ticket-top">
                         <span className="ticket-kot">KOT {t.kotNumber}</span>
                         <span className="ticket-age">{fmtElapsed(elapsedMs)}</span>
+                        <span
+                          role="button"
+                          tabIndex={0}
+                          className="kds-reprint"
+                          title={`Reprint KOT ${t.kotNumber}`}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            reprint(t.kotId);
+                          }}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter" || e.key === " ") {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              reprint(t.kotId);
+                            }
+                          }}
+                        >
+                          ⎙
+                        </span>
                       </div>
                       <div className="ticket-ctx">
                         <span className="ticket-where">
@@ -273,6 +310,9 @@ export function Board({ outlet, onExit }: { outlet: OutletDto; onExit: () => voi
             </section>
           ))}
         </div>
+      )}
+      {printOpen && (
+        <PrintPanel outletId={outlet.id} station={printStation} showBills={false} onClose={() => setPrintOpen(false)} />
       )}
     </div>
   );
