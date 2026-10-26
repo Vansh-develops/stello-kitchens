@@ -136,10 +136,8 @@ export class FloorService {
               status = "RESERVED";
             }
             const shownRes = seatedRes ?? upcoming ?? null;
-            const waiterNames = assignments
-              .filter((a) => a.tableId === t.id || a.areaId === area.id)
-              .map((a) => userName.get(a.userId))
-              .filter((n): n is string => !!n);
+            const section = assignments.filter((a) => a.tableId === t.id || a.areaId === area.id);
+            const waiterNames = section.map((a) => userName.get(a.userId)).filter((n): n is string => !!n);
             return {
               id: t.id,
               name: t.name,
@@ -162,6 +160,7 @@ export class FloorService {
                   }
                 : null,
               waiterNames: [...new Set(waiterNames)],
+              waiterIds: [...new Set(section.map((a) => a.userId))],
               openCalls: [...new Set(openCalls.filter((c) => c.tableId === t.id).map((c) => c.type as ServerCallType))],
             };
           }),

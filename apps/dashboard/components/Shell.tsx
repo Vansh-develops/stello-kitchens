@@ -6,7 +6,7 @@ import { surfaceAccess, type Surface } from "@stello/shared";
 import { useAuthGuard, OutletPicker } from "@/components/OutletPicker";
 import { ThemeProvider } from "@/components/ThemeProvider";
 
-const LABEL: Record<Surface, string> = { console: "Console", pos: "POS", kds: "KDS" };
+const LABEL: Record<Surface, string> = { console: "Console", pos: "POS", kds: "KDS", captain: "Captain" };
 
 export function Shell({ surface, children }: { surface: Surface; children: React.ReactNode }) {
   const { user, loading, outlets, outlet, setOutlet, logout } = useAuthGuard();

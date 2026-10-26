@@ -9,6 +9,7 @@ import type {
   CreateItemInput,
 } from "@stello/shared";
 import { api } from "@/lib/api";
+import { ItemPhoto } from "./foh/ItemPhoto";
 
 type ChannelForm = { price: string; externalId: string };
 
@@ -132,6 +133,7 @@ export function ItemDialog({
         </header>
 
         <div className="modal-body">
+          <ItemPhoto outletId={outletId} item={item} />
           <div className="field-row">
             <label className="field grow">
               Name

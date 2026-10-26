@@ -18,6 +18,10 @@ import { ItemDialog } from "./ItemDialog";
 import { ComboDialog, type ComboLine } from "./ComboDialog";
 import { SettleDialog } from "./SettleDialog";
 import { CashDrawer } from "./CashDrawer";
+import { publishCfdCart } from "@/lib/cfd-mirror";
+
+/** A table handed over from the floor / reservations screens (nonce re-triggers). */
+export type BillingIntent = { nonce: number; orderId?: string; tableId?: string; customerName?: string; customerPhone?: string };
 
 type ItemCartLine = {
   kind: "item";
@@ -50,9 +54,11 @@ const rupee = (n: number) => `₹${n.toFixed(2)}`;
 export function Billing({
   user,
   outlet,
+  intent,
 }: {
   user: AuthUser;
   outlet: OutletDto;
+  intent?: BillingIntent | null;
 }) {
   const [menu, setMenu] = useState<MenuCategoryDto[]>([]);
   const [areas, setAreas] = useState<AreaDto[]>([]);
@@ -124,6 +130,21 @@ export function Billing({
     setCustomerPhone(order.customerPhone ?? "");
     setError(null);
   };
+
+  // Open the table/order chosen on the floor or seated from a reservation.
+  useEffect(() => {
+    if (!intent) return;
+    if (intent.orderId) {
+      void openExisting(intent.orderId);
+      return;
+    }
+    startNew();
+    setTableId(intent.tableId ?? null);
+    setCustomerName(intent.customerName ?? "");
+    setCustomerPhone(intent.customerPhone ?? "");
+    void refreshOrders();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [intent?.nonce]);
 
   const key = () => `${Date.now()}-${Math.random()}`;
 
@@ -262,6 +283,35 @@ export function Billing({
   const committed = activeOrder?.items ?? [];
   const canSettle = activeOrder && committed.length > 0 && cart.length === 0;
 
+  // Mirror the running bill to a paired customer-facing display.
+  useEffect(() => {
+    if (!activeOrder && cart.length === 0) return publishCfdCart(null);
+    const lines = [
+      ...committed.filter((i) => !i.isComboComponent).map((i) => ({
+        name: i.itemName,
+        detail: [i.variationName, ...i.addonNames].filter(Boolean).join(", ") || null,
+        quantity: i.quantity,
+        amount: i.lineTotal,
+      })),
+      ...cart.map((l) => ({
+        name: l.name,
+        detail: l.kind === "combo" ? l.componentNames.join(" · ") : [l.variationName, ...l.addonNames].filter(Boolean).join(", ") || null,
+        quantity: l.quantity,
+        amount: l.unitPrice * l.quantity,
+        pending: true,
+      })),
+    ];
+    const pending = cart.reduce((s, l) => s + l.unitPrice * l.quantity, 0);
+    publishCfdCart({
+      label: activeOrder?.tableName ?? (tableId ? (areas.flatMap((a) => a.tables).find((t) => t.id === tableId)?.name ?? null) : null),
+      lines,
+      subtotal: (activeOrder?.subtotal ?? 0) + pending,
+      discount: activeOrder?.discountAmount ?? 0,
+      tax: activeOrder?.taxAmount ?? 0,
+      total: (activeOrder?.total ?? 0) + pending,
+    });
+  }, [activeOrder, cart, committed, tableId, areas]);
+
   return (
     <div className="pos">
       <aside className="rail">
@@ -344,6 +394,7 @@ export function Billing({
               disabled={!item.inStock}
               onClick={() => quickAdd(item)}
             >
+              {item.imageUrl && <img className="item-thumb" src={item.imageUrl} alt="" loading="lazy" />}
               <span className={`veg-dot ${item.isVeg ? "veg" : "nonveg"}`} />
               <span className="item-name">{item.name}</span>
               <span className="item-foot">

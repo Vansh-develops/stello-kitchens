@@ -702,3 +702,12 @@ body,
 .opt.disabled {
   opacity: 0.45;
 }
+
+/* Call-a-server: waiter / water / bill */
+.call-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 14px; }
+.call-row .waiter { margin-top: 0; padding: 11px 6px; font-size: 14px; }
+.call-row .waiter.sent { color: var(--mint); border-color: color-mix(in srgb, var(--mint) 40%, transparent); }
+.call-error { color: #e57373; font-size: 13px; margin: 8px 0 0; }
+
+/* Dish photos */
+.item-photo { width: 72px; height: 72px; flex: none; border-radius: 12px; object-fit: cover; background: var(--line); }

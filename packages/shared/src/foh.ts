@@ -97,6 +97,7 @@ export interface FloorTableDto {
   since: string | null;
   reservation: { id: string; guestName: string; partySize: number; startAt: string; status: ReservationStatus } | null;
   waiterNames: string[];
+  waiterIds: string[];
   openCalls: ServerCallType[];
 }
 
