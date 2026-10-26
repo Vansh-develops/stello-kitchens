@@ -6,6 +6,7 @@
 const path = require("node:path");
 const express = require("express");
 const { EdgeEngine } = require("./engine");
+const { createPrintRouter, startPullLoop } = require("./print-agent");
 
 const PORT = Number(process.env.EDGE_PORT || 4010);
 const HOST = process.env.EDGE_HOST || "127.0.0.1";
@@ -27,10 +28,28 @@ const ALLOWED_ORIGINS = new Set(
     .filter(Boolean),
 );
 
+// Print agent: the cloud dashboard (POS/KDS in a browser) sends jobs to /print on
+// this machine. It is a different caller from the renderer above, so it has its
+// own key and origin allow-list. The key is shared with the POS via its
+// "Printing on this device" setting.
+const PRINT_KEY = process.env.EDGE_PRINT_KEY ||
+  (process.env.NODE_ENV === "production" ? "" : "dev-print-key");
+const PRINT_ORIGINS = new Set(
+  (process.env.EDGE_PRINT_ORIGINS || "https://kitchens.stellotechs.com,http://localhost:3002,http://127.0.0.1:3002")
+    .split(",")
+    .map((origin) => origin.trim())
+    .filter(Boolean),
+);
+// Pull loop: claim this outlet's queued NETWORK/USB jobs from the cloud.
+const PRINT_POLL = process.env.EDGE_PRINT_POLL !== "0";
+const PRINT_PRINTERS = (process.env.EDGE_PRINT_PRINTERS || "").split(",").map((s) => s.trim()).filter(Boolean);
+
 const engine = new EdgeEngine({ dataDir: DATA_DIR, apiUrl: API_URL, deviceId: DEVICE_ID });
 const app = express();
 app.disable("x-powered-by");
 app.use(express.json({ limit: "256kb" }));
+// Mounted before the renderer CORS/token gate: it carries its own.
+if (PRINT_KEY) app.use("/print", createPrintRouter({ key: PRINT_KEY, allowedOrigins: PRINT_ORIGINS, agentId: engine.deviceId }));
 app.use((req, res, next) => {
   const origin = req.headers.origin;
   if (origin && !ALLOWED_ORIGINS.has(origin)) return res.status(403).json({ message: "Origin not allowed" });
@@ -83,6 +102,15 @@ setInterval(async () => {
     syncing = false;
   }
 }, 10_000);
+
+if (PRINT_POLL) {
+  startPullLoop({
+    api: (pathname, options) => engine._api(pathname, options),
+    outletId: () => engine.outletId,
+    agentId: engine.deviceId,
+    printerIds: PRINT_PRINTERS.length ? PRINT_PRINTERS : null,
+  });
+}
 
 app.listen(PORT, HOST, () => {
   console.log(`Edge master service on http://${HOST}:${PORT} (device ${engine.deviceId}, api ${API_URL})`);
