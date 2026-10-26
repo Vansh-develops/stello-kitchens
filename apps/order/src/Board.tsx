@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import type { TokenBoardDto } from "@stello/shared";
 import { api } from "./api";
 import { ThemeProvider } from "./ThemeProvider";
+import { InstallPrompt } from "./InstallPrompt";
 
 // Customer-facing token-display screen (a TV near the counter). Polls the board
 // and shows which token numbers are cooking vs ready for pickup.
@@ -74,6 +75,7 @@ export function Board({ token }: { token: string }) {
             </div>
           </section>
         </div>
+        <InstallPrompt placement="board" />
       </div>
     </ThemeProvider>
   );

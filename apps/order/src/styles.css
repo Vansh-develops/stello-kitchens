@@ -702,3 +702,50 @@ body,
 .opt.disabled {
   opacity: 0.45;
 }
+
+/* ---------- PWA install prompt (kiosk + token board) ---------- */
+.install-prompt {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 12px auto;
+  padding: 10px 12px;
+  max-width: 560px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow);
+  color: var(--text);
+  font-size: 14px;
+}
+.install-board {
+  position: fixed;
+  right: 16px;
+  bottom: 16px;
+  margin: 0;
+  z-index: 20;
+  max-width: min(420px, calc(100vw - 32px));
+}
+.install-icon { border-radius: 8px; flex: none; }
+.install-text { flex: 1; min-width: 0; }
+.install-go {
+  flex: none;
+  border: 0;
+  border-radius: var(--radius-sm);
+  padding: 8px 14px;
+  background: var(--accent);
+  color: var(--accent-ink);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+.install-x {
+  flex: none;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 4px;
+}

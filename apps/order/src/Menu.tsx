@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import type { ComboDto, MenuItemDto, PublicMenuDto } from "@stello/shared";
 import { api } from "./api";
 import { ThemeProvider } from "./ThemeProvider";
+import { InstallPrompt } from "./InstallPrompt";
 
 // Common display shape + a discriminator that carries what the submit payload needs.
 type CartLine = {
@@ -187,6 +188,7 @@ export function Menu({ mode, token }: { mode: "table" | "kiosk"; token: string }
   return (
     <ThemeProvider themeId={menu?.themeId}>
     <div className={`menu${mode === "kiosk" ? " menu-kiosk" : ""}`}>
+      {mode === "kiosk" && <InstallPrompt placement="kiosk" />}
       <header className="menu-head">
         <div className="brand-row">
           <span className="mark">Stello Kitchens</span>
