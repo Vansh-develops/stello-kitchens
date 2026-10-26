@@ -46,6 +46,8 @@ export interface MenuItemDto {
   taxRate: number;
   variations: MenuVariationDto[];
   addonGroups: MenuAddonGroupDto[];
+  availableStart?: string | null; // "HH:MM" outlet-local sale window; null = all day
+  availableEnd?: string | null;
 }
 
 export interface ComboSlotOptionDto {
@@ -109,6 +111,7 @@ export interface OrderItemDto {
   comboName: string | null; // set on a combo's parent line
   comboGroupId: string | null; // groups a combo's parent + component lines
   isComboComponent: boolean; // zero-priced kitchen line under a combo
+  shareParts?: number | null; // equal-split check line: this line is a 1/N share
 }
 
 export interface KotDto {
@@ -138,6 +141,17 @@ export interface OrderDto {
   kots: KotDto[];
   payments: { mode: PaymentMode; amount: number }[];
   createdAt: string;
+  // Billing controls (service charge, round-off, split checks)
+  igst?: number;
+  serviceChargeAmount?: number;
+  serviceChargePercent?: number;
+  serviceChargeRemoved?: boolean;
+  serviceChargeRemovedReason?: string | null;
+  roundOff?: number;
+  parentOrderId?: string | null; // set on a split check
+  splitIndex?: number | null; // 1-based check number within its parent
+  splitCount?: number | null; // number of checks (on the parent and each check)
+  splitChildren?: { id: string; splitIndex: number; status: OrderStatus; total: number; billNumber: string | null }[];
 }
 
 export interface OutletDto {
@@ -510,6 +524,8 @@ export interface ReportOverviewDto {
   avgOrderValue: number;
   taxCollected: number;
   discountsGiven: number;
+  serviceCharge?: number;
+  roundOff?: number;
   newCustomers: number;
   series: SalesPointDto[];
 }
@@ -534,6 +550,9 @@ export interface TaxSummaryDto {
   cgst: number;
   sgst: number;
   totalTax: number;
+  igst?: number;
+  serviceCharge?: number;
+  roundOff?: number;
 }
 
 export interface ReportBreakdownDto {
@@ -575,6 +594,9 @@ export interface DayEndReportDto {
   discounts: number;
   cgst: number;
   sgst: number;
+  igst?: number;
+  serviceCharge?: number;
+  roundOff?: number;
   firstBill: string | null;
   lastBill: string | null;
   payments: BreakdownRowDto[];
