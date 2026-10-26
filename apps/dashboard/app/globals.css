@@ -3001,3 +3001,110 @@ select:focus-visible {
     align-items: center;
   }
 }
+
+/* ---------- Brand menu / Billing / Platform (track 8) ---------- */
+.seg-toggle {
+  display: inline-flex;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  overflow: hidden;
+  flex-wrap: wrap;
+}
+.seg-toggle button {
+  padding: 7px 12px;
+  font-size: 13px;
+  color: var(--muted);
+  background: transparent;
+  border-right: 1px solid var(--line);
+}
+.seg-toggle button:last-child { border-right: 0; }
+.seg-toggle button.active { background: var(--accent); color: var(--accent-ink); }
+.chain-head-right { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.table-scroll { width: 100%; overflow-x: auto; margin-bottom: 18px; }
+.table-scroll .data-table { min-width: 640px; }
+.data-table td.row-actions, .row-actions { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+.chip-row { display: flex; flex-wrap: wrap; gap: 8px 16px; }
+.field-label {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--faint);
+  margin-bottom: 6px;
+}
+.translation-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
+.chain-layout .item-main { padding: 0 0 0 20px; min-width: 0; flex: 1; }
+.chain-empty, .chain-actions { display: flex; flex-direction: column; gap: 12px; }
+.chain-actions { flex-direction: row; flex-wrap: wrap; align-items: center; margin: 4px 0 18px; }
+.chain-actions input, .platform-filters input, .platform-filters select, .price-input {
+  background: var(--slate);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 7px 10px;
+  color: var(--cream);
+  font: inherit;
+  font-size: 13px;
+}
+.price-input { width: 96px; }
+.chain-list { list-style: none; margin: 0 0 18px; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.chain-list li {
+  display: flex; flex-wrap: wrap; gap: 8px; align-items: center;
+  background: var(--slate); border: 1px solid var(--line); border-radius: 10px; padding: 8px 12px; font-size: 13px;
+}
+.chain-list li .row-actions, .chain-list li > button { margin-left: auto; }
+.sync-badge, .inv-status {
+  display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 11px; font-family: var(--mono);
+  background: var(--slate-2); color: var(--muted);
+}
+.sync-badge.s-in_sync, .inv-status.s-paid, .inv-status.s-active { background: rgba(47, 125, 71, 0.14); color: var(--good); }
+.sync-badge.s-pending, .inv-status.s-open, .inv-status.s-trial, .inv-status.s-past_due { background: rgba(192, 122, 9, 0.14); color: var(--warn); }
+.sync-badge.s-failed, .inv-status.s-failed, .inv-status.s-suspended, .inv-status.s-cancelled { background: rgba(178, 58, 50, 0.14); color: var(--crit); }
+.publish-plan { border: 1px solid var(--line); border-radius: 12px; background: var(--slate); margin-bottom: 14px; }
+.pp-head { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; padding: 10px 14px; border-bottom: 1px solid var(--line); }
+.pp-head .btn-ghost { margin-left: auto; }
+.pp-ops { list-style: none; margin: 0; padding: 6px 14px 10px; display: flex; flex-direction: column; gap: 4px; font-size: 13px; }
+.pp-ops li { display: flex; flex-wrap: wrap; gap: 8px; align-items: baseline; }
+.op-tag { font-family: var(--mono); font-size: 10px; text-transform: uppercase; padding: 1px 6px; border-radius: 5px; background: var(--slate-2); }
+.op-create .op-tag { color: var(--good); }
+.op-remove .op-tag, .op-detach .op-tag { color: var(--crit); }
+.op-update .op-tag, .op-link .op-tag { color: var(--accent); }
+.op-entity { color: var(--faint); font-size: 12px; }
+.op-name { font-weight: 600; }
+.op-changes { color: var(--muted); font-size: 12px; }
+.op-conflict { color: var(--warn); font-size: 12px; }
+.op-conflict::before { content: "⚑ "; }
+.billing-banner {
+  border: 1px solid var(--line); background: var(--slate); border-radius: 10px; padding: 10px 16px;
+  font-size: 13px; margin-bottom: 16px;
+}
+.billing-banner.warn { border-color: rgba(192, 122, 9, 0.45); background: rgba(192, 122, 9, 0.08); }
+.billing-banner.crit { border-color: rgba(178, 58, 50, 0.45); background: rgba(178, 58, 50, 0.08); color: var(--crit); }
+.billing-banner a { color: var(--accent); }
+.billing-stats { flex-wrap: wrap; }
+.billing-stats .stat-value small { font-size: 13px; color: var(--faint); }
+.plan-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 14px; margin-bottom: 22px; }
+.plan-card {
+  background: var(--slate); border: 1px solid var(--line); border-radius: 14px; padding: 16px;
+  display: flex; flex-direction: column; gap: 10px;
+}
+.plan-card.current { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent) inset; }
+.plan-card.inactive { opacity: 0.55; }
+.plan-name { font-size: 16px; font-weight: 600; }
+.plan-price { font-family: var(--mono); font-size: 22px; font-weight: 600; }
+.plan-price span { font-size: 12px; color: var(--faint); font-weight: 400; }
+.plan-limits, .plan-features { margin: 0; padding-left: 18px; font-size: 13px; color: var(--muted); }
+.plan-features { flex: 1; }
+.plan-card button { align-self: flex-start; }
+.platform-filters { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 12px; }
+.si-head { display: flex; justify-content: space-between; gap: 12px; }
+.si-meta { text-align: right; }
+@media (max-width: 900px) {
+  .chain-layout { flex-direction: column; }
+  .chain-layout .item-main { padding: 16px 0 0; }
+}
+@media print {
+  body * { visibility: hidden; }
+  .saas-invoice, .saas-invoice * { visibility: visible; }
+  .saas-invoice { position: absolute; inset: 0; box-shadow: none; border: 0; }
+  .saas-invoice .modal-foot, .saas-invoice .modal-x { display: none; }
+}

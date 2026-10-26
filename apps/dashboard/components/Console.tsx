@@ -25,6 +25,9 @@ import { PrepTab } from "./PrepTab";
 import { FleetTab } from "./FleetTab";
 import { AppearanceTab } from "./AppearanceTab";
 import { InviteStaffTab } from "./InviteStaffTab";
+import { ChainMenuTab } from "./ChainMenuTab";
+import { BillingTab } from "./BillingTab";
+import { PlatformTab } from "./PlatformTab";
 
 const rupee = (n: number) => `₹${n.toFixed(0)}`;
 type Tab =
@@ -44,7 +47,10 @@ type Tab =
   | "prep"
   | "fleet"
   | "invite"
-  | "settings";
+  | "settings"
+  | "chain"
+  | "billing"
+  | "platform";
 
 export function Console({
   user,
@@ -133,8 +139,11 @@ export function Console({
               "fleet",
               "invite",
               "settings",
+              "chain",
+              "billing",
+              "platform",
             ] as const
-          ).map((t) => {
+          ).filter((t) => t !== "platform" || user.isPlatformAdmin).map((t) => {
             const labels: Record<string, string> = {
               menu: "Menu",
               addons: "Add-ons",
@@ -153,6 +162,9 @@ export function Console({
               fleet: "Fleet",
               invite: "Invite staff",
               settings: "Settings",
+              chain: "Brand menu",
+              billing: "Billing",
+              platform: "Platform",
             };
             return (
               <button key={t} className={`top-tab ${tab === t ? "active" : ""}`} onClick={() => setTab(t)}>
@@ -451,6 +463,9 @@ export function Console({
       {tab === "fleet" && <FleetTab outletId={outlet.id} />}
       {tab === "invite" && <InviteStaffTab />}
       {tab === "settings" && <AppearanceTab outlet={outlet} />}
+      {tab === "chain" && <ChainMenuTab outletId={outlet.id} />}
+      {tab === "billing" && <BillingTab />}
+      {tab === "platform" && user.isPlatformAdmin && <PlatformTab />}
 
       {itemDialog && (
         <ItemDialog
