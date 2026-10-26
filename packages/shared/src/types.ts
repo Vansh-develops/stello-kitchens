@@ -46,6 +46,7 @@ export interface MenuItemDto {
   taxRate: number;
   variations: MenuVariationDto[];
   addonGroups: MenuAddonGroupDto[];
+  imageUrl?: string | null;
 }
 
 export interface ComboSlotOptionDto {
@@ -233,6 +234,7 @@ export interface AdminItemDto {
   variations: { id: string; name: string; price: number }[];
   addonGroupIds: string[];
   channels: ItemChannelConfigDto[];
+  imageUrl?: string | null;
 }
 
 export interface AdminCategoryDto {
