@@ -33,11 +33,14 @@ export class LoyaltyOtpService {
         expiresAt: new Date(Date.now() + OTP_TTL_MS),
       },
     });
-    await this.notifications.send(
-      "SMS",
-      phone,
-      `Your Stello Kitchens redemption OTP is ${code}. Valid for 5 minutes.`,
-    );
+    // Sent inline over the tenant's OTP channel (MSG91 SMS or WhatsApp template).
+    await this.notifications.send("SMS", phone, `Your Stello Kitchens redemption OTP is ${code}. Valid for 5 minutes.`, {
+      tenantId: user.tenantId,
+      outletId,
+      purpose: "OTP",
+      vars: [code],
+      immediate: true,
+    });
     return { sent: true, points: customer.loyaltyPoints, expiresInSec: OTP_TTL_MS / 1000 };
   }
 

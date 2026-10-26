@@ -2,14 +2,28 @@ import { Injectable, Logger } from "@nestjs/common";
 
 export type NotificationChannel = "SMS" | "WHATSAPP" | "EMAIL";
 
+/**
+ * Routing context. With it, the messaging module picks the tenant's sender,
+ * template and opt-out rules; OTPs (`immediate`) are sent synchronously, all
+ * else is queued and rate limited.
+ */
+export interface NotificationMeta {
+  tenantId: string;
+  outletId?: string;
+  purpose: "OTP" | "CAMPAIGN" | "LOW_STOCK";
+  vars?: string[]; // ordered template variables (see MESSAGING_PURPOSE_VARS)
+  campaignId?: string;
+  immediate?: boolean;
+}
+
 export interface NotificationProvider {
-  send(channel: NotificationChannel, to: string, message: string): Promise<void>;
+  send(channel: NotificationChannel, to: string, message: string, meta?: NotificationMeta): Promise<void>;
 }
 
 /**
- * Stand-in for a real provider (MSG91 / Gupshup for SMS+WhatsApp, an ESP for email).
- * Swap this binding for a real HTTP client at integration time — the campaign code
- * depends only on the interface.
+ * Logs instead of sending. The live binding is the messaging module's
+ * MessagingNotificationProvider (MSG91 / WhatsApp Cloud / SMTP, each falling
+ * back to logging when its credentials are not configured).
  */
 @Injectable()
 export class LoggingNotificationProvider implements NotificationProvider {

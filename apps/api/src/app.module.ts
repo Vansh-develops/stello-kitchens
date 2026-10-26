@@ -31,6 +31,7 @@ import { TenantModule } from "./tenant/tenant.module";
 import { EmailModule } from "./email/email.module";
 import { AccountModule } from "./account/account.module";
 import { GatewayPaymentsModule } from "./gateway-payments/gateway-payments.module";
+import { MessagingModule } from "./messaging/messaging.module";
 
 @Module({
   imports: [
@@ -66,6 +67,7 @@ import { GatewayPaymentsModule } from "./gateway-payments/gateway-payments.modul
     EmailModule,
     AccountModule,
     GatewayPaymentsModule,
+    MessagingModule,
   ],
   providers: [
     // ThrottlerGuard first so rate limiting applies even to unauthenticated

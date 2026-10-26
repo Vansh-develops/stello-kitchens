@@ -46,3 +46,107 @@ export interface UnresolvedRefundDto {
   createdAt: string;
   reconciledAt: string | null;
 }
+
+// ---------- Messaging (MSG91 SMS, WhatsApp Cloud, email) ----------
+
+export const MessagingChannelEnum = z.enum(["SMS", "WHATSAPP", "EMAIL"]);
+export type MessagingChannel = z.infer<typeof MessagingChannelEnum>;
+export const MessagingPurposeEnum = z.enum(["OTP", "CAMPAIGN", "LOW_STOCK"]);
+export type MessagingPurpose = z.infer<typeof MessagingPurposeEnum>;
+
+/**
+ * Ordered variables each purpose supplies. SMS templates receive them as
+ * var1..varN (or the configured varNames); WhatsApp templates as body {{1}}..{{N}}.
+ */
+export const MESSAGING_PURPOSE_VARS: Record<MessagingPurpose, string[]> = {
+  OTP: ["otp"],
+  CAMPAIGN: ["message"],
+  LOW_STOCK: ["material", "stock", "reorderLevel", "outlet"],
+};
+
+export const SmsTemplateSchema = z.object({
+  templateId: z.string().trim().min(1).max(64), // MSG91 template id
+  dltTemplateId: z.string().trim().regex(/^\d{10,25}$/, "DLT template ids are numeric").optional(),
+  varNames: z.array(z.string().trim().min(1).max(30)).max(10).optional(),
+});
+export const WhatsAppTemplateSchema = z.object({
+  name: z.string().trim().regex(/^[a-z0-9_]{1,512}$/, "Use the approved template name (lowercase, underscores)"),
+  language: z.string().trim().min(2).max(10).default("en"),
+});
+export const PurposeTemplatesSchema = z.object({
+  sms: SmsTemplateSchema.optional(),
+  whatsapp: WhatsAppTemplateSchema.optional(),
+});
+export type PurposeTemplates = z.infer<typeof PurposeTemplatesSchema>;
+
+export const LowStockRecipientSchema = z.object({
+  name: z.string().trim().min(1).max(60),
+  phone: z.string().trim().regex(/^\+?\d{10,13}$/).optional(),
+  email: z.string().trim().email().optional(),
+  channels: z.array(MessagingChannelEnum).min(1),
+});
+export type LowStockRecipient = z.infer<typeof LowStockRecipientSchema>;
+
+export const MessagingConfigSchema = z.object({
+  smsEnabled: z.boolean(),
+  whatsappEnabled: z.boolean(),
+  emailEnabled: z.boolean(),
+  smsSenderId: z.string().trim().regex(/^[A-Z0-9]{6}$/, "DLT sender id is 6 characters").nullable().optional(),
+  whatsappPhoneNumberId: z.string().trim().regex(/^\d{5,25}$/).nullable().optional(),
+  otpChannel: z.enum(["SMS", "WHATSAPP"]),
+  templates: z.object({ OTP: PurposeTemplatesSchema.optional(), CAMPAIGN: PurposeTemplatesSchema.optional(), LOW_STOCK: PurposeTemplatesSchema.optional() }),
+  ratePerMinute: z.number().int().min(1).max(6000),
+  lowStockEnabled: z.boolean(),
+  lowStockRecipients: z.array(LowStockRecipientSchema).max(20),
+});
+export type MessagingConfigInput = z.infer<typeof MessagingConfigSchema>;
+
+export interface MessagingConfigDto extends MessagingConfigInput {
+  /** Which transport is live per channel ("log" = not configured; messages are only logged). */
+  transports: { sms: string; whatsapp: string; email: string };
+}
+
+export const OptOutSchema = z.object({
+  phone: z.string().trim().regex(/^\+?\d{10,13}$/),
+  channel: z.enum(["SMS", "WHATSAPP", "EMAIL", "ALL"]),
+});
+export type OptOutInput = z.infer<typeof OptOutSchema>;
+
+export interface OptOutDto {
+  id: string;
+  phone: string;
+  channel: string;
+  source: string;
+  createdAt: string;
+}
+
+export type OutboxStatus = "QUEUED" | "SENDING" | "SENT" | "DELIVERED" | "READ" | "FAILED" | "SKIPPED";
+
+export interface OutboxMessageDto {
+  id: string;
+  purpose: MessagingPurpose;
+  channel: MessagingChannel;
+  recipient: string;
+  status: OutboxStatus;
+  provider: string | null;
+  error: string | null;
+  attempts: number;
+  createdAt: string;
+  sentAt: string | null;
+  deliveredAt: string | null;
+}
+
+export type CampaignStatsDto = Record<OutboxStatus, number> & { total: number };
+
+export const TestMessageSchema = z.object({
+  channel: MessagingChannelEnum,
+  purpose: MessagingPurposeEnum.default("CAMPAIGN"),
+  to: z.string().trim().min(5).max(120),
+});
+export type TestMessageInput = z.infer<typeof TestMessageSchema>;
+
+/** Last 10 digits — the national form used for opt-outs and customer matching. */
+export function nationalPhone(phone: string): string {
+  const d = phone.replace(/\D/g, "");
+  return d.length > 10 ? d.slice(-10) : d;
+}
