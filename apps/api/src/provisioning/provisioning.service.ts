@@ -7,8 +7,8 @@ const TRIAL_DAYS = 14;
 
 const STANDARD_ROLES = [
   { name: "Owner", permissions: ["*"] },
-  { name: "Cashier", permissions: ["orders.create", "orders.settle", "menu.stock"] },
-  { name: "Kitchen", permissions: ["kds.operate", "menu.stock"] },
+  { name: "Cashier", permissions: ["orders.create", "orders.settle", "menu.stock", "printing.print"] },
+  { name: "Kitchen", permissions: ["kds.operate", "menu.stock", "printing.print"] },
 ];
 
 export interface ProvisionInput {
