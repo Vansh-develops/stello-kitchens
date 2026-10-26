@@ -202,3 +202,60 @@ export type EwayBillByIrnInput = z.infer<typeof EwayBillByIrnSchema>;
 
 /** The IRP accepts cancellation only within 24 hours of the acknowledgement. */
 export const IRN_CANCEL_WINDOW_MS = 24 * 60 * 60 * 1000;
+
+// ---------- Low-stock alerts ----------
+
+export interface LowStockAlertDto {
+  id: string;
+  rawMaterialId: string;
+  materialName: string;
+  stockQty: number;
+  reorderLevel: number;
+  unit: string;
+  notified: number; // messages queued to staff
+  acknowledgedAt: string | null;
+  createdAt: string;
+}
+
+/** Realtime `inventory:low-stock` event, emitted to the outlet room once per crossing. */
+export type LowStockEvent = LowStockAlertDto & { outletId: string };
+
+// ---------- Aggregator outbound sync ----------
+
+/** Menu row for outbound aggregator catalogues (UrbanPiper / ONDC). */
+export interface AggregatorCatalogItemDto {
+  externalId: string;
+  title: string;
+  description: string | null;
+  price: number;
+  inStock: boolean;
+  isVeg: boolean;
+  categoryRef: string;
+  categoryName: string;
+  outletName: string;
+}
+
+export const AggregatorPushSchema = z.object({
+  platform: z.enum(["URBANPIPER", "ONDC", "ZOMATO", "SWIGGY"]),
+});
+export const AggregatorStoreToggleSchema = AggregatorPushSchema.extend({
+  online: z.boolean(),
+  reason: z.string().trim().max(120).optional(),
+});
+export type AggregatorStoreToggleInput = z.infer<typeof AggregatorStoreToggleSchema>;
+
+export const AggregatorOrderActionSchema = z.object({
+  status: z.enum(["ACCEPTED", "PREPARING", "READY", "PICKED_UP", "DELIVERED", "REJECTED", "CANCELLED"]),
+  prepTimeMins: z.number().int().min(1).max(180).optional(),
+});
+export type AggregatorOrderActionInput = z.infer<typeof AggregatorOrderActionSchema>;
+
+export interface AggregatorSyncLogDto {
+  id: string;
+  platform: string;
+  kind: "MENU" | "ITEM_STOCK" | "STORE" | "ORDER_STATUS";
+  status: "OK" | "ERROR" | "SIMULATED";
+  referenceId: string | null;
+  error: string | null;
+  createdAt: string;
+}
