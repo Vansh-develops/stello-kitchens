@@ -955,3 +955,112 @@ model AuthToken {
   @@index([tokenHash])
   @@map("auth_tokens")
 }
+
+// ── Offline edge POS ─────
+// An activated offline edge terminal. Authenticates /edge/device/* with a bearer
+// secret (stored hashed) and owns its own GST invoice series (`seriesCode`).
+model EdgeDevice {
+  id            String    @id @default(cuid())
+  tenantId      String
+  outletId      String
+  terminalId    String
+  seriesCode    String // e.g. "E03" — re-activation always allocates a fresh series
+  secretHash    String // sha256 of the device bearer secret
+  activatedById String?
+  activatedAt   DateTime  @default(now())
+  lastPushAt    DateTime?
+  lastPullAt    DateTime?
+  clockSkewMs   Int? // serverTime − deviceTime measured on the last push
+  revokedAt     DateTime?
+
+  @@unique([outletId, seriesCode])
+  @@index([tenantId, outletId])
+  @@index([terminalId])
+  @@map("edge_devices")
+}
+
+// Materialised per-outlet change feed: one row per catalog entity with a content
+// hash; `seq` is bumped (from EdgeFeedState) whenever the hash changes or the
+// entity disappears (tombstone). Devices pull rows with seq > cursor.
+model EdgeFeedEntry {
+  id        String   @id @default(cuid())
+  tenantId  String
+  outletId  String
+  entity    String // settings | category | item | combo | area | table | staff | coupon
+  entityId  String
+  hash      String
+  seq       Int
+  deleted   Boolean  @default(false)
+  data      Json?
+  updatedAt DateTime @updatedAt
+
+  @@unique([outletId, entity, entityId])
+  @@index([outletId, seq])
+  @@map("edge_feed_entries")
+}
+
+// Per-outlet feed sequence + serialisation lock for feed refreshes.
+model EdgeFeedState {
+  outletId    String   @id
+  tenantId    String
+  lastSeq     Int      @default(0)
+  refreshedAt DateTime @default(now())
+
+  @@map("edge_feed_states")
+}
+
+// Hashed offline PIN for a staff user (verified on the edge device).
+model EdgeStaffPin {
+  id        String   @id @default(cuid())
+  tenantId  String
+  userId    String   @unique
+  pinHash   String
+  setById   String?
+  updatedAt DateTime @updatedAt
+
+  @@index([tenantId])
+  @@map("edge_staff_pins")
+}
+
+// Every offline invoice number accepted from a device series. The unique key makes
+// a re-used number impossible and lets the console report gaps per series/FY.
+model EdgeInvoiceSeq {
+  id           String   @id @default(cuid())
+  tenantId     String
+  outletId     String
+  edgeDeviceId String
+  seriesCode   String
+  fiscalYear   String
+  seq          Int
+  billNumber   String
+  orderId      String
+  createdAt    DateTime @default(now())
+
+  @@unique([edgeDeviceId, fiscalYear, seq])
+  @@unique([outletId, billNumber])
+  @@index([tenantId, outletId])
+  @@map("edge_invoice_seqs")
+}
+
+// Something about an offline sale that the server could not honour exactly
+// (exhausted coupon, price drift, unknown staff…). The sale is kept; a manager reviews.
+model EdgeSyncConflict {
+  id             String    @id @default(cuid())
+  tenantId       String
+  outletId       String
+  edgeDeviceId   String
+  clientId       String
+  orderId        String?
+  billNumber     String?
+  kind           String
+  message        String
+  detail         Json?
+  status         String    @default("OPEN") // OPEN | RESOLVED
+  resolvedById   String?
+  resolvedAt     DateTime?
+  resolutionNote String?
+  createdAt      DateTime  @default(now())
+
+  @@index([tenantId, outletId, status])
+  @@map("edge_sync_conflicts")
+}
