@@ -266,7 +266,7 @@ export function Billing({
     <div className="pos">
       <aside className="rail">
         <div className="rail-top">
-          <span className="wordmark">SPICE<br />ROUTE</span>
+          <span className="wordmark">{outlet.brandName}</span>
           <span className="rail-outlet">{outlet.name.replace("Stello Kitchens - ", "")}</span>
         </div>
         <nav className="cat-nav">

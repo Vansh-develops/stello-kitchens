@@ -21,8 +21,9 @@ function splitTax(taxAmount: number, sellerState: string | null, buyerGstin?: st
   const buyerState = stateOf(buyerGstin);
   const interState = !!buyerState && !!sellerState && buyerState !== sellerState;
   if (interState) return { cgst: 0, sgst: 0, igst: r2(taxAmount), interState };
-  const half = r2(taxAmount / 2);
-  return { cgst: half, sgst: half, igst: 0, interState };
+  const taxPaise = toPaise(taxAmount);
+  const cgstPaise = Math.floor(taxPaise / 2);
+  return { cgst: fromPaise(cgstPaise), sgst: fromPaise(taxPaise - cgstPaise), igst: 0, interState };
 }
 
 @Injectable()

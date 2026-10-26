@@ -15,8 +15,8 @@
   },
   "scripts": {
     "dev:api": "pnpm --filter @stello/api start:dev",
-    "dev:pos": "pnpm --filter @stello/pos dev",
-    "dev:kds": "pnpm --filter @stello/kds dev",
+    "dev:pos": "pnpm --filter @stello/dashboard dev",
+    "dev:kds": "pnpm --filter @stello/dashboard dev",
     "dev:dashboard": "pnpm --filter @stello/dashboard dev",
     "dev:connector": "pnpm --filter @stello/connector start:dev",
     "order": "pnpm --filter @stello/order dev",
@@ -24,6 +24,8 @@
     "edge:renderer": "pnpm --filter @stello/edge dev",
     "edge:electron": "pnpm --filter @stello/edge electron",
     "build": "pnpm -r build",
+    "typecheck": "pnpm -r --if-present typecheck",
+    "test": "pnpm --filter @stello/shared test && pnpm --filter @stello/api test",
     "db:migrate": "pnpm --filter @stello/api prisma:migrate",
     "db:seed": "pnpm --filter @stello/api prisma:seed"
   }

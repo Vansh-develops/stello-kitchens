@@ -43,6 +43,18 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 .connect-card .wordmark { font-size: 20px; }
 .connect-card h1 { font-size: 20px; font-weight: 500; margin: 0; }
 .connect-hint { color: var(--muted); font-size: 13px; margin: 0; }
+.connect-card label { display: grid; gap: 7px; color: var(--muted); font-size: 13px; }
+.connect-card input {
+  width: 100%;
+  min-height: 44px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--panel-2);
+  color: var(--ink);
+  padding: 10px 12px;
+  font: inherit;
+}
+.connect-card input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
 /* shell */
 .edge { height: 100%; display: flex; flex-direction: column; }

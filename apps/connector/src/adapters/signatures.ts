@@ -28,7 +28,11 @@ export function verifyHmacSha256(params: {
   // onboarding and MUST be provided via the connector's environment. The dev
   // default keeps local delivery working while exercising the real code path;
   // it must never be relied on in production.
-  const secret = process.env[secretEnv] ?? `dev-${platform.toLowerCase()}-secret`;
+  const configuredSecret = process.env[secretEnv];
+  if (process.env.NODE_ENV === "production" && !configuredSecret) {
+    throw new UnauthorizedException(`${platform} webhook verification is not configured`);
+  }
+  const secret = configuredSecret ?? `dev-${platform.toLowerCase()}-secret`;
 
   const provided = header(headers, headerName);
   if (!provided) throw new UnauthorizedException(`Missing ${headerName} webhook signature`);
@@ -70,7 +74,12 @@ export function verifyOndcEd25519(params: { rawBody: Buffer; headers: WebhookHea
   if (!/keyId="[^"]+"/.test(auth) || !sig) throw new UnauthorizedException("Malformed ONDC signature header");
 
   const pubKeyB64 = process.env.ONDC_SIGNING_PUBLIC_KEY;
-  if (!pubKeyB64) return; // GATED: live key not yet provisioned; structural check only.
+  if (!pubKeyB64) {
+    if (process.env.NODE_ENV === "production") {
+      throw new UnauthorizedException("ONDC signature verification is not configured");
+    }
+    return;
+  }
 
   const digest = createHash("blake2b512").update(params.rawBody).digest();
   const publicKey = createPublicKey({

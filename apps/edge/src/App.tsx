@@ -15,6 +15,8 @@ export function App() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [flash, setFlash] = useState<string | null>(null);
+  const [setupEmail, setSetupEmail] = useState("");
+  const [setupPassword, setSetupPassword] = useState("");
 
   const refresh = useCallback(async () => {
     try {
@@ -43,10 +45,15 @@ export function App() {
   };
 
   const connect = async () => {
+    if (!setupEmail.trim() || !setupPassword) {
+      setError("Enter an authorized staff email and password.");
+      return;
+    }
     setBusy(true);
     setError(null);
     try {
-      await edge.bootstrap("cashier@demo.com", "password123");
+      await edge.bootstrap(setupEmail.trim(), setupPassword);
+      setSetupPassword("");
       await refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Connect failed");
@@ -122,6 +129,24 @@ export function App() {
           <h1>Local terminal setup</h1>
           <p className="connect-hint">Device {status.deviceId}. Connect once to cache the menu, then this terminal bills offline.</p>
           {error && <p className="form-error">{error}</p>}
+          <label>
+            Staff email
+            <input
+              type="email"
+              autoComplete="username"
+              value={setupEmail}
+              onChange={(event) => setSetupEmail(event.target.value)}
+            />
+          </label>
+          <label>
+            Password
+            <input
+              type="password"
+              autoComplete="current-password"
+              value={setupPassword}
+              onChange={(event) => setSetupPassword(event.target.value)}
+            />
+          </label>
           <button className="btn-primary" onClick={connect} disabled={busy}>
             {busy ? "Connecting…" : "Connect & cache menu"}
           </button>

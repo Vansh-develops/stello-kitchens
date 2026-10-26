@@ -2803,6 +2803,49 @@ select:focus-visible {
 .shell-user { color: var(--ink); font-weight: 600; }
 .shell-body { flex: 1; min-height: 0; }
 
+@media (max-width: 600px) {
+  .shell-bar {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 10px 12px;
+    padding: 10px 14px;
+  }
+  .shell-bar .wordmark { align-self: center; }
+  .surface-switch {
+    justify-self: end;
+    min-width: 0;
+  }
+  .surface-switch button { padding: 8px 11px; }
+  .shell-right {
+    grid-column: 1 / -1;
+    margin-left: 0;
+    justify-content: space-between;
+    gap: 10px;
+    min-width: 0;
+  }
+  .shell-outlet {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .shell-user { white-space: nowrap; }
+  .console .top {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 10px;
+    padding: 12px 14px;
+  }
+  .console .top-tabs {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    width: 100%;
+    padding-bottom: 2px;
+    scroll-snap-type: x proximity;
+  }
+  .console .top-tab { scroll-snap-align: start; }
+  .console .top-user { grid-column: 2; grid-row: 1; }
+}
+
 /* KDS wall mode: full-screen board, no shell chrome (dedicated kitchen screen). */
 .kds-wall { height: 100vh; }
 

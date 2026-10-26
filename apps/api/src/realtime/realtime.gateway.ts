@@ -23,7 +23,14 @@ import { PrismaService } from "../prisma/prisma.service";
  * within its own tenant — without this any client could subscribe to any
  * outlet's ticket stream (a cross-tenant leak).
  */
-@WebSocketGateway({ cors: { origin: true }, transports: ["websocket", "polling"] })
+@WebSocketGateway({
+  cors: {
+    origin: process.env.CORS_ORIGINS?.split(",").map((origin) => origin.trim()).filter(Boolean) ??
+      (process.env.NODE_ENV === "production" ? ["https://kitchens.stellotechs.com"] : true),
+    credentials: true,
+  },
+  transports: ["websocket", "polling"],
+})
 export class RealtimeGateway implements OnGatewayConnection {
   @WebSocketServer()
   server!: Server;
@@ -35,13 +42,14 @@ export class RealtimeGateway implements OnGatewayConnection {
 
   async handleConnection(client: Socket) {
     try {
-      const token =
-        (client.handshake.auth?.token as string | undefined) ??
-        (client.handshake.query?.token as string | undefined);
+      const token = client.handshake.auth?.token as string | undefined;
       if (!token) throw new Error("missing token");
-      const payload = await this.jwt.verifyAsync<{ sub: string; tenantId: string }>(token);
+      const payload = await this.jwt.verifyAsync<{ sub: string; tenantId: string; tokenVersion?: number }>(token);
+      const user = await this.prisma.user.findFirst({ where: { id: payload.sub, tenantId: payload.tenantId, isActive: true }, select: { id: true, tenantId: true, tokenVersion: true, tenant: { select: { status: true } } } });
+      if (!user || user.tenant.status === "SUSPENDED" || payload.tokenVersion !== user.tokenVersion) throw new Error("inactive user or tenant");
       client.data.tenantId = payload.tenantId;
       client.data.userId = payload.sub;
+      client.data.tokenVersion = payload.tokenVersion;
     } catch {
       // Invalid/missing token — refuse the connection outright.
       client.disconnect(true);
@@ -59,6 +67,8 @@ export class RealtimeGateway implements OnGatewayConnection {
       select: { id: true },
     });
     if (!outlet) return { joined: null };
+    const assigned = await this.prisma.userOutlet.findFirst({ where: { userId: client.data.userId, outletId: body.outletId } });
+    if (!assigned) return { joined: null };
 
     // Leave any previously-joined outlet rooms, then join the requested one.
     for (const room of client.rooms) {

@@ -13,14 +13,14 @@ const Database = require("better-sqlite3");
 const { computeOrderTotals, lineTotalPaise, fromPaise, toPaise } = require("@stello/shared");
 
 class EdgeEngine {
-  constructor({ dataDir, apiUrl }) {
+  constructor({ dataDir, apiUrl, deviceId }) {
     fs.mkdirSync(dataDir, { recursive: true });
     this.db = new Database(path.join(dataDir, "edge.db"));
     this.db.pragma("journal_mode = WAL");
     this.apiUrl = apiUrl;
     this.forcedOffline = false; // test hook to simulate WAN down
     this._migrate();
-    if (!this._meta("deviceId")) this._setMeta("deviceId", "DEV-" + randomUUID().slice(0, 8).toUpperCase());
+    if (!this._meta("deviceId")) this._setMeta("deviceId", deviceId || "DEV-" + randomUUID().slice(0, 8).toUpperCase());
     if (!this._meta("billSeq")) this._setMeta("billSeq", "0");
   }
 

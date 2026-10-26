@@ -98,20 +98,24 @@ export class InventoryService {
 
   /** Inward stock with a weighted-average cost update. */
   async receiveStock(user: AuthUser, outletId: string, id: string, input: ReceiveStockInput) {
-    const material = await this.requireMaterial(user, outletId, id);
-    const oldQty = D(material.stockQty);
-    const oldCost = D(material.costPerUnit);
-    const newQty = oldQty + input.quantity;
-    // Weighted average of existing stock value + received value.
-    const blendedCost =
-      newQty > 0 ? (oldQty * oldCost + input.quantity * input.unitCost) / newQty : input.unitCost;
+    this.assertOutlet(user, outletId);
+    const result = await this.prisma.$transaction(async (tx) => {
+      const material = await this.lockMaterial(tx, user, outletId, id);
+      if (input.vendorId && !await tx.vendor.findFirst({ where: { id: input.vendorId, tenantId: user.tenantId, outletId, deletedAt: null } })) {
+        throw new BadRequestException("Vendor not found in this outlet");
+      }
+      const oldQty = D(material.stockQty);
+      const oldCost = D(material.costPerUnit);
+      const newQty = oldQty + input.quantity;
+      // Weighted average of existing stock value + received value.
+      const blendedCost =
+        newQty > 0 ? (oldQty * oldCost + input.quantity * input.unitCost) / newQty : input.unitCost;
 
-    await this.prisma.$transaction([
-      this.prisma.rawMaterial.update({
+      await tx.rawMaterial.update({
         where: { id },
         data: { stockQty: newQty, costPerUnit: blendedCost },
-      }),
-      this.prisma.stockMovement.create({
+      });
+      await tx.stockMovement.create({
         data: {
           tenantId: user.tenantId,
           outletId,
@@ -122,18 +126,20 @@ export class InventoryService {
           vendorId: input.vendorId ?? null,
           createdById: user.id,
         },
-      }),
-    ]);
+      });
+      return { id, stockQty: newQty, costPerUnit: Math.round(blendedCost * 10000) / 10000 };
+    });
     this.realtime.notifyOutlet(outletId);
-    return { id, stockQty: newQty, costPerUnit: Math.round(blendedCost * 10000) / 10000 };
+    return result;
   }
 
   async recordWastage(user: AuthUser, outletId: string, id: string, input: WastageInput) {
-    const material = await this.requireMaterial(user, outletId, id);
-    const newQty = D(material.stockQty) - input.quantity;
-    await this.prisma.$transaction([
-      this.prisma.rawMaterial.update({ where: { id }, data: { stockQty: newQty } }),
-      this.prisma.stockMovement.create({
+    this.assertOutlet(user, outletId);
+    const result = await this.prisma.$transaction(async (tx) => {
+      const material = await this.lockMaterial(tx, user, outletId, id);
+      const newQty = D(material.stockQty) - input.quantity;
+      await tx.rawMaterial.update({ where: { id }, data: { stockQty: { decrement: input.quantity } } });
+      await tx.stockMovement.create({
         data: {
           tenantId: user.tenantId,
           outletId,
@@ -144,10 +150,11 @@ export class InventoryService {
           reason: input.reason ?? null,
           createdById: user.id,
         },
-      }),
-    ]);
+      });
+      return { id, stockQty: newQty };
+    });
     this.realtime.notifyOutlet(outletId);
-    return { id, stockQty: newQty };
+    return result;
   }
 
   // ---------- Vendors ----------
@@ -506,5 +513,13 @@ export class InventoryService {
     if (!material) throw new NotFoundException("Material not found");
     this.assertOutlet(user, outletId);
     return material;
+  }
+
+  private async lockMaterial(tx: Prisma.TransactionClient, user: AuthUser, outletId: string, id: string) {
+    const rows = await tx.$queryRaw<{ id: string }[]>`
+      SELECT id FROM raw_materials WHERE id = ${id} AND "tenantId" = ${user.tenantId}
+      AND "outletId" = ${outletId} AND "deletedAt" IS NULL FOR UPDATE`;
+    if (!rows.length) throw new NotFoundException("Material not found");
+    return tx.rawMaterial.findFirstOrThrow({ where: { id, tenantId: user.tenantId, outletId, deletedAt: null } });
   }
 }

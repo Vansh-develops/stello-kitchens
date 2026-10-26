@@ -16,7 +16,7 @@ export interface RefundResult {
 export interface PaymentGateway {
   readonly name: string;
   createUpiQr(params: { amount: number; orderRef: string; payeeVpa: string; payeeName: string }): UpiQrResult;
-  refund(params: { amount: number; orderRef: string; reason?: string }): Promise<RefundResult>;
+  refund(params: { amount: number; orderRef: string; reason?: string; idempotencyKey: string }): Promise<RefundResult>;
 }
 
 export const PAYMENT_GATEWAY = Symbol("PAYMENT_GATEWAY");
@@ -44,8 +44,8 @@ export class MockRazorpayGateway implements PaymentGateway {
     };
   }
 
-  async refund(params: { amount: number; orderRef: string; reason?: string }): Promise<RefundResult> {
+  async refund(params: { amount: number; orderRef: string; reason?: string; idempotencyKey: string }): Promise<RefundResult> {
     // A real call would POST to /v1/payments/:id/refund and await the webhook.
-    return { ref: `rzp_rfnd_${params.orderRef}_${Date.now().toString(36)}`, status: "processed" };
+    return { ref: `mock_rfnd_${params.idempotencyKey}`, status: "processed" };
   }
 }

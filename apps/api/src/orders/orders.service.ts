@@ -29,6 +29,7 @@ const orderInclude = {
 };
 
 type OrderWithRelations = Prisma.OrderGetPayload<{ include: typeof orderInclude }>;
+type OrderLineInput = OrderItemInput & { offlineUnitPrice?: number; offlineTaxRate?: number };
 
 @Injectable()
 export class OrdersService {
@@ -45,15 +46,16 @@ export class OrdersService {
   async create(user: AuthUser, input: CreateOrderInput): Promise<OrderDto> {
     this.assertOutlet(user, input.outletId);
 
-    if (input.orderType === "DINE_IN") {
-      if (!input.tableId) throw new BadRequestException("Dine-in orders need a table");
-      const existing = await this.prisma.order.findFirst({
-        where: { outletId: input.outletId, tableId: input.tableId, status: "OPEN" },
-      });
-      if (existing) throw new BadRequestException("Table already has an open order");
-    }
-
     const orderId = await this.prisma.$transaction(async (tx) => {
+      if (input.orderType === "DINE_IN") {
+        if (!input.tableId) throw new BadRequestException("Dine-in orders need a table");
+        await this.lockTable(tx, user.tenantId, input.outletId, input.tableId);
+        const existing = await tx.order.findFirst({
+          where: { tenantId: user.tenantId, outletId: input.outletId, tableId: input.tableId, status: "OPEN" },
+        });
+        if (existing) throw new BadRequestException("Table already has an open order");
+      }
+
       const order = await tx.order.create({
         data: {
           tenantId: user.tenantId,
@@ -157,12 +159,20 @@ export class OrdersService {
     }
     const actor = { tenantId: params.tenantId, id: null };
     const orderId = await this.prisma.$transaction(async (tx) => {
+      if (params.mode === "DINE_IN") {
+        if (!params.tableId) throw new BadRequestException("Dine-in orders need a table");
+        await this.lockTable(tx, params.tenantId, params.outletId, params.tableId);
+      }
       let order =
         params.mode === "DINE_IN" && params.tableId
           ? await tx.order.findFirst({
-              where: { outletId: params.outletId, tableId: params.tableId, status: "OPEN" },
+              where: { tenantId: params.tenantId, outletId: params.outletId, tableId: params.tableId, status: "OPEN" },
             })
           : null;
+      if (order) {
+        await tx.$queryRaw`SELECT id FROM orders WHERE id = ${order.id} FOR UPDATE`;
+        order = await tx.order.findFirst({ where: { id: order.id, status: "OPEN" } });
+      }
       if (!order) {
         order = await tx.order.create({
           data: {
@@ -208,8 +218,21 @@ export class OrdersService {
     // arbitrate means the loser rolls back cleanly (including its bill-number
     // increment) and is reported as a duplicate.
     let orderId: string;
+    let duplicate = false;
     try {
       orderId = await this.prisma.$transaction(async (tx) => {
+      if (order.orderType === "DINE_IN") {
+        if (!order.tableId) throw new BadRequestException("Dine-in orders need a table");
+        await this.lockTable(tx, tenantId, outletId, order.tableId);
+        const previous = await tx.order.findFirst({ where: { tenantId, outletId, deviceId, clientId: order.clientId } });
+        if (previous) {
+          duplicate = true;
+          return previous.id;
+        }
+        if (order.status === "OPEN" && await tx.order.findFirst({
+          where: { tenantId, outletId, tableId: order.tableId, status: "OPEN" },
+        })) throw new BadRequestException("Table already has an open order");
+      }
       // The device's number is a provisional reference only. On sync, a settled
       // order is assigned the authoritative GST bill number from the single
       // outlet counter — the same series online settlements draw from — so the
@@ -237,8 +260,13 @@ export class OrdersService {
           billNumber,
         },
       });
-      await this.punchItems(tx, actor, created.id, outletId, order.items);
+      await this.punchItems(tx, actor, created.id, outletId, order.items, [], true);
       await this.recomputeTotals(tx, created.id, new Prisma.Decimal(order.discountAmount ?? 0));
+      const synced = await tx.order.findUniqueOrThrow({ where: { id: created.id } });
+      const paidPaise = order.payments.reduce((sum, payment) => sum + toPaise(payment.amount), 0);
+      if (settled && (order.payments.length === 0 || paidPaise !== toPaise(Number(synced.total)))) {
+        throw new BadRequestException("Offline settled order payments do not match the server total");
+      }
       if (settled && order.payments.length) {
         await tx.orderPayment.createMany({
           data: order.payments.map((p) => ({ orderId: created.id, mode: p.mode, amount: p.amount })),
@@ -260,20 +288,20 @@ export class OrdersService {
       // (deviceId, clientId) row already exists. Report it as a duplicate instead of
       // erroring, so the device stops retrying and clears it from the outbox.
       if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") {
-        const existing = await this.prisma.order.findFirst({ where: { deviceId, clientId: order.clientId } });
+        const existing = await this.prisma.order.findFirst({ where: { tenantId, outletId, deviceId, clientId: order.clientId } });
         if (existing) return { serverId: existing.id, billNumber: existing.billNumber, status: "duplicate" };
       }
       throw e;
     }
     this.realtime.notifyOutlet(outletId);
     const saved = await this.prisma.order.findUniqueOrThrow({ where: { id: orderId } });
-    return { serverId: orderId, billNumber: saved.billNumber, status: "applied" };
+    return { serverId: orderId, billNumber: saved.billNumber, status: duplicate ? "duplicate" : "applied" };
   }
 
   async addItems(user: AuthUser, orderId: string, input: AddItemsInput): Promise<OrderDto> {
     const order = await this.requireOrder(user, orderId);
-    if (order.status !== "OPEN") throw new BadRequestException("Order is not open");
     await this.prisma.$transaction(async (tx) => {
+      await this.lockOpenOrder(tx, user, orderId);
       await this.punchItems(tx, user, order.id, order.outletId, input.items, input.combos);
       await this.recomputeTotals(tx, order.id);
     });
@@ -282,59 +310,58 @@ export class OrdersService {
   }
 
   async settle(user: AuthUser, orderId: string, input: SettleOrderInput): Promise<OrderDto> {
-    const order = await this.requireOrder(user, orderId);
-    if (order.status !== "OPEN") throw new BadRequestException("Order is not open");
-
-    const outletRow = await this.prisma.outlet.findUniqueOrThrow({ where: { id: order.outletId } });
-    const subtotal = Number(order.subtotal);
-    const phone = (input.customerPhone ?? order.customerPhone ?? "").trim();
-    const name = input.customerName ?? order.customerName ?? null;
-
-    // Coupon discount (validated with the shared rule engine).
-    let coupon: { id: string; code: string } | null = null;
-    let couponDiscount = 0;
-    if (input.couponCode) {
-      const c = await this.prisma.coupon.findFirst({
-        where: { outletId: order.outletId, code: input.couponCode.toUpperCase() },
-      });
-      const evalResult = evaluateCoupon(
-        c
-          ? {
-              type: c.type as "PERCENT" | "FLAT",
-              value: Number(c.value),
-              minOrder: Number(c.minOrder),
-              maxDiscount: c.maxDiscount ? Number(c.maxDiscount) : null,
-              validFrom: c.validFrom?.toISOString() ?? null,
-              validTo: c.validTo?.toISOString() ?? null,
-              usageLimit: c.usageLimit,
-              usedCount: c.usedCount,
-              isActive: c.isActive,
-            }
-          : null,
-        subtotal,
-        new Date().toISOString(),
-      );
-      if (!evalResult.valid) throw new BadRequestException(evalResult.message);
-      coupon = { id: c!.id, code: c!.code };
-      couponDiscount = evalResult.discount;
-    }
-
-    // Loyalty redemption. The authoritative balance check + decrement runs
-    // atomically inside the settle transaction (a conditional update below), so
-    // concurrent settlements can never over-redeem the same balance. Here we only
-    // need the phone (redemption requires a customer) and the discount value; a
-    // stale pre-transaction read would be a time-of-check/time-of-use hole.
-    const redeemPoints = input.redeemPoints ?? 0;
-    let redeemDiscount = 0;
-    if (redeemPoints > 0) {
-      if (!phone) throw new BadRequestException("A customer phone is required to redeem points");
-      redeemDiscount = redeemPoints * Number(outletRow.loyaltyPointValue);
-    }
-
-    const totalDiscount = Math.min((input.discountAmount ?? 0) + couponDiscount + redeemDiscount, subtotal);
-
-    let earned = 0;
     await this.prisma.$transaction(async (tx) => {
+      const order = await this.lockOpenOrder(tx, user, orderId);
+
+      const outletRow = await tx.outlet.findUniqueOrThrow({ where: { id: order.outletId } });
+      const subtotal = Number(order.subtotal);
+      const phone = (input.customerPhone ?? order.customerPhone ?? "").trim();
+      const name = input.customerName ?? order.customerName ?? null;
+
+      // Coupon discount (validated with the shared rule engine).
+      let coupon: { id: string; code: string } | null = null;
+      let couponDiscount = 0;
+      if (input.couponCode) {
+        const c = await tx.coupon.findFirst({
+          where: { outletId: order.outletId, code: input.couponCode.toUpperCase() },
+        });
+        const evalResult = evaluateCoupon(
+          c
+            ? {
+                type: c.type as "PERCENT" | "FLAT",
+                value: Number(c.value),
+                minOrder: Number(c.minOrder),
+                maxDiscount: c.maxDiscount ? Number(c.maxDiscount) : null,
+                validFrom: c.validFrom?.toISOString() ?? null,
+                validTo: c.validTo?.toISOString() ?? null,
+                usageLimit: c.usageLimit,
+                usedCount: c.usedCount,
+                isActive: c.isActive,
+              }
+            : null,
+          subtotal,
+          new Date().toISOString(),
+        );
+        if (!evalResult.valid) throw new BadRequestException(evalResult.message);
+        coupon = { id: c!.id, code: c!.code };
+        couponDiscount = evalResult.discount;
+      }
+
+      // Loyalty redemption. The authoritative balance check + decrement runs
+      // atomically inside the settle transaction (a conditional update below), so
+      // concurrent settlements can never over-redeem the same balance. Here we only
+      // need the phone (redemption requires a customer) and the discount value; a
+      // stale pre-transaction read would be a time-of-check/time-of-use hole.
+      const redeemPoints = input.redeemPoints ?? 0;
+      let redeemDiscount = 0;
+      if (redeemPoints > 0) {
+        if (!phone) throw new BadRequestException("A customer phone is required to redeem points");
+        redeemDiscount = redeemPoints * Number(outletRow.loyaltyPointValue);
+      }
+
+      const totalDiscount = Math.min((input.discountAmount ?? 0) + couponDiscount + redeemDiscount, subtotal);
+
+      let earned = 0;
       // Points redemption is OTP-gated: verify + consume the code atomically here,
       // so an invalid/expired OTP rolls back the whole settlement.
       if (redeemPoints > 0) {
@@ -342,8 +369,8 @@ export class OrdersService {
       }
       const totals = await this.recomputeTotals(tx, order.id, new Prisma.Decimal(totalDiscount));
       const total = Number(totals.total);
-      const paid = input.payments.reduce((s, p) => s + p.amount, 0);
-      if (Math.abs(paid - total) > 0.01) {
+      const paid = fromPaise(input.payments.reduce((s, p) => s + toPaise(p.amount), 0));
+      if (toPaise(paid) !== toPaise(total)) {
         throw new BadRequestException(`Payments (${paid.toFixed(2)}) must equal order total (${total.toFixed(2)})`);
       }
       const outlet = await tx.outlet.update({
@@ -453,20 +480,22 @@ export class OrdersService {
   }
 
   async cancel(user: AuthUser, orderId: string): Promise<OrderDto> {
-    const order = await this.requireOrder(user, orderId);
-    if (order.status !== "OPEN") throw new BadRequestException("Order is not open");
-    await this.prisma.order.update({
-      where: { id: order.id },
-      data: { status: "CANCELLED", version: { increment: 1 } },
-    });
-    await this.prisma.auditLog.create({
-      data: {
-        tenantId: user.tenantId,
-        userId: user.id,
-        action: "ORDER_CANCELLED",
-        entity: "order",
-        entityId: order.id,
-      },
+    const order = await this.prisma.$transaction(async (tx) => {
+      const order = await this.lockOpenOrder(tx, user, orderId);
+      await tx.order.update({
+        where: { id: order.id },
+        data: { status: "CANCELLED", version: { increment: 1 } },
+      });
+      await tx.auditLog.create({
+        data: {
+          tenantId: user.tenantId,
+          userId: user.id,
+          action: "ORDER_CANCELLED",
+          entity: "order",
+          entityId: order.id,
+        },
+      });
+      return order;
     });
     this.realtime.notifyOutlet(order.outletId);
     return this.getOne(user, orderId);
@@ -499,18 +528,39 @@ export class OrdersService {
     return order;
   }
 
+  private async lockOpenOrder(tx: Prisma.TransactionClient, user: AuthUser, orderId: string) {
+    const rows = await tx.$queryRaw<{ id: string }[]>`
+      SELECT id FROM orders WHERE id = ${orderId} AND "tenantId" = ${user.tenantId} FOR UPDATE`;
+    if (!rows.length) throw new NotFoundException("Order not found");
+    const order = await tx.order.findFirstOrThrow({ where: { id: orderId, tenantId: user.tenantId } });
+    this.assertOutlet(user, order.outletId);
+    if (order.status !== "OPEN") throw new BadRequestException("Order is not open");
+    return order;
+  }
+
+  private async lockTable(tx: Prisma.TransactionClient, tenantId: string, outletId: string, tableId: string) {
+    // All table-opening paths take this lock before checking occupancy.
+    const rows = await tx.$queryRaw<{ id: string }[]>`
+      SELECT id FROM dining_tables
+      WHERE id = ${tableId} AND "tenantId" = ${tenantId} AND "outletId" = ${outletId} FOR UPDATE`;
+    if (!rows.length) throw new BadRequestException("Table not found in this outlet");
+  }
+
   /** Creates order items + a new KOT for them, snapshotting names and prices. */
   private async punchItems(
     tx: Prisma.TransactionClient,
     actor: { tenantId: string; id: string | null },
     orderId: string,
     outletId: string,
-    inputs: OrderItemInput[],
+    inputs: OrderLineInput[],
     combos: ComboOrderInput[] = [],
+    useOfflineSnapshots = false,
   ) {
+    const ownedOutlet = await tx.outlet.findFirst({ where: { id: outletId, tenantId: actor.tenantId } });
+    if (!ownedOutlet) throw new NotFoundException("Outlet not found");
     const itemIds = [...new Set(inputs.map((i) => i.itemId))];
     const items = await tx.item.findMany({
-      where: { id: { in: itemIds }, outletId, deletedAt: null },
+      where: { id: { in: itemIds }, tenantId: actor.tenantId, outletId, deletedAt: null },
       include: {
         variations: true,
         addonGroups: { include: { group: { include: { addons: true } } } },
@@ -541,16 +591,27 @@ export class OrdersService {
       if (!item) throw new BadRequestException(`Item not found: ${input.itemId}`);
       if (!item.inStock) throw new BadRequestException(`${item.name} is out of stock`);
 
-      let unitPrice = Number(item.price);
+      let unitPrice = useOfflineSnapshots && input.offlineUnitPrice !== undefined ? input.offlineUnitPrice : Number(item.price);
       let variationName: string | null = null;
       if (input.variationId) {
         const variation = item.variations.find((v) => v.id === input.variationId);
         if (!variation) throw new BadRequestException(`Invalid variation for ${item.name}`);
-        unitPrice = Number(variation.price);
+        unitPrice = useOfflineSnapshots && input.offlineUnitPrice !== undefined ? input.offlineUnitPrice : Number(variation.price);
         variationName = variation.name;
       }
 
       const allAddons = item.addonGroups.flatMap((ag) => ag.group.addons);
+      const addonIds = input.addonIds ?? [];
+      if (new Set(addonIds).size !== addonIds.length) throw new BadRequestException("Duplicate addons are not allowed");
+      for (const { group } of item.addonGroups) {
+        if (group.tenantId !== actor.tenantId || group.outletId !== outletId) {
+          throw new BadRequestException("Invalid addon group for this outlet");
+        }
+        const selected = group.addons.filter((a) => addonIds.includes(a.id)).length;
+        if (selected < group.minSelect || selected > group.maxSelect) {
+          throw new BadRequestException(`${group.name}: select between ${group.minSelect} and ${group.maxSelect} addons`);
+        }
+      }
       const addons = (input.addonIds ?? []).map((id) => {
         const addon = allAddons.find((a) => a.id === id);
         if (!addon) throw new BadRequestException(`Invalid addon for ${item.name}`);
@@ -568,7 +629,7 @@ export class OrdersService {
           quantity: input.quantity,
           unitPrice,
           lineTotal: fromPaise(lineTotalPaise(unitPrice, input.quantity)),
-          taxRate: item.taxRate,
+          taxRate: useOfflineSnapshots && input.offlineTaxRate !== undefined ? input.offlineTaxRate : item.taxRate,
           note: input.note ?? null,
           kotId: kot.id,
           stationId: item.category.stationId,
@@ -588,7 +649,7 @@ export class OrdersService {
     // lines that route to the kitchen and deplete their own recipes.
     for (const comboInput of combos) {
       const combo = await tx.combo.findFirst({
-        where: { id: comboInput.comboId, outletId, deletedAt: null },
+        where: { id: comboInput.comboId, tenantId: actor.tenantId, outletId, deletedAt: null },
         include: { slots: { orderBy: { sortOrder: "asc" }, include: { options: true } } },
       });
       if (!combo) throw new BadRequestException(`Combo not found: ${comboInput.comboId}`);
@@ -625,7 +686,7 @@ export class OrdersService {
       });
 
       const chosenItems = await tx.item.findMany({
-        where: { id: { in: chosen.map((c) => c.itemId) } },
+        where: { id: { in: chosen.map((c) => c.itemId) }, tenantId: actor.tenantId, outletId, deletedAt: null },
         include: { category: { select: { stationId: true } }, recipe: true },
       });
       const chosenMap = new Map(chosenItems.map((i) => [i.id, i]));

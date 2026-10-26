@@ -12,7 +12,11 @@ export class MainApiService {
 
   constructor(config: ConfigService) {
     this.base = config.get<string>("MAIN_API_URL") ?? "http://localhost:3001/api/v1";
-    this.key = config.get<string>("CONNECTOR_KEY") ?? "dev-connector-key";
+    const configuredKey = config.get<string>("CONNECTOR_KEY");
+    if (process.env.NODE_ENV === "production" && !configuredKey) {
+      throw new Error("CONNECTOR_KEY is required in production");
+    }
+    this.key = configuredKey ?? "dev-connector-key";
   }
 
   private async call<T>(path: string, options: RequestInit = {}): Promise<T> {

@@ -37,6 +37,7 @@ export function Board({ outlet, onExit }: { outlet: OutletDto; onExit: () => voi
   const [station, setStation] = useState<string>("all");
   const [cookList, setCookList] = useState(false);
   const [connected, setConnected] = useState(false);
+  const [connectionError, setConnectionError] = useState(false);
   const [now, setNow] = useState(() => Date.now());
   const [busyKey, setBusyKey] = useState<string | null>(null);
 
@@ -62,7 +63,11 @@ export function Board({ outlet, onExit }: { outlet: OutletDto; onExit: () => voi
   useEffect(() => {
     const authToken =
       typeof window !== "undefined" ? localStorage.getItem("stello.token") : null;
-    const socket: Socket = io({
+    const socketOrigin = process.env.NEXT_PUBLIC_SOCKET_ORIGIN ??
+      (typeof window !== "undefined" && ["localhost", "127.0.0.1"].includes(window.location.hostname)
+        ? `${window.location.protocol}//${window.location.hostname}:3001`
+        : undefined);
+    const socket: Socket = io(socketOrigin, {
       path: "/socket.io",
       transports: ["websocket", "polling"],
       auth: { token: authToken },
@@ -72,9 +77,14 @@ export function Board({ outlet, onExit }: { outlet: OutletDto; onExit: () => voi
     };
     socket.on("connect", () => {
       setConnected(true);
+      setConnectionError(false);
       socket.emit("join", { outletId: outlet.id });
     });
     socket.on("disconnect", () => setConnected(false));
+    socket.on("connect_error", () => {
+      setConnected(false);
+      setConnectionError(true);
+    });
     socket.on("kds:changed", onChange);
 
     const poll = setInterval(() => void refresh(), 8000);
@@ -177,11 +187,11 @@ export function Board({ outlet, onExit }: { outlet: OutletDto; onExit: () => voi
           >
             Cook list
           </button>
-          <span className={`conn ${connected ? "live" : "down"}`}>
-            {connected ? "LIVE" : "RECONNECTING"}
+          <span className={`conn ${connected ? "live" : "down"}`} role="status">
+            {connected ? "LIVE" : connectionError ? "OFFLINE · POLLING" : "RECONNECTING"}
           </span>
           <span className="clock">{clock}</span>
-          <button className="exit" onClick={onExit} title="Sign out">
+          <button className="exit" onClick={onExit} title="Sign out" aria-label="Sign out">
             ✕
           </button>
         </div>

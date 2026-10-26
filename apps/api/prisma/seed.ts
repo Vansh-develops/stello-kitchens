@@ -1,14 +1,84 @@
 import { PrismaClient } from "@prisma/client";
 import * as bcrypt from "bcryptjs";
 import { randomBytes } from "node:crypto";
+import { STARTER_TEMPLATE } from "../src/menu/starter-template";
 
 const prisma = new PrismaClient();
 const publicToken = () => randomBytes(9).toString("base64url");
 
+async function repairDemoTenant(tenantId: string) {
+  const outlet = await prisma.outlet.findFirst({
+    where: { tenantId, name: "Stello Kitchens - Indiranagar" },
+  });
+  if (!outlet) throw new Error("Demo tenant is missing the Indiranagar outlet; recreate the development database.");
+
+  const terminalCount = await prisma.terminal.count({ where: { outletId: outlet.id } });
+  if (terminalCount === 0) {
+    await prisma.terminal.createMany({
+      data: [
+        { tenantId, outletId: outlet.id, name: "Indiranagar Counter", type: "POS", config: {} },
+        {
+          tenantId,
+          outletId: outlet.id,
+          name: "Indiranagar Kitchen Screen",
+          type: "KDS",
+          config: { theme: "dark", density: "comfortable", sound: true, columns: 3 },
+        },
+      ],
+    });
+  }
+
+  if ((await prisma.area.count({ where: { outletId: outlet.id } })) === 0) {
+    const area = await prisma.area.create({ data: { tenantId, outletId: outlet.id, name: "Dining Room" } });
+    await prisma.diningTable.createMany({
+      data: Array.from({ length: 6 }, (_, index) => ({
+        tenantId,
+        outletId: outlet.id,
+        areaId: area.id,
+        name: `I${index + 1}`,
+        seats: index < 4 ? 4 : 6,
+        publicToken: publicToken(),
+      })),
+    });
+  }
+
+  if ((await prisma.menuCategory.count({ where: { outletId: outlet.id } })) === 0) {
+    let sortOrder = 0;
+    for (const block of STARTER_TEMPLATE) {
+      const category = await prisma.menuCategory.create({
+        data: { tenantId, outletId: outlet.id, name: block.category, sortOrder: sortOrder++ },
+      });
+      await prisma.item.createMany({
+        data: block.items.map((item) => ({
+          tenantId,
+          outletId: outlet.id,
+          categoryId: category.id,
+          name: item.name,
+          price: item.price,
+          isVeg: item.isVeg,
+          taxRate: 5,
+        })),
+      });
+    }
+  }
+}
+
 async function main() {
   const existing = await prisma.tenant.findFirst({ where: { name: "Demo Restaurants" } });
   if (existing) {
-    console.log("Seed already applied, skipping.");
+    const [roles, categories, areas, terminals] = await Promise.all([
+      prisma.role.count({ where: { tenantId: existing.id } }),
+      prisma.menuCategory.count({ where: { tenantId: existing.id } }),
+      prisma.area.count({ where: { tenantId: existing.id } }),
+      prisma.terminal.count({ where: { tenantId: existing.id } }),
+    ]);
+    if (roles >= 3 && categories >= 9 && areas >= 3 && terminals >= 5) {
+      console.log("Complete demo seed already present, skipping.");
+      return;
+    }
+    console.warn("Incomplete demo seed detected; repairing the demo tenant.");
+    await repairDemoTenant(existing.id);
+    console.log("Demo seed repaired.");
     return;
   }
 
@@ -97,6 +167,18 @@ async function main() {
     data: { tenantId: tenant.id, outletId: outlet1.id, name: "Counter 1", type: "POS", config: {} },
   });
   await prisma.terminal.create({
+    data: { tenantId: tenant.id, outletId: outlet2.id, name: "Indiranagar Counter", type: "POS", config: {} },
+  });
+  await prisma.terminal.create({
+    data: {
+      tenantId: tenant.id,
+      outletId: outlet2.id,
+      name: "Indiranagar Kitchen Screen",
+      type: "KDS",
+      config: { theme: "dark", density: "comfortable", sound: true, columns: 3 },
+    },
+  });
+  await prisma.terminal.create({
     data: {
       tenantId: tenant.id,
       outletId: outlet1.id,
@@ -142,6 +224,21 @@ async function main() {
         areaId: rooftop.id,
         name: `R${i}`,
         seats: 4,
+        publicToken: publicToken(),
+      },
+    });
+  }
+  const indiranagarFloor = await prisma.area.create({
+    data: { tenantId: tenant.id, outletId: outlet2.id, name: "Dining Room" },
+  });
+  for (let i = 1; i <= 6; i++) {
+    await prisma.diningTable.create({
+      data: {
+        tenantId: tenant.id,
+        outletId: outlet2.id,
+        areaId: indiranagarFloor.id,
+        name: `I${i}`,
+        seats: i <= 4 ? 4 : 6,
         publicToken: publicToken(),
       },
     });
@@ -338,6 +435,32 @@ async function main() {
       });
       itemByName.set(item.name, created.id);
     }
+  }
+
+  // Keep the second demo outlet useful as well. The full operational dataset
+  // lives in Koramangala; Indiranagar gets a compact starter menu so selecting
+  // the first alphabetic outlet never lands the user in an empty POS.
+  let outlet2Sort = 0;
+  for (const block of STARTER_TEMPLATE) {
+    const category = await prisma.menuCategory.create({
+      data: {
+        tenantId: tenant.id,
+        outletId: outlet2.id,
+        name: block.category,
+        sortOrder: outlet2Sort++,
+      },
+    });
+    await prisma.item.createMany({
+      data: block.items.map((item) => ({
+        tenantId: tenant.id,
+        outletId: outlet2.id,
+        categoryId: category.id,
+        name: item.name,
+        price: item.price,
+        isVeg: item.isVeg,
+        taxRate: 5,
+      })),
+    });
   }
 
   // ---------- Combos (bundled meals) ----------

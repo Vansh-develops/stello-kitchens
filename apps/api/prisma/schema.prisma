@@ -130,6 +130,7 @@ model User {
   isActive     Boolean @default(true)
   isPlatformAdmin Boolean @default(false)
   emailVerified   Boolean @default(false)
+  tokenVersion Int @default(0)
 
   tenant      Tenant       @relation(fields: [tenantId], references: [id])
   role        Role         @relation(fields: [roleId], references: [id])
@@ -750,8 +751,13 @@ model Refund {
   mode       String // CASH | CARD | UPI | WALLET | OTHER
   reason     String?
   gatewayRef String?
+  // PENDING and UNKNOWN reserve balance until provider reconciliation.
+  status     String   @default("PROCESSED")
+  requestKey String?
   createdAt  DateTime @default(now())
 
+  @@unique([tenantId, outletId, orderId, requestKey])
+  @@index([orderId])
   @@index([tenantId, outletId])
   @@map("refunds")
 }

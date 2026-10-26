@@ -31,13 +31,14 @@ export class JwtAuthGuard implements CanActivate {
     const token = header?.startsWith("Bearer ") ? header.slice(7) : undefined;
     if (!token) throw new UnauthorizedException("Missing bearer token");
 
-    let payload: { sub: string };
+    let payload: { sub: string; tokenVersion?: number };
     try {
       payload = await this.jwt.verifyAsync(token);
     } catch {
       throw new UnauthorizedException("Invalid or expired token");
     }
     const user = await this.auth.resolveUser(payload.sub);
+    if (payload.tokenVersion !== await this.auth.getTokenVersion(payload.sub)) throw new UnauthorizedException("Session revoked");
     request.user = user;
     // Bind this request to the user's tenant so PrismaService scopes every
     // tenant-owned query structurally (defence beyond per-query filters).

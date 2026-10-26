@@ -1,4 +1,4 @@
-import { ForbiddenException, Injectable } from "@nestjs/common";
+import { BadRequestException, ForbiddenException, Injectable } from "@nestjs/common";
 import type {
   AreaDto,
   AuthUser,
@@ -98,6 +98,11 @@ export class SyncService {
    */
   async push(user: AuthUser, input: SyncPushInput): Promise<SyncPushResultRowDto[]> {
     this.assertOutlet(user, input.outletId);
+    const device = await this.prisma.terminal.findFirst({ where: {
+      tenantId: user.tenantId, outletId: input.outletId, isActive: true,
+      OR: [{ id: input.deviceId }, { deviceToken: input.deviceId }],
+    } });
+    if (!device) throw new ForbiddenException("Device is not registered or active for this outlet");
     const results: SyncPushResultRowDto[] = [];
     for (const order of input.orders) {
       try {
@@ -124,13 +129,25 @@ export class SyncService {
   /** Orders changed on the server since a cursor (cross-terminal awareness). */
   async pull(user: AuthUser, outletId: string, since?: string): Promise<SyncPullDto> {
     this.assertOutlet(user, outletId);
-    const sinceDate = since ? new Date(since) : new Date(0);
+    let sinceDate = new Date(0);
+    let sinceId: string | null = null;
+    if (since) {
+      try {
+        const decoded = JSON.parse(Buffer.from(since, "base64url").toString("utf8")) as { t: string; id: string };
+        sinceDate = new Date(decoded.t); sinceId = decoded.id;
+      } catch { sinceDate = new Date(since); }
+      if (Number.isNaN(sinceDate.getTime())) throw new BadRequestException("Invalid sync cursor");
+    }
     const orders = await this.prisma.order.findMany({
-      where: { tenantId: user.tenantId, outletId, updatedAt: { gt: sinceDate } },
-      orderBy: { updatedAt: "asc" },
+      where: { tenantId: user.tenantId, outletId, OR: [
+        { updatedAt: { gt: sinceDate } },
+        ...(sinceId ? [{ updatedAt: sinceDate, id: { gt: sinceId } }] : []),
+      ] },
+      orderBy: [{ updatedAt: "asc" }, { id: "asc" }],
       take: 200,
     });
-    const cursor = orders.length ? orders[orders.length - 1].updatedAt.toISOString() : new Date().toISOString();
+    const last = orders[orders.length - 1];
+    const cursor = last ? Buffer.from(JSON.stringify({ t: last.updatedAt.toISOString(), id: last.id })).toString("base64url") : (since ?? Buffer.from(JSON.stringify({ t: new Date().toISOString(), id: "" })).toString("base64url"));
     return {
       orders: orders.map((o) => ({
         id: o.id,

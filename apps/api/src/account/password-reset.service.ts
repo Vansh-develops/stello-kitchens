@@ -35,7 +35,7 @@ export class PasswordResetService {
     if (!tok || !tok.userId) throw new BadRequestException("Invalid or expired reset link");
     const passwordHash = await bcrypt.hash(newPassword, 10);
     await runUnscoped(() => this.prisma.$transaction([
-      this.prisma.user.update({ where: { id: tok.userId! }, data: { passwordHash } }),
+      this.prisma.user.update({ where: { id: tok.userId! }, data: { passwordHash, tokenVersion: { increment: 1 } } }),
       this.prisma.authToken.update({ where: { id: tok.id }, data: { usedAt: new Date() } }),
     ]));
   }

@@ -14,15 +14,16 @@ export class AuthService {
   async login(email: string, password: string): Promise<LoginResponse> {
     const user = await this.prisma.user.findUnique({
       where: { email },
-      include: { role: true, userOutlets: true },
+      include: { role: true, userOutlets: true, tenant: true },
     });
-    if (!user || !user.isActive || !(await bcrypt.compare(password, user.passwordHash))) {
+    if (!user || !user.isActive || user.tenant.status === "SUSPENDED" || (user.tenant.status === "TRIAL" && user.tenant.trialEndsAt && user.tenant.trialEndsAt < new Date()) || !(await bcrypt.compare(password, user.passwordHash))) {
       throw new UnauthorizedException("Invalid email or password");
     }
     const authUser = this.toAuthUser(user);
     const accessToken = await this.jwt.signAsync({
       sub: user.id,
       tenantId: user.tenantId,
+      tokenVersion: user.tokenVersion,
     });
     await this.prisma.auditLog.create({
       data: { tenantId: user.tenantId, userId: user.id, action: "LOGIN", entity: "user", entityId: user.id },
@@ -33,10 +34,16 @@ export class AuthService {
   async resolveUser(userId: string): Promise<AuthUser> {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
-      include: { role: true, userOutlets: true },
+      include: { role: true, userOutlets: true, tenant: true },
     });
-    if (!user || !user.isActive) throw new UnauthorizedException();
+    if (!user || !user.isActive || user.tenant.status === "SUSPENDED" || (user.tenant.status === "TRIAL" && user.tenant.trialEndsAt && user.tenant.trialEndsAt < new Date())) throw new UnauthorizedException();
     return this.toAuthUser(user);
+  }
+
+  async getTokenVersion(userId: string) {
+    const user = await this.prisma.user.findUnique({ where: { id: userId }, select: { tokenVersion: true } });
+    if (!user) throw new UnauthorizedException();
+    return user.tokenVersion;
   }
 
   private toAuthUser(user: {

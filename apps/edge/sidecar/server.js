@@ -8,20 +8,43 @@ const express = require("express");
 const { EdgeEngine } = require("./engine");
 
 const PORT = Number(process.env.EDGE_PORT || 4010);
+const HOST = process.env.EDGE_HOST || "127.0.0.1";
 const API_URL = process.env.MAIN_API_URL || "http://localhost:3001/api/v1";
 const DATA_DIR = process.env.EDGE_DATA_DIR || path.join(__dirname, "..", "edge-data");
 // Which outlet this terminal is provisioned for. Set at install time; the caller
 // may still pass an explicit outletId in the bootstrap body to override for setup.
 const OUTLET_ID = process.env.EDGE_OUTLET_ID || undefined;
+// Provision this value from the API device fleet (terminal id or deviceToken).
+// A generated development id is intentionally rejected by the cloud sync API.
+const DEVICE_ID = process.env.EDGE_DEVICE_ID || undefined;
+const SIDECAR_TOKEN = process.env.EDGE_SIDECAR_TOKEN ||
+  (process.env.NODE_ENV === "production" ? "" : "dev-edge-sidecar-token");
+if (!SIDECAR_TOKEN) throw new Error("EDGE_SIDECAR_TOKEN is required in production");
+const ALLOWED_ORIGINS = new Set(
+  (process.env.EDGE_CORS_ORIGINS || "http://localhost:5175,http://127.0.0.1:5175,null")
+    .split(",")
+    .map((origin) => origin.trim())
+    .filter(Boolean),
+);
 
-const engine = new EdgeEngine({ dataDir: DATA_DIR, apiUrl: API_URL });
+const engine = new EdgeEngine({ dataDir: DATA_DIR, apiUrl: API_URL, deviceId: DEVICE_ID });
 const app = express();
-app.use(express.json());
+app.disable("x-powered-by");
+app.use(express.json({ limit: "256kb" }));
 app.use((req, res, next) => {
-  res.header("Access-Control-Allow-Origin", "*");
-  res.header("Access-Control-Allow-Headers", "Content-Type");
+  const origin = req.headers.origin;
+  if (origin && !ALLOWED_ORIGINS.has(origin)) return res.status(403).json({ message: "Origin not allowed" });
+  if (origin) res.header("Access-Control-Allow-Origin", origin);
+  res.header("Vary", "Origin");
+  res.header("Access-Control-Allow-Headers", "Content-Type, X-Edge-Token");
   res.header("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
   if (req.method === "OPTIONS") return res.sendStatus(204);
+  next();
+});
+app.use((req, res, next) => {
+  if (req.headers["x-edge-token"] !== SIDECAR_TOKEN) {
+    return res.status(401).json({ message: "Invalid edge session" });
+  }
   next();
 });
 
@@ -61,6 +84,6 @@ setInterval(async () => {
   }
 }, 10_000);
 
-app.listen(PORT, () => {
-  console.log(`Edge master service on http://localhost:${PORT} (device ${engine.deviceId}, api ${API_URL})`);
+app.listen(PORT, HOST, () => {
+  console.log(`Edge master service on http://${HOST}:${PORT} (device ${engine.deviceId}, api ${API_URL})`);
 });

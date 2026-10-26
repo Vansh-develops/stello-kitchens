@@ -284,9 +284,11 @@ export const CashMovementSchema = z.object({
 export type CashMovementInput = z.infer<typeof CashMovementSchema>;
 
 export const RefundSchema = z.object({
-  amount: z.number().positive(),
+  amount: z.number().positive().multipleOf(0.01),
   mode: PaymentMode,
   reason: z.string().max(120).optional(),
+  // Reuse for retries of one operation; omit only for legacy clients.
+  requestKey: z.string().min(1).max(100).optional(),
 });
 export type RefundInput = z.infer<typeof RefundSchema>;
 
@@ -298,9 +300,12 @@ export const SyncedOrderSchema = z.object({
   tableId: z.string().nullable().optional(),
   customerName: z.string().nullable().optional(),
   customerPhone: z.string().nullable().optional(),
-  items: z.array(OrderItemInputSchema).min(1),
+  items: z.array(OrderItemInputSchema.extend({
+    offlineUnitPrice: z.number().nonnegative().optional(),
+    offlineTaxRate: z.number().nonnegative().optional(),
+  })).min(1),
   payments: z
-    .array(z.object({ mode: PaymentMode, amount: z.number().positive() }))
+    .array(z.object({ mode: PaymentMode, amount: z.number().positive().multipleOf(0.01) }))
     .default([]),
   status: z.enum(["OPEN", "SETTLED", "CANCELLED"]),
   // Provisional device reference. The authoritative GST bill/invoice number is
@@ -353,7 +358,7 @@ export const SettleOrderSchema = z.object({
     .array(
       z.object({
         mode: PaymentMode,
-        amount: z.number().positive(),
+        amount: z.number().positive().multipleOf(0.01),
       }),
     )
     .min(1),

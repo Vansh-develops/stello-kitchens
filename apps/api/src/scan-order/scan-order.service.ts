@@ -180,8 +180,12 @@ export class ScanOrderService {
   }
 
   async accept(user: AuthUser, requestId: string): Promise<OrderRequestDto> {
+    const claimed = await this.prisma.orderRequest.updateMany({
+      where: { id: requestId, tenantId: user.tenantId, outletId: { in: user.outletIds }, status: "PENDING" },
+      data: { status: "PROCESSING" },
+    });
+    if (claimed.count !== 1) throw new BadRequestException("Request already decided or unavailable");
     const req = await this.requireRequest(user, requestId);
-    if (req.status !== "PENDING") throw new BadRequestException("Request already decided");
 
     const result = await this.orders.ingestScanOrder({
       tenantId: user.tenantId,
@@ -203,6 +207,11 @@ export class ScanOrderService {
       })),
       customerName: req.customerName,
       customerPhone: req.customerPhone,
+    }).catch(async (error) => {
+      // A failed validation/stock transaction must not strand the request in the
+      // claim state; a staff member can retry after the underlying issue is fixed.
+      await this.prisma.orderRequest.updateMany({ where: { id: req.id, status: "PROCESSING" }, data: { status: "PENDING" } });
+      throw error;
     });
 
     // Assign the next token number for this outlet (monotonic display counter).

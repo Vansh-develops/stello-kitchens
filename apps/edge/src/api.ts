@@ -3,11 +3,15 @@ import type { CashSessionDto, MenuCategoryDto } from "@stello/shared";
 // The renderer talks ONLY to the local master service (sidecar) — never the cloud
 // directly — so it operates identically online and offline.
 const SIDECAR = "http://localhost:4010";
+const SIDECAR_TOKEN =
+  typeof window !== "undefined" && window.edgeShell?.sidecarToken
+    ? window.edgeShell.sidecarToken
+    : "dev-edge-sidecar-token";
 
 async function call<T>(path: string, options: RequestInit = {}): Promise<T> {
   const res = await fetch(`${SIDECAR}${path}`, {
     ...options,
-    headers: { "Content-Type": "application/json", ...(options.headers || {}) },
+    headers: { "Content-Type": "application/json", "X-Edge-Token": SIDECAR_TOKEN, ...(options.headers || {}) },
   });
   const text = await res.text();
   const body = text ? JSON.parse(text) : null;

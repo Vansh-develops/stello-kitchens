@@ -357,6 +357,27 @@
    wrapped, min-240px columns, and the board scrolls vertically instead of
    clipping ticket content. */
 @media (max-width: 700px) {
+  .kds-root .kds-head {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 10px 12px;
+    padding: 12px 14px;
+  }
+  .kds-root .station-tabs {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    width: 100%;
+    min-width: 0;
+    order: initial;
+  }
+  .kds-root .kds-meta {
+    min-width: 0;
+    gap: 8px;
+  }
+  .kds-root .clock,
+  .kds-root .exit { display: none; }
+  .kds-root .conn { white-space: nowrap; }
+  .kds-root .cook-toggle { padding: 8px 10px; white-space: nowrap; }
   .kds-root .board {
     grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
     overflow: hidden;
