@@ -20,6 +20,7 @@ import { randomUUID } from "node:crypto";
 import { PrismaService } from "../prisma/prisma.service";
 import { RealtimeGateway } from "../realtime/realtime.gateway";
 import { LoyaltyOtpService } from "../loyalty/loyalty-otp.service";
+import { emitDomainEvent } from "../events/domain-events";
 
 const orderInclude = {
   table: true,
@@ -82,6 +83,7 @@ export class OrdersService {
       return order.id;
     });
     this.realtime.notifyOutlet(input.outletId);
+    emitDomainEvent("order.created", user.tenantId, input.outletId, { orderId, source: "pos" });
     return this.getOne(user, orderId);
   }
 
@@ -98,6 +100,7 @@ export class OrdersService {
   }): Promise<{ orderId: string; kotNumber: number; total: number }> {
     const result = await this.prisma.$transaction((tx) => this.ingestAggregatorOrderTx(tx, params));
     this.realtime.notifyOutlet(params.outletId);
+    emitDomainEvent("order.created", params.tenantId, params.outletId, { orderId: result.orderId, source: "aggregator" });
     return result;
   }
 
@@ -190,6 +193,7 @@ export class OrdersService {
       return order.id;
     });
     this.realtime.notifyOutlet(params.outletId);
+    emitDomainEvent("order.created", params.tenantId, params.outletId, { orderId, source: "scan" });
     const order = await this.prisma.order.findUniqueOrThrow({
       where: { id: orderId },
       include: { kots: { orderBy: { kotNumber: "desc" }, take: 1 } },
@@ -306,6 +310,7 @@ export class OrdersService {
       await this.recomputeTotals(tx, order.id);
     });
     this.realtime.notifyOutlet(order.outletId);
+    emitDomainEvent("stock.changed", user.tenantId, order.outletId, { orderId: order.id });
     return this.getOne(user, orderId);
   }
 
@@ -476,7 +481,9 @@ export class OrdersService {
         },
       });
     });
-    return this.getOne(user, orderId);
+    const settled = await this.getOne(user, orderId);
+    emitDomainEvent("order.settled", user.tenantId, settled.outletId, { orderId });
+    return settled;
   }
 
   async cancel(user: AuthUser, orderId: string): Promise<OrderDto> {
@@ -498,6 +505,7 @@ export class OrdersService {
       return order;
     });
     this.realtime.notifyOutlet(order.outletId);
+    emitDomainEvent("order.cancelled", user.tenantId, order.outletId, { orderId: order.id });
     return this.getOne(user, orderId);
   }
 

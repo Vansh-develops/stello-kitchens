@@ -31,6 +31,10 @@ import { TenantModule } from "./tenant/tenant.module";
 import { EmailModule } from "./email/email.module";
 import { AccountModule } from "./account/account.module";
 import { ApiKeysModule } from "./api-keys/api-keys.module";
+import { RolesModule } from "./roles/roles.module";
+import { AuditModule } from "./audit/audit.module";
+import { WebhooksModule } from "./webhooks/webhooks.module";
+import { McpModule } from "./mcp/mcp.module";
 
 @Module({
   imports: [
@@ -66,6 +70,10 @@ import { ApiKeysModule } from "./api-keys/api-keys.module";
     EmailModule,
     AccountModule,
     ApiKeysModule,
+    RolesModule,
+    AuditModule,
+    WebhooksModule,
+    McpModule,
   ],
   providers: [
     // ThrottlerGuard first so rate limiting applies even to unauthenticated

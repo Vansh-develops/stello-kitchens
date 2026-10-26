@@ -11,6 +11,7 @@ import { Prisma } from "@prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
 import { OrdersService } from "../orders/orders.service";
 import { RealtimeGateway } from "../realtime/realtime.gateway";
+import { emitDomainEvent } from "../events/domain-events";
 
 // Aggregator platform → the sales-channel name that carries its pricing/maps.
 const PLATFORM_CHANNEL: Record<string, string> = {
@@ -97,7 +98,10 @@ export class ConnectorService {
         return { aggregatorOrderId: agg.id, orderId, kotNumber, matched: matched.length, unmatched, duplicate: false };
       });
 
-      if (result.orderId) this.realtime.notifyOutlet(input.outletId);
+      if (result.orderId) {
+        this.realtime.notifyOutlet(input.outletId);
+        emitDomainEvent("order.created", outlet.tenantId, input.outletId, { orderId: result.orderId, source: "aggregator" });
+      }
       return result;
     } catch (e) {
       // Duplicate delivery: the unique constraint fired. Return the winner's row.
