@@ -3,6 +3,9 @@ import { JwtModule } from "@nestjs/jwt";
 import { AuthController } from "./auth.controller";
 import { AuthService } from "./auth.service";
 import { PasswordResetService } from "../account/password-reset.service";
+import { SessionService } from "../session/session.service";
+import { MfaService } from "../mfa/mfa.service";
+import { MfaController, SecuritySettingsController } from "../mfa/mfa.controller";
 
 /**
  * Resolve the JWT signing secret. In production a missing/empty JWT_SECRET is a
@@ -26,8 +29,8 @@ function resolveJwtSecret(): string {
       signOptions: { expiresIn: "12h" },
     }),
   ],
-  controllers: [AuthController],
-  providers: [AuthService, PasswordResetService],
-  exports: [AuthService],
+  controllers: [AuthController, MfaController, SecuritySettingsController],
+  providers: [AuthService, PasswordResetService, SessionService, MfaService],
+  exports: [AuthService, SessionService, MfaService],
 })
 export class AuthModule {}

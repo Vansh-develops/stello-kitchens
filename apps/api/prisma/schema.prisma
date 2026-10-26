@@ -955,3 +955,128 @@ model AuthToken {
   @@index([tokenHash])
   @@map("auth_tokens")
 }
+
+// ── Platform & security ─────
+
+// TOTP second factor for a user. The shared secret is AES-256-GCM encrypted at
+// rest; enabledAt is null while enrolment is pending confirmation.
+model UserMfa {
+  userId       String    @id
+  tenantId     String
+  secretEnc    String
+  enabledAt    DateTime?
+  lastUsedStep Int? // last accepted TOTP time-step; blocks code replay
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@index([tenantId])
+  @@map("user_mfa")
+}
+
+// One-time recovery codes (sha256 hashed) for a user's 2FA.
+model MfaRecoveryCode {
+  id        String    @id @default(cuid())
+  tenantId  String
+  userId    String
+  codeHash  String    @unique
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId])
+  @@map("mfa_recovery_codes")
+}
+
+// Per-tenant security policy.
+model TenantSecurity {
+  tenantId        String   @id
+  requireOwnerMfa Boolean  @default(false)
+  updatedAt       DateTime @updatedAt
+
+  @@map("tenant_security")
+}
+
+// Tenant API key for the public API / MCP. Only a sha256 hash is stored.
+model ApiKey {
+  id          String    @id @default(cuid())
+  tenantId    String
+  name        String
+  prefix      String // first chars, shown in the UI to identify the key
+  keyHash     String    @unique
+  permissions Json // string[] of permission keys (never "*")
+  outletIds   Json? // string[] | null (= every outlet)
+  createdById String?
+  lastUsedAt  DateTime?
+  expiresAt   DateTime?
+  revokedAt   DateTime?
+  createdAt   DateTime  @default(now())
+
+  @@index([tenantId])
+  @@map("api_keys")
+}
+
+// Outbound webhook subscription. The signing secret is encrypted at rest.
+model WebhookEndpoint {
+  id          String   @id @default(cuid())
+  tenantId    String
+  outletId    String? // null = every outlet
+  url         String
+  description String?
+  secretEnc   String
+  events      Json // string[] of event types
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+
+  deliveries WebhookDelivery[]
+
+  @@index([tenantId])
+  @@map("webhook_endpoints")
+}
+
+// One event delivered (or being retried) to one endpoint.
+model WebhookDelivery {
+  id             String    @id @default(cuid())
+  tenantId       String
+  endpointId     String
+  eventId        String
+  eventType      String
+  payload        Json
+  status         String    @default("PENDING") // PENDING | SUCCEEDED | FAILED
+  attempts       Int       @default(0)
+  nextAttemptAt  DateTime? @default(now())
+  lastStatusCode Int?
+  lastError      String?
+  durationMs     Int?
+  deliveredAt    DateTime?
+  createdAt      DateTime  @default(now())
+
+  endpoint WebhookEndpoint @relation(fields: [endpointId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, endpointId, createdAt])
+  @@index([status, nextAttemptAt])
+  @@map("webhook_deliveries")
+}
+
+// Scheduled report email for an outlet (daily or weekly).
+model ReportSchedule {
+  id          String    @id @default(cuid())
+  tenantId    String
+  outletId    String
+  name        String
+  frequency   String // DAILY | WEEKLY
+  weekday     Int? // 0 = Sunday (WEEKLY)
+  hour        Int // local hour of day to send
+  recipients  Json // string[]
+  reports     Json // ReportExportKey[]
+  format      String    @default("XLSX") // CSV | XLSX
+  isActive    Boolean   @default(true)
+  nextRunAt   DateTime
+  lastRunAt   DateTime?
+  lastStatus  String?
+  lastError   String?
+  createdById String?
+  createdAt   DateTime  @default(now())
+
+  @@index([tenantId, outletId])
+  @@index([isActive, nextRunAt])
+  @@map("report_schedules")
+}
