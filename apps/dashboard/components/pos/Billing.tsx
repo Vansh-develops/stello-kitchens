@@ -18,6 +18,7 @@ import { ItemDialog } from "./ItemDialog";
 import { ComboDialog, type ComboLine } from "./ComboDialog";
 import { SettleDialog } from "./SettleDialog";
 import { CashDrawer } from "./CashDrawer";
+import { ClockDialog } from "./ClockDialog";
 
 type ItemCartLine = {
   kind: "item";
@@ -72,6 +73,8 @@ export function Billing({
   const [dialogCombo, setDialogCombo] = useState<ComboDto | null>(null);
   const [settleOpen, setSettleOpen] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [clockOpen, setClockOpen] = useState(false);
+  const canClock = user.permissions.includes("*") || user.permissions.includes("attendance.clock");
   const [drawer, setDrawer] = useState<CashSessionDto | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -291,6 +294,11 @@ export function Billing({
             <span className="drawer-dot" />
             {drawer ? `Drawer ₹${drawer.expectedCash.toFixed(0)}` : "Drawer closed"}
           </button>
+          {canClock && (
+            <button className="drawer-chip" onClick={() => setClockOpen(true)}>
+              Clock in / out
+            </button>
+          )}
         </div>
       </aside>
 
@@ -543,6 +551,7 @@ export function Billing({
         />
       )}
 
+      {clockOpen && <ClockDialog outletId={outlet.id} onClose={() => setClockOpen(false)} />}
       {drawerOpen && (
         <CashDrawer outletId={outlet.id} onClose={() => setDrawerOpen(false)} onChanged={loadDrawer} />
       )}

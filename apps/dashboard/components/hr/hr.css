@@ -1,0 +1,290 @@
+/* Staff/HR, accounting (expenses, P&L, day book) and gift cards. Reuses the
+   console tokens; only layout specific to these screens lives here. */
+
+.hr-subnav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 14px;
+}
+.hr-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+.hr-toolbar input,
+.hr-toolbar select {
+  width: auto;
+  min-width: 0;
+}
+.hr-grid-2 {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(260px, 1fr);
+  gap: 16px;
+  align-items: start;
+}
+.hr-form {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+  gap: 12px;
+}
+.hr-form .wide {
+  grid-column: 1 / -1;
+}
+.hr-check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--ink);
+}
+.hr-check input {
+  width: auto;
+}
+.hr-checks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+.hr-note {
+  font-size: 12px;
+  color: var(--muted);
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  padding: 10px 12px;
+  margin: 0 0 12px;
+}
+.hr-lines {
+  display: grid;
+  gap: 6px;
+}
+.hr-line {
+  display: grid;
+  grid-template-columns: 1fr 120px 32px;
+  gap: 8px;
+}
+
+/* Weekly roster + attendance register grids */
+.hr-scroll {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+.roster-table td,
+.roster-table th {
+  text-align: center;
+  min-width: 96px;
+}
+.roster-table td:first-child,
+.roster-table th:first-child {
+  text-align: left;
+  min-width: 140px;
+}
+.roster-table select {
+  width: 100%;
+  font-size: 12px;
+  padding: 4px 6px;
+}
+.roster-leave {
+  font-size: 11px;
+  color: var(--warn);
+  display: block;
+}
+.reg-cell {
+  display: inline-grid;
+  place-items: center;
+  width: 26px;
+  height: 22px;
+  border-radius: 5px;
+  font-size: 11px;
+  font-weight: 600;
+  background: var(--panel-2);
+  color: var(--faint);
+}
+.reg-cell.PRESENT { background: rgba(47, 125, 71, 0.16); color: var(--good); }
+.reg-cell.HALF_DAY { background: rgba(192, 122, 9, 0.16); color: var(--warn); }
+.reg-cell.ABSENT { background: rgba(178, 58, 50, 0.14); color: var(--crit); }
+.reg-cell.LEAVE { background: var(--accent-soft); color: var(--accent); }
+.reg-cell.OPEN { background: var(--accent); color: var(--accent-ink); }
+.reg-table td,
+.reg-table th {
+  padding: 4px 3px;
+  text-align: center;
+}
+.reg-table td:first-child,
+.reg-table th:first-child {
+  text-align: left;
+  padding-left: 8px;
+  min-width: 130px;
+}
+.reg-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  font-size: 12px;
+  color: var(--muted);
+  margin: 8px 0 12px;
+}
+.reg-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* P&L statement */
+.pnl-table td.num {
+  font-variant-numeric: tabular-nums;
+}
+.pnl-table tr.sub td {
+  font-weight: 600;
+  border-top: 1px solid var(--line);
+}
+.pnl-table tr.indent td:first-child {
+  padding-left: 26px;
+  color: var(--muted);
+}
+.pnl-up { color: var(--good); }
+.pnl-down { color: var(--crit); }
+
+/* Payslip (screen + print) */
+.payslip {
+  background: var(--panel);
+  color: var(--ink);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  padding: 18px;
+  font-size: 13px;
+}
+.payslip h3 {
+  margin: 0 0 4px;
+  font-size: 16px;
+}
+.payslip .ps-cols {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 18px;
+  margin-top: 12px;
+}
+.payslip .ps-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 3px 0;
+  border-bottom: 1px dashed var(--line);
+}
+.payslip .ps-total {
+  font-weight: 700;
+  border-bottom: none;
+  border-top: 1px solid var(--ink);
+  margin-top: 4px;
+}
+.payslip .ps-net {
+  margin-top: 14px;
+  font-size: 16px;
+  font-weight: 700;
+  display: flex;
+  justify-content: space-between;
+}
+.ps-warn {
+  color: var(--warn);
+  font-size: 12px;
+}
+
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  .print-area,
+  .print-area * {
+    visibility: visible;
+  }
+  .print-area {
+    position: absolute;
+    inset: 0;
+    padding: 24px;
+    background: #fff;
+    color: #000;
+  }
+  .no-print {
+    display: none !important;
+  }
+}
+
+/* POS clock + gift card tender */
+.clock-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 10px;
+}
+.clock-card {
+  text-align: left;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  padding: 12px;
+  background: var(--panel-2);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.clock-card.on {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent-soft);
+}
+.clock-card strong {
+  font-size: 14px;
+}
+.clock-card em {
+  font-style: normal;
+  font-size: 11px;
+  color: var(--muted);
+}
+.clock-state {
+  font-size: 11px;
+  font-weight: 700;
+}
+.clock-state.IN { color: var(--good); }
+.clock-state.ON_BREAK { color: var(--warn); }
+.clock-state.OUT { color: var(--faint); }
+.pin-pad {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  max-width: 260px;
+}
+.pin-pad button {
+  padding: 14px 0;
+  font-size: 18px;
+  border-radius: var(--radius-sm);
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+}
+.pin-dots {
+  font-size: 22px;
+  letter-spacing: 8px;
+  min-height: 30px;
+}
+.clock-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.gc-tender {
+  display: grid;
+  grid-template-columns: 1fr 110px auto;
+  gap: 8px;
+  align-items: center;
+}
+.gc-msg {
+  font-size: 12px;
+  margin: 4px 0 0;
+}
+
+@media (max-width: 900px) {
+  .hr-grid-2 {
+    grid-template-columns: 1fr;
+  }
+  .payslip .ps-cols {
+    grid-template-columns: 1fr;
+  }
+}
