@@ -1,5 +1,16 @@
-import { Body, Controller, Get, Param, Post, Query } from "@nestjs/common";
-import type { AuthUser } from "@stello/shared";
+import { Body, Controller, Get, Param, Post, Put, Query } from "@nestjs/common";
+import {
+  CancelIrnSchema,
+  EInvoiceProfileSchema,
+  EwayBillByIrnSchema,
+  GenerateIrnSchema,
+  type AuthUser,
+  type CancelIrnInput,
+  type EInvoiceProfileInput,
+  type EwayBillByIrnInput,
+  type GenerateIrnInput,
+} from "@stello/shared";
+import { ZodValidationPipe } from "../common/zod.pipe";
 import { InvoicesService } from "./invoices.service";
 import { CurrentUser, RequirePermission } from "../common/decorators";
 
@@ -38,9 +49,9 @@ export class InvoicesController {
     @CurrentUser() user: AuthUser,
     @Param("outletId") outletId: string,
     @Param("orderId") orderId: string,
-    @Body() body: { buyerGstin?: string },
+    @Body(new ZodValidationPipe(GenerateIrnSchema)) body: GenerateIrnInput,
   ) {
-    return this.svc.generateIrn(user, outletId, orderId, body?.buyerGstin?.trim() || undefined);
+    return this.svc.generateIrn(user, outletId, orderId, body.buyerGstin || undefined, body.buyer);
   }
 
   @Post("invoices/:orderId/cancel-irn")
@@ -48,9 +59,33 @@ export class InvoicesController {
     @CurrentUser() user: AuthUser,
     @Param("outletId") outletId: string,
     @Param("orderId") orderId: string,
-    @Body() body: { reason?: string },
+    @Body(new ZodValidationPipe(CancelIrnSchema)) body: CancelIrnInput,
   ) {
-    return this.svc.cancelIrn(user, outletId, orderId, body?.reason ?? "Cancelled by merchant");
+    return this.svc.cancelIrn(user, outletId, orderId, body.reason, body.reasonCode);
+  }
+
+  @Post("invoices/:orderId/eway-bill")
+  ewayBill(
+    @CurrentUser() user: AuthUser,
+    @Param("outletId") outletId: string,
+    @Param("orderId") orderId: string,
+    @Body(new ZodValidationPipe(EwayBillByIrnSchema)) body: EwayBillByIrnInput,
+  ) {
+    return this.svc.generateEwayBill(user, outletId, orderId, body);
+  }
+
+  @Get("einvoice-profile")
+  profile(@CurrentUser() user: AuthUser, @Param("outletId") outletId: string) {
+    return this.svc.getProfile(user, outletId);
+  }
+
+  @Put("einvoice-profile")
+  saveProfile(
+    @CurrentUser() user: AuthUser,
+    @Param("outletId") outletId: string,
+    @Body(new ZodValidationPipe(EInvoiceProfileSchema)) body: EInvoiceProfileInput,
+  ) {
+    return this.svc.saveProfile(user, outletId, body);
   }
 
   @Get("exports/tally")

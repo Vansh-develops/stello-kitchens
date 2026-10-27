@@ -1,6 +1,6 @@
 import { Injectable, Logger } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
-import type { ConnectorIngestResult, MenuPushRowDto } from "@stello/shared";
+import type { AggregatorCatalogItemDto, ConnectorIngestResult, MenuPushRowDto } from "@stello/shared";
 import type { CanonicalOrder } from "./adapters/types";
 
 /** Thin HTTP client for the main API's service-authenticated connector surface. */
@@ -51,5 +51,10 @@ export class MainApiService {
 
   stockPush(platform: string, outletId: string): Promise<string[]> {
     return this.call<string[]>(`/connector/stock/${platform}?outletId=${outletId}`);
+  }
+
+  /** Full catalogue (category, veg flag, stock) for outbound menu pushes. */
+  catalog(platform: string, outletId: string): Promise<AggregatorCatalogItemDto[]> {
+    return this.call<AggregatorCatalogItemDto[]>(`/connector/catalog/${platform}?outletId=${encodeURIComponent(outletId)}`);
   }
 }

@@ -5,6 +5,7 @@ import QRCode from "qrcode";
 import type { InvoiceDto, InvoiceRowDto } from "@stello/shared";
 import { api } from "@/lib/api";
 import { DayBookView, ExpensesView, PnlView, type FinanceView } from "./hr/FinanceViews";
+import { integrationsApi } from "@/lib/integrations-api";
 
 const money = (n: number) => `₹${n.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 const date = (iso: string) => new Date(iso).toLocaleDateString("en-IN", { day: "numeric", month: "short" });
@@ -197,6 +198,24 @@ function InvoiceModal({
     }
   }, [invoice.signedQr]);
 
+  // IRP cancellation is only allowed within 24h of the acknowledgement.
+  const [cancelCode, setCancelCode] = useState<"1" | "2" | "3" | "4">("2");
+  const cancellable =
+    invoice.status === "GENERATED" && !!invoice.ackDate && Date.now() - new Date(invoice.ackDate).getTime() < 24 * 3600_000;
+  const cancelIrn = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      const reason = { "1": "Duplicate", "2": "Data entry mistake", "3": "Order cancelled", "4": "Other" }[cancelCode];
+      await integrationsApi.cancelIrn(outletId, invoice.orderId, reason, cancelCode);
+      onChanged();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not cancel IRN");
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const generate = async () => {
     setBusy(true);
     setError(null);
@@ -271,12 +290,26 @@ function InvoiceModal({
                   <span className={`status-pill ${statusTone[invoice.status]}`}>{invoice.status}</span>
                 </div>
                 {qr && <img className="irn-qr" src={qr} alt="Signed e-invoice QR" width={150} height={150} />}
+                {invoice.cancelledAt && (
+                  <p className="hint">Cancelled at the IRP {new Date(invoice.cancelledAt).toLocaleString("en-IN")} — {invoice.cancelReason}</p>
+                )}
+                {cancellable && (
+                  <div className="field-row">
+                    <select value={cancelCode} onChange={(e) => setCancelCode(e.target.value as "1" | "2" | "3" | "4")}>
+                      <option value="1">Duplicate</option>
+                      <option value="2">Data entry mistake</option>
+                      <option value="3">Order cancelled</option>
+                      <option value="4">Other</option>
+                    </select>
+                    <button className="btn-ghost sm" onClick={cancelIrn} disabled={busy}>Cancel IRN</button>
+                  </div>
+                )}
               </div>
             ) : (
               <div className="irn-generate">
                 <p className="hint">No IRN yet. Submit to the IRP via the GSP to get an IRN + signed QR.</p>
                 <div className="field-row">
-                  <input placeholder="Buyer GSTIN (optional, B2B)" value={buyerGstin} onChange={(e) => setBuyerGstin(e.target.value)} />
+                  <input placeholder="Buyer GSTIN (B2B — required by the IRP)" value={buyerGstin} onChange={(e) => setBuyerGstin(e.target.value)} />
                   <button className="btn-primary" onClick={generate} disabled={busy}>
                     {busy ? "Generating…" : "Generate IRN"}
                   </button>

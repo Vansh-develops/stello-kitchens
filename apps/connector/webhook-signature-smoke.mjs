@@ -14,7 +14,7 @@ const post = (platform, body, headers) =>
 
 const zomato = (id = "Z-1") => JSON.stringify({ order_id: id, store: { pos_outlet_id: "outlet-x" }, order_items: [{ item_id: "i1", quantity: 2 }], order_total: 500 });
 const swiggy = (id = "S-1") => JSON.stringify({ orderId: id, outletId: "outlet-x", items: [{ externalItemId: "i1", qty: 1 }], total: 300 });
-const urbanpiper = (id = "U-1") => JSON.stringify({ order_ref: id, location_ref: "outlet-x", items: [{ ref_id: "i1", quantity: 1 }], amount: 200 });
+const urbanpiper = (id = "U-1") => JSON.stringify({ customer: { name: "A", phone: "9999999999" }, order: { details: { id, order_total: 200 }, store: { merchant_ref_id: "outlet-x" }, items: [{ merchant_id: "i1", quantity: 1 }] } });
 const ondc = (id = "O-1") => JSON.stringify({ context: { transaction_id: id }, message: { order: { provider: { id: "outlet-x" }, items: [{ id: "i1", quantity: { count: 1 } }], quote: { price: { value: "250" } } } } });
 
 async function main() {
@@ -36,13 +36,15 @@ async function main() {
   ok((await post("swiggy", sb, { "X-Swiggy-Signature": hmac("swiggy", sb) })).status === 202, "Swiggy correct HMAC → 202");
   const ub = urbanpiper("U-100");
   ok((await post("urbanpiper", ub, {})).status === 401, "UrbanPiper unsigned → 401");
-  ok((await post("urbanpiper", ub, { "X-UrbanPiper-Signature": hmac("urbanpiper", ub) })).status === 202, "UrbanPiper correct HMAC → 202");
+  ok((await post("urbanpiper", ub, { "X-Stello-Webhook-Token": "wrong" })).status === 401, "UrbanPiper wrong token → 401");
+  ok((await post("urbanpiper", ub, { "X-Stello-Webhook-Token": "dev-urbanpiper-secret" })).status === 202, "UrbanPiper correct token → 202");
 
   console.log("\n[3] ONDC ed25519 (GATED — structural check until registry key provisioned)");
   const ob = ondc("O-100");
   ok((await post("ondc", ob, {})).status === 401, "no Authorization → 401");
   ok((await post("ondc", ob, { authorization: 'Signature keyId="bpp|k1"' })).status === 401, "malformed signature block → 401");
-  const wellFormed = 'Signature keyId="bpp.example|k1|ed25519",signature="ZHVtbXlzaWc="';
+  const now = Math.floor(Date.now() / 1000);
+  const wellFormed = `Signature keyId="bpp.example|k1|ed25519",algorithm="ed25519",created="${now}",expires="${now + 300}",headers="(created) (expires) digest",signature="ZHVtbXlzaWc="`;
   ok((await post("ondc", ob, { authorization: wellFormed })).status === 202, "well-formed Beckn signature block → 202 (structural gate; live key GATED)");
 
   console.log(`\n${fail === 0 ? "✅ PASS" : "❌ FAIL"} — ${pass} passed, ${fail} failed`);

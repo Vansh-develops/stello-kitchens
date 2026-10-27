@@ -1,9 +1,19 @@
 import { BadRequestException, ForbiddenException, Inject, Injectable, NotFoundException } from "@nestjs/common";
-import type { AuthUser, HsnSummaryRowDto, InvoiceDto, InvoiceRowDto } from "@stello/shared";
-import { fromPaise, toPaise } from "@stello/shared";
+import type {
+  AuthUser,
+  CancelIrnInput,
+  EInvoiceProfileDto,
+  EInvoiceProfileInput,
+  EwayBillByIrnInput,
+  GenerateIrnInput,
+  HsnSummaryRowDto,
+  InvoiceDto,
+  InvoiceRowDto,
+} from "@stello/shared";
+import { fromPaise, IRN_CANCEL_WINDOW_MS, toPaise } from "@stello/shared";
 import { Prisma } from "@prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
-import { EINVOICE_PROVIDER, type EInvoiceProvider } from "./einvoice.provider";
+import { EINVOICE_PROVIDER, type EInvoiceProvider, type IrnRequest } from "./einvoice.provider";
 
 const N = (d: Prisma.Decimal | number) => (typeof d === "number" ? d : Number(d));
 const r2 = (n: number) => Math.round(n * 100) / 100;
@@ -113,6 +123,11 @@ export class InvoicesService {
       ackNo: stored?.ackNo ?? null,
       ackDate: stored?.ackDate?.toISOString() ?? null,
       status: (stored?.status as InvoiceDto["status"]) ?? "PENDING",
+      gspProvider: stored?.gspProvider ?? null,
+      cancelledAt: stored?.cancelledAt?.toISOString() ?? null,
+      cancelReason: stored?.cancelReason ?? null,
+      ewbNo: stored?.ewbNo ?? null,
+      ewbValidTill: stored?.ewbValidTill?.toISOString() ?? null,
     };
   }
 
@@ -157,19 +172,12 @@ export class InvoicesService {
     });
   }
 
-  async generateIrn(user: AuthUser, outletId: string, orderId: string, buyerGstin?: string) {
+  async generateIrn(user: AuthUser, outletId: string, orderId: string, buyerGstin?: string, buyerOverride?: GenerateIrnInput["buyer"]) {
     this.assertOutlet(user, outletId);
     const detail = await this.detail(user, outletId, orderId);
-    if (detail.irn) throw new BadRequestException("An IRN already exists for this invoice");
+    if (detail.irn && detail.status !== "CANCELLED") throw new BadRequestException("An IRN already exists for this invoice");
+    if (detail.irn) throw new BadRequestException("This invoice number's IRN was cancelled; the IRP does not allow re-using it");
     if (!detail.sellerGstin) throw new BadRequestException("Outlet has no GSTIN configured");
-
-    const res = await this.gsp.generateIrn({
-      sellerGstin: detail.sellerGstin,
-      invoiceNumber: detail.invoiceNumber,
-      invoiceDate: detail.invoiceDate,
-      total: detail.total,
-      taxableValue: detail.taxableValue,
-    });
 
     // A buyer GSTIN supplied now may make this an inter-state supply — detail() was
     // computed against the previously-stored buyer, so re-evaluate the split (and
@@ -178,13 +186,86 @@ export class InvoicesService {
     const taxTotal = r2(detail.cgst + detail.sgst + detail.igst);
     const sellerState = detail.placeOfSupply ?? stateOf(detail.sellerGstin);
     const split = splitTax(taxTotal, sellerState, effectiveBuyer);
-    const hsnSummary = detail.hsnSummary.map((row) => {
+    const rows = detail.hsnSummary.map((row) => {
       const rowTax = r2(row.cgst + row.sgst + row.igst);
       return split.interState
         ? { ...row, cgst: 0, sgst: 0, igst: rowTax }
         : { ...row, cgst: r2(rowTax / 2), sgst: r2(rowTax / 2), igst: 0 };
-    }) as unknown as Prisma.InputJsonValue;
+    });
+    const hsnSummary = rows as unknown as Prisma.InputJsonValue;
 
+    // A live IRP needs the full INV-01: a registered buyer (e-invoices are B2B
+    // only), the seller address and line items. The mock accepts the summary alone.
+    let full: Partial<IrnRequest> = {};
+    if (this.gsp.live) {
+      if (!effectiveBuyer) throw new BadRequestException("E-invoices are for B2B sales — enter the buyer GSTIN");
+      const profile = await this.prisma.eInvoiceProfile.findFirst({ where: { tenantId: user.tenantId, outletId } });
+      if (!profile) throw new BadRequestException("Set up the outlet e-invoice seller details (legal name, address, pincode) first");
+      const looked = this.gsp.lookupGstin ? await this.gsp.lookupGstin(detail.sellerGstin, effectiveBuyer) : null;
+      const buyer = {
+        gstin: effectiveBuyer,
+        legalName: buyerOverride?.legalName ?? looked?.legalName ?? "",
+        tradeName: looked?.tradeName ?? null,
+        address1: buyerOverride?.address1 ?? looked?.address1 ?? "",
+        location: buyerOverride?.location ?? looked?.location ?? "",
+        pincode: buyerOverride?.pincode ?? looked?.pincode ?? 0,
+        stateCode: looked?.stateCode ?? effectiveBuyer.slice(0, 2),
+        placeOfSupply: sellerState ?? effectiveBuyer.slice(0, 2),
+      };
+      if (!buyer.legalName || !buyer.address1 || !buyer.location || !buyer.pincode) {
+        throw new BadRequestException("Buyer address is incomplete — enter legal name, address, city and pincode");
+      }
+      const items = rows.map((row, i) => {
+        const tax = r2(row.cgst + row.sgst + row.igst);
+        return {
+          serial: i + 1,
+          description: `Restaurant service (SAC ${row.hsn}) @ ${row.rate}%`,
+          hsn: row.hsn,
+          isService: true,
+          quantity: 1,
+          unit: "OTH",
+          unitPrice: row.taxable,
+          assessable: row.taxable,
+          gstRate: row.rate,
+          cgst: row.cgst,
+          sgst: row.sgst,
+          igst: row.igst,
+          total: r2(row.taxable + tax),
+        };
+      });
+      const itemsTotal = r2(items.reduce((sum, it) => sum + it.total, 0));
+      full = {
+        seller: {
+          gstin: detail.sellerGstin,
+          legalName: profile.legalName,
+          tradeName: profile.tradeName,
+          address1: profile.address1,
+          address2: profile.address2,
+          location: profile.location,
+          pincode: profile.pincode,
+          stateCode: profile.stateCode,
+          phone: profile.phone,
+          email: profile.email,
+        },
+        buyer,
+        items,
+        cgst: split.cgst,
+        sgst: split.sgst,
+        igst: split.igst,
+        roundOff: r2(detail.total - itemsTotal),
+      };
+    }
+
+    const res = await this.gsp.generateIrn({
+      sellerGstin: detail.sellerGstin,
+      invoiceNumber: detail.invoiceNumber,
+      invoiceDate: detail.invoiceDate,
+      total: detail.total,
+      taxableValue: detail.taxableValue,
+      ...full,
+    });
+
+    const ewb = { ewbNo: res.ewbNo ?? null, ewbValidTill: res.ewbValidTill ? new Date(res.ewbValidTill) : null };
     await this.prisma.invoice.upsert({
       where: { orderId },
       create: {
@@ -207,6 +288,8 @@ export class InvoicesService {
         ackNo: res.ackNo,
         ackDate: new Date(res.ackDate),
         status: "GENERATED",
+        gspProvider: this.gsp.name,
+        ...ewb,
       },
       update: {
         buyerGstin: buyerGstin ?? undefined,
@@ -219,18 +302,102 @@ export class InvoicesService {
         ackNo: res.ackNo,
         ackDate: new Date(res.ackDate),
         status: "GENERATED",
+        gspProvider: this.gsp.name,
+        ...ewb,
       },
     });
     return this.detail(user, outletId, orderId);
   }
 
-  async cancelIrn(user: AuthUser, outletId: string, orderId: string, reason: string) {
+  /**
+   * Cancel at the IRP (via the GSP) and only then mark the invoice cancelled.
+   * The IRP allows cancellation within 24h of the ack; later corrections need a
+   * credit note.
+   */
+  async cancelIrn(user: AuthUser, outletId: string, orderId: string, reason: string, reasonCode: CancelIrnInput["reasonCode"] = "4") {
     this.assertOutlet(user, outletId);
-    const inv = await this.prisma.invoice.findUnique({ where: { orderId } });
+    const inv = await this.prisma.invoice.findFirst({ where: { orderId, tenantId: user.tenantId, outletId } });
     if (!inv?.irn) throw new BadRequestException("No IRN to cancel");
-    await this.gsp.cancelIrn(inv.irn, reason);
-    await this.prisma.invoice.update({ where: { orderId }, data: { status: "CANCELLED" } });
+    if (inv.status === "CANCELLED") throw new BadRequestException("IRN already cancelled");
+    if (inv.ackDate && Date.now() - inv.ackDate.getTime() > IRN_CANCEL_WINDOW_MS) {
+      throw new BadRequestException("IRNs can only be cancelled within 24 hours of generation — issue a credit note instead");
+    }
+    const res = await this.gsp.cancelIrn(inv.irn, reason, { sellerGstin: inv.sellerGstin ?? "", reasonCode });
+    await this.prisma.invoice.update({
+      where: { orderId },
+      data: { status: "CANCELLED", cancelledAt: new Date(res.cancelDate), cancelReason: reason },
+    });
+    await this.prisma.auditLog.create({
+      data: {
+        tenantId: user.tenantId,
+        userId: user.id,
+        action: "IRN_CANCELLED",
+        entity: "invoice",
+        entityId: inv.id,
+        data: { irn: inv.irn, reason, reasonCode },
+      },
+    });
     return this.detail(user, outletId, orderId);
+  }
+
+  /** E-way bill from an IRN (goods movements; restaurant services do not need one). */
+  async generateEwayBill(user: AuthUser, outletId: string, orderId: string, input: EwayBillByIrnInput) {
+    this.assertOutlet(user, outletId);
+    const inv = await this.prisma.invoice.findFirst({ where: { orderId, tenantId: user.tenantId, outletId } });
+    if (!inv?.irn || inv.status !== "GENERATED") throw new BadRequestException("Generate the IRN first");
+    if (inv.ewbNo) throw new BadRequestException("An e-way bill already exists for this invoice");
+    if (!this.gsp.generateEwayBill) throw new BadRequestException("The configured GSP does not support e-way bills");
+    const res = await this.gsp.generateEwayBill({ sellerGstin: inv.sellerGstin ?? "", irn: inv.irn, ...input });
+    await this.prisma.invoice.update({
+      where: { orderId },
+      data: { ewbNo: res.ewbNo, ewbValidTill: res.validTill ? new Date(res.validTill) : null },
+    });
+    return this.detail(user, outletId, orderId);
+  }
+
+  // ---------- Seller profile (INV-01 SellerDtls) ----------
+
+  async getProfile(user: AuthUser, outletId: string): Promise<EInvoiceProfileDto> {
+    this.assertOutlet(user, outletId);
+    const [p, outlet] = await Promise.all([
+      this.prisma.eInvoiceProfile.findFirst({ where: { tenantId: user.tenantId, outletId } }),
+      this.prisma.outlet.findUniqueOrThrow({ where: { id: outletId } }),
+    ]);
+    const base = { gstin: outlet.gstin, provider: this.gsp.name, live: this.gsp.live };
+    if (!p) {
+      return { ...base, legalName: "", address1: "", location: "", pincode: 0, stateCode: outlet.placeOfSupply ?? stateOf(outlet.gstin) ?? "" };
+    }
+    return {
+      ...base,
+      legalName: p.legalName,
+      tradeName: p.tradeName,
+      address1: p.address1,
+      address2: p.address2,
+      location: p.location,
+      pincode: p.pincode,
+      stateCode: p.stateCode,
+      phone: p.phone,
+      email: p.email,
+    };
+  }
+
+  async saveProfile(user: AuthUser, outletId: string, input: EInvoiceProfileInput) {
+    this.assertOutlet(user, outletId);
+    const data = {
+      legalName: input.legalName,
+      tradeName: input.tradeName ?? null,
+      address1: input.address1,
+      address2: input.address2 ?? null,
+      location: input.location,
+      pincode: input.pincode,
+      stateCode: input.stateCode,
+      phone: input.phone ?? null,
+      email: input.email ?? null,
+    };
+    const existing = await this.prisma.eInvoiceProfile.findFirst({ where: { tenantId: user.tenantId, outletId } });
+    if (existing) await this.prisma.eInvoiceProfile.update({ where: { id: existing.id }, data });
+    else await this.prisma.eInvoiceProfile.create({ data: { tenantId: user.tenantId, outletId, ...data } });
+    return this.getProfile(user, outletId);
   }
 
   /** Tally-importable XML of sales vouchers, ledger-mapped (Sales / Output CGST+SGST). */

@@ -18,6 +18,9 @@ import { recordDrawerExpenseTx } from "../finance/finance.service";
 const N = (d: Prisma.Decimal | number) => (typeof d === "number" ? d : Number(d));
 const round2 = (n: number) => Math.round(n * 100) / 100;
 
+/** Provider refund status → our reservation status. Only a verified failure releases balance. */
+export const refundStatusOf = (s: string) => (s === "processed" ? "PROCESSED" : s === "failed" ? "FAILED" : "PENDING");
+
 type SessionWithMovements = Prisma.CashSessionGetPayload<{ include: { movements: true } }>;
 
 @Injectable()
@@ -173,11 +176,31 @@ export class CashService {
       if (toPaise(N(previous._sum.amount ?? 0)) + toPaise(input.amount) > limit) {
         throw new BadRequestException("Refund exceeds the remaining refundable balance");
       }
+      // Electronic refunds draw from a captured gateway payment with enough
+      // unrefunded balance (computed under the order lock). With a live gateway and
+      // no such payment (card on an EDC machine, static UPI), the money must be
+      // returned outside the system: record it as MANUAL, still reserving balance.
+      let gatewayPaymentId: string | null = null;
+      if (input.mode !== "CASH" && input.mode !== "GIFT_CARD") {
+        const captured = await tx.gatewayPayment.findMany({
+          where: { tenantId: user.tenantId, outletId, orderId, status: "PAID", paymentId: { not: null } },
+          orderBy: { paidAt: "asc" },
+        });
+        for (const gp of captured) {
+          const used = await tx.refund.aggregate({ where: { gatewayPaymentId: gp.id, status: { not: "FAILED" } }, _sum: { amount: true } });
+          if (toPaise(N(gp.amount)) - toPaise(N(used._sum.amount ?? 0)) >= toPaise(input.amount)) {
+            gatewayPaymentId = gp.id;
+            break;
+          }
+        }
+      }
+      // Cash and store-credit (GIFT_CARD) refunds complete immediately.
+      const status = input.mode === "CASH" || input.mode === "GIFT_CARD" ? "PROCESSED" : this.gateway.live && !gatewayPaymentId ? "MANUAL" : "PENDING";
       let refund = await tx.refund.create({
         data: {
           tenantId: user.tenantId, outletId, orderId, amount: input.amount, mode: input.mode,
           reason: input.reason ?? null, requestKey: input.requestKey ?? null,
-          status: input.mode === "CASH" || input.mode === "GIFT_CARD" ? "PROCESSED" : "PENDING",
+          status, gatewayPaymentId,
         },
       });
       // GIFT_CARD refunds are issued as store credit — no money leaves the business.
@@ -204,12 +227,15 @@ export class CashService {
     let refund = reserved.refund;
     // Never hold database locks across a remote payment call. Retrying the API
     // returns the reservation instead of blindly calling the provider again.
-    if (reserved.isNew && input.mode !== "CASH" && input.mode !== "GIFT_CARD") {
+    if (reserved.isNew && refund.status === "PENDING") {
       try {
-        const res = await this.gateway.refund({ amount: input.amount, orderRef: reserved.orderRef, reason: input.reason, idempotencyKey: refund.id });
+        const paymentId = refund.gatewayPaymentId
+          ? (await this.prisma.gatewayPayment.findUnique({ where: { id: refund.gatewayPaymentId } }))?.paymentId ?? undefined
+          : undefined;
+        const res = await this.gateway.refund({ amount: input.amount, orderRef: reserved.orderRef, reason: input.reason, idempotencyKey: refund.id, paymentId });
         refund = await this.prisma.refund.update({
           where: { id: refund.id },
-          data: { gatewayRef: res.ref, status: res.status === "processed" ? "PROCESSED" : "PENDING" },
+          data: { gatewayRef: res.ref, status: refundStatusOf(res.status) },
         });
       } catch {
         // Do not release the reservation: provider success followed by a network

@@ -8,6 +8,7 @@ import { hrApi } from "@/lib/hr-api";
 import "../hr/hr.css";
 import { publishCfdPayment } from "@/lib/cfd-mirror";
 import { useT } from "@/lib/i18n";
+import { RazorpayCollect } from "./RazorpayCollect";
 
 const MODES: PaymentMode[] = ["CASH", "CARD", "UPI", "WALLET"];
 
@@ -467,6 +468,13 @@ export function SettleDialog({
               </div>
             )}
           </div>
+
+          <RazorpayCollect
+            outletId={outletId}
+            orderId={order.id}
+            amount={remaining > 0.01 ? remaining : payable}
+            onPaid={(amt) => setSplit((prev) => ({ ...prev, UPI: Math.round((prev.UPI + amt) * 100) / 100 }))}
+          />
 
           <div className={`remaining ${Math.abs(remaining) < 0.01 ? "settled" : ""}`}>
             {remaining > 0.01 ? (

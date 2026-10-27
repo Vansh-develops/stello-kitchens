@@ -13,3 +13,4 @@ export * from "./procurement";
 export * from "./platform";
 export * from "./i18n";
 export * from "./growth";
+export * from "./providers";

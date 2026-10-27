@@ -722,6 +722,12 @@ export interface InvoiceDto {
   ackNo: string | null;
   ackDate: string | null;
   status: InvoiceStatus;
+  // GSP e-invoicing details (track 4)
+  gspProvider?: string | null;
+  cancelledAt?: string | null;
+  cancelReason?: string | null;
+  ewbNo?: string | null;
+  ewbValidTill?: string | null;
 }
 
 /** Compact row for the invoices list. */

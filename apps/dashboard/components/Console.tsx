@@ -43,6 +43,8 @@ import { BillingTab } from "./BillingTab";
 import { PlatformTab } from "./PlatformTab";
 import { useT } from "@/lib/i18n";
 import type { MessageKey } from "@/lib/i18n/en";
+import { IntegrationsTab as ProviderIntegrationsTab } from "./IntegrationsTab";
+import { LowStockToaster } from "./LowStockToaster";
 
 const rupee = (n: number) => `₹${n.toFixed(0)}`;
 type Tab =
@@ -76,7 +78,8 @@ type Tab =
   | "security"
   | "chain"
   | "subscription"
-  | "platform";
+  | "platform"
+  | "providers";
 
 export function Console({
   user,
@@ -187,6 +190,7 @@ export function Console({
               "chain",
               "subscription",
               "platform",
+              "providers",
             ] as const
           ).filter((t) => t !== "platform" || user.isPlatformAdmin).map((t) => {
             const labels: Record<string, string> = {
@@ -221,6 +225,7 @@ export function Console({
               chain: "Brand menu",
               subscription: "Subscription",
               platform: "Platform",
+              providers: "Integrations",
             };
             return (
               <button key={t} className={`top-tab ${tab === t ? "active" : ""}`} onClick={() => setTab(t)}>
@@ -235,6 +240,7 @@ export function Console({
       </header>
 
       {error && <div className="banner-error" onClick={() => setError(null)}>{error} — dismiss</div>}
+      <LowStockToaster outletId={outlet.id} />
 
       {tab === "menu" && (
         <div className="menu-layout">
@@ -533,6 +539,7 @@ export function Console({
       {tab === "chain" && <ChainMenuTab outletId={outlet.id} />}
       {tab === "subscription" && <BillingTab />}
       {tab === "platform" && user.isPlatformAdmin && <PlatformTab />}
+      {tab === "providers" && <ProviderIntegrationsTab outletId={outlet.id} />}
 
       {itemDialog && (
         <ItemDialog

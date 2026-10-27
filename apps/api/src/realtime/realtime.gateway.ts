@@ -101,5 +101,12 @@ export class RealtimeGateway implements OnGatewayConnection {
   /** Signal that KDS-relevant state changed for an outlet (new KOT, bump, 86). */
   notifyOutlet(outletId: string) {
     this.server?.to(`outlet:${outletId}`).emit("kds:changed", { outletId });
+    for (const listener of this.outletListeners) listener(outletId);
+  }
+
+  private readonly outletListeners: ((outletId: string) => void)[] = [];
+  /** In-process subscribers to the post-commit outlet change signal (e.g. low-stock checks). */
+  onOutletChanged(listener: (outletId: string) => void) {
+    this.outletListeners.push(listener);
   }
 }

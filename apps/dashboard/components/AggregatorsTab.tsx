@@ -3,6 +3,15 @@
 import { useCallback, useEffect, useState } from "react";
 import type { AggregatorOrderDto, ReconciliationRowDto } from "@stello/shared";
 import { api } from "@/lib/api";
+import { integrationsApi } from "@/lib/integrations-api";
+
+// Next platform callback for an order (UrbanPiper / ONDC status updates).
+const NEXT_ACTION: Record<string, { status: string; label: string } | undefined> = {
+  RECEIVED: { status: "ACCEPTED", label: "Accept" },
+  ACCEPTED: { status: "READY", label: "Food ready" },
+  PREPARING: { status: "READY", label: "Food ready" },
+  READY: { status: "PICKED_UP", label: "Dispatched" },
+};
 
 const money = (n: number) => `₹${n.toLocaleString("en-IN", { maximumFractionDigits: 0 })}`;
 const time = (iso: string) =>
@@ -34,6 +43,16 @@ export function AggregatorsTab({ outletId }: { outletId: string }) {
       setError(err instanceof Error ? err.message : "Failed to load aggregator orders");
     }
   }, [outletId]);
+
+  // Accept / ready / dispatched → sent back to the platform via the connector.
+  const act = async (id: string, status: string) => {
+    try {
+      await integrationsApi.aggregatorOrderStatus(outletId, id, status);
+      await reload();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Status update failed");
+    }
+  };
 
   useEffect(() => {
     void reload();
@@ -78,6 +97,7 @@ export function AggregatorsTab({ outletId }: { outletId: string }) {
             <th>Items</th>
             <th className="num">Value</th>
             <th>Status</th>
+            <th />
           </tr>
         </thead>
         <tbody>
@@ -96,9 +116,19 @@ export function AggregatorsTab({ outletId }: { outletId: string }) {
               </td>
               <td className="num mono">{money(o.orderValue)}</td>
               <td><span className={`status-pill ${STATUS_TONE[o.status] ?? "muted"}`}>{o.status.replace("_", " ")}</span></td>
+              <td className="row-actions">
+                {NEXT_ACTION[o.status] && (
+                  <button className="btn-ghost sm" onClick={() => void act(o.id, NEXT_ACTION[o.status]!.status)}>
+                    {NEXT_ACTION[o.status]!.label}
+                  </button>
+                )}
+                {o.status === "RECEIVED" && (
+                  <button className="text-btn danger" onClick={() => void act(o.id, "REJECTED")}>Reject</button>
+                )}
+              </td>
             </tr>
           ))}
-          {orders.length === 0 && <tr><td colSpan={6} className="empty">No online orders yet.</td></tr>}
+          {orders.length === 0 && <tr><td colSpan={7} className="empty">No online orders yet.</td></tr>}
         </tbody>
       </table>
     </div>

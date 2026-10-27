@@ -17,7 +17,8 @@ function corsOrigin(): boolean | string[] {
 }
 
 async function bootstrap() {
-  // rawBody: provider webhooks (SaaS billing) verify HMAC signatures over the exact bytes.
+  // rawBody keeps the exact received bytes on req.rawBody so provider webhooks
+  // (Razorpay payments + subscriptions, WhatsApp, MSG91) can be signature-verified.
   const app = await NestFactory.create<NestExpressApplication>(AppModule, { rawBody: true });
   // Behind the host nginx: trust the first proxy hop so req.ip (and the rate
   // limiter) use the real client IP from X-Forwarded-For, not nginx's address.

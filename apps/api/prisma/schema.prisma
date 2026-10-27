@@ -788,6 +788,8 @@ model Refund {
   status     String   @default("PROCESSED")
   requestKey String?
   createdAt  DateTime @default(now())
+  gatewayPaymentId String? // captured Razorpay payment this refund draws from
+  reconciledAt     DateTime? // last provider reconciliation attempt
 
   @@unique([tenantId, outletId, orderId, requestKey])
   @@index([orderId])
@@ -821,6 +823,11 @@ model Invoice {
   ackDate       DateTime?
   status        String    @default("PENDING") // PENDING | GENERATED | CANCELLED
   createdAt     DateTime  @default(now())
+  gspProvider   String?
+  cancelledAt   DateTime?
+  cancelReason  String?
+  ewbNo         String?
+  ewbValidTill  DateTime?
 
   @@index([tenantId, outletId])
   @@map("invoices")
@@ -2317,4 +2324,176 @@ model BillingCounter {
   value Int    @default(0)
 
   @@map("billing_counters")
+}
+
+// ── Track 4: real providers & integrations ─────
+
+/// One collection attempt through the payment gateway (Razorpay UPI QR or payment link).
+model GatewayPayment {
+  id          String    @id @default(cuid())
+  tenantId    String
+  outletId    String
+  orderId     String
+  provider    String    @default("razorpay")
+  kind        String // QR | LINK
+  amount      Decimal   @db.Decimal(10, 2)
+  // CREATED → PAID | EXPIRED | CANCELLED | FAILED
+  status      String    @default("CREATED")
+  providerRef String? // qr_… / plink_…
+  paymentId   String? // pay_… once captured
+  imageUrl    String?
+  shortUrl    String?
+  upiString   String?
+  expiresAt   DateTime?
+  paidAt      DateTime?
+  createdById String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@unique([provider, providerRef])
+  @@index([tenantId, outletId, orderId])
+  @@index([status, expiresAt])
+  @@map("gateway_payments")
+}
+
+/// Webhook deliveries, keyed by the provider's event id so redelivery is a no-op.
+model GatewayEvent {
+  id          String    @id @default(cuid())
+  tenantId    String?
+  provider    String
+  eventId     String
+  event       String
+  payload     Json
+  outcome     String?
+  processedAt DateTime?
+  createdAt   DateTime  @default(now())
+
+  @@unique([provider, eventId])
+  @@map("gateway_events")
+}
+
+/// Per-tenant messaging setup: sender identities, template ids and alert recipients.
+model MessagingConfig {
+  id                    String   @id @default(cuid())
+  tenantId              String   @unique
+  smsEnabled            Boolean  @default(true)
+  whatsappEnabled       Boolean  @default(true)
+  emailEnabled          Boolean  @default(true)
+  smsSenderId           String? // DLT-registered 6-char header
+  whatsappPhoneNumberId String? // overrides the platform number
+  otpChannel            String   @default("SMS") // SMS | WHATSAPP
+  templates             Json? // { [purpose]: { sms?: {...}, whatsapp?: {...} } }
+  ratePerMinute         Int      @default(60)
+  lowStockEnabled       Boolean  @default(true)
+  lowStockRecipients    Json? // [{ name, phone?, email?, channels: [...] }]
+  updatedAt             DateTime @updatedAt
+
+  @@map("messaging_configs")
+}
+
+/// Every outbound SMS/WhatsApp/email, queued and rate limited, with delivery status.
+model MessageOutbox {
+  id                String    @id @default(cuid())
+  tenantId          String
+  outletId          String?
+  campaignId        String?
+  purpose           String // OTP | CAMPAIGN | LOW_STOCK
+  channel           String // SMS | WHATSAPP | EMAIL
+  recipient         String
+  body              String
+  vars              Json?
+  // QUEUED → SENDING → SENT → DELIVERED | READ, or FAILED | SKIPPED
+  status            String    @default("QUEUED")
+  provider          String?
+  providerMessageId String?
+  attempts          Int       @default(0)
+  nextAttemptAt     DateTime  @default(now())
+  error             String?
+  sentAt            DateTime?
+  deliveredAt       DateTime?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  @@index([status, nextAttemptAt])
+  @@index([tenantId, campaignId])
+  @@index([providerMessageId])
+  @@map("message_outbox")
+}
+
+model MessagingOptOut {
+  id        String   @id @default(cuid())
+  tenantId  String
+  phone     String
+  channel   String // SMS | WHATSAPP | EMAIL | ALL
+  source    String // STAFF | WHATSAPP_STOP | SMS_STOP
+  createdAt DateTime @default(now())
+
+  @@unique([tenantId, phone, channel])
+  @@map("messaging_opt_outs")
+}
+
+/// Seller address details the IRP requires (INV-01 SellerDtls).
+model EInvoiceProfile {
+  id        String   @id @default(cuid())
+  tenantId  String
+  outletId  String   @unique
+  legalName String
+  tradeName String?
+  address1  String
+  address2  String?
+  location  String
+  pincode   Int
+  stateCode String
+  phone     String?
+  email     String?
+  updatedAt DateTime @updatedAt
+
+  @@map("einvoice_profiles")
+}
+
+/// Low-stock crossing state: one row per material; `isLow` flips once per crossing.
+model LowStockState {
+  id            String    @id @default(cuid())
+  tenantId      String
+  outletId      String
+  rawMaterialId String    @unique
+  isLow         Boolean   @default(false)
+  lastAlertAt   DateTime?
+
+  @@index([tenantId, outletId])
+  @@map("low_stock_states")
+}
+
+model LowStockAlert {
+  id             String    @id @default(cuid())
+  tenantId       String
+  outletId       String
+  rawMaterialId  String
+  materialName   String
+  stockQty       Decimal   @db.Decimal(12, 3)
+  reorderLevel   Decimal   @db.Decimal(12, 3)
+  unit           String
+  notified       Int       @default(0)
+  acknowledgedAt DateTime?
+  createdAt      DateTime  @default(now())
+
+  @@index([tenantId, outletId, createdAt])
+  @@map("low_stock_alerts")
+}
+
+/// Outbound aggregator sync calls (menu/stock/store/order status) and their result.
+model AggregatorSyncLog {
+  id          String   @id @default(cuid())
+  tenantId    String
+  outletId    String
+  platform    String
+  kind        String // MENU | ITEM_STOCK | STORE | ORDER_STATUS
+  status      String // OK | ERROR
+  referenceId String?
+  detail      Json?
+  error       String?
+  createdAt   DateTime @default(now())
+
+  @@index([tenantId, outletId, createdAt])
+  @@map("aggregator_sync_logs")
 }

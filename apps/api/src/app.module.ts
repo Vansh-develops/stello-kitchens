@@ -48,6 +48,10 @@ import { ReportExportModule } from "./report-export/report-export.module";
 import { SaasBillingModule } from "./saas-billing/saas-billing.module";
 import { ChainModule } from "./chain/chain.module";
 import { PreferencesModule } from "./preferences/preferences.module";
+import { GatewayPaymentsModule } from "./gateway-payments/gateway-payments.module";
+import { MessagingModule } from "./messaging/messaging.module";
+import { LowStockModule } from "./low-stock/low-stock.module";
+import { AggregatorSyncModule } from "./aggregator-sync/aggregator-sync.module";
 
 @Module({
   imports: [
@@ -100,6 +104,10 @@ import { PreferencesModule } from "./preferences/preferences.module";
     SaasBillingModule,
     ChainModule,
     PreferencesModule,
+    GatewayPaymentsModule,
+    MessagingModule,
+    LowStockModule,
+    AggregatorSyncModule,
   ],
   providers: [
     // ThrottlerGuard first so rate limiting applies even to unauthenticated
