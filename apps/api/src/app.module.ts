@@ -33,6 +33,7 @@ import { AccountModule } from "./account/account.module";
 import { GatewayPaymentsModule } from "./gateway-payments/gateway-payments.module";
 import { MessagingModule } from "./messaging/messaging.module";
 import { LowStockModule } from "./low-stock/low-stock.module";
+import { AggregatorSyncModule } from "./aggregator-sync/aggregator-sync.module";
 
 @Module({
   imports: [
@@ -70,6 +71,7 @@ import { LowStockModule } from "./low-stock/low-stock.module";
     GatewayPaymentsModule,
     MessagingModule,
     LowStockModule,
+    AggregatorSyncModule,
   ],
   providers: [
     // ThrottlerGuard first so rate limiting applies even to unauthenticated
