@@ -2,6 +2,8 @@ import { useEffect, useMemo, useState } from "react";
 import type { ComboDto, MenuItemDto, PublicMenuDto } from "@stello/shared";
 import { api } from "./api";
 import { ThemeProvider } from "./ThemeProvider";
+import { InstallPrompt } from "./InstallPrompt";
+import { LanguageSwitcher, useT } from "./i18n";
 
 // Common display shape + a discriminator that carries what the submit payload needs.
 type CartLine = {
@@ -15,8 +17,6 @@ type CartLine = {
   | { kind: "item"; itemId: string; variationId?: string; addonIds: string[] }
   | { kind: "combo"; comboId: string; selections: { slotId: string; itemId: string }[] }
 );
-
-const rupee = (n: number) => `₹${n.toFixed(0)}`;
 
 // A stable identity for a configured line so re-adding the same choice stacks.
 const lineKey = (itemId: string, variationId: string | undefined, addonIds: string[]) =>
@@ -36,7 +36,9 @@ export function Menu({ mode, token }: { mode: "table" | "kiosk"; token: string }
   const [requestToken, setRequestToken] = useState<string | null>(null);
   const [status, setStatus] = useState<"PENDING" | "ACCEPTED" | "REJECTED">("PENDING");
   const [tokenNumber, setTokenNumber] = useState<number | null>(null);
-  const [waiterPaged, setWaiterPaged] = useState(false);
+  const [paged, setPaged] = useState<"WAITER" | "WATER" | "BILL" | null>(null);
+  const [pageError, setPageError] = useState(false);
+  const { t, money: rupee, itemName } = useT();
 
   useEffect(() => {
     (mode === "table" ? api.tableMenu(token) : api.kioskMenu(token))
@@ -44,7 +46,7 @@ export function Menu({ mode, token }: { mode: "table" | "kiosk"; token: string }
         setMenu(m);
         setActiveCat(m.categories[0]?.id ?? null);
       })
-      .catch((e) => setError(e instanceof Error ? e.message : "Could not load the menu"));
+      .catch((e) => setError(e instanceof Error ? e.message : t("menu.loadFailed")));
   }, [mode, token]);
 
   // Poll the request's fate once placed.
@@ -81,7 +83,7 @@ export function Menu({ mode, token }: { mode: "table" | "kiosk"; token: string }
           kind: "item",
           key,
           itemId: item.id,
-          name: item.name,
+          name: itemName(item),
           variationId,
           variationName: variation?.name,
           addonIds,
@@ -146,20 +148,20 @@ export function Menu({ mode, token }: { mode: "table" | "kiosk"; token: string }
       setPhase("placed");
       setCartOpen(false);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Could not place your order");
+      setError(e instanceof Error ? e.message : t("cart.failed"));
     }
   };
 
   if (error && !menu)
     return (
       <ThemeProvider>
-        <Splash title="Hmm." sub={error} />
+        <Splash title={t("menu.oops")} sub={error} />
       </ThemeProvider>
     );
   if (!menu)
     return (
       <ThemeProvider>
-        <Splash title="Stello Kitchens" sub="Loading the menu…" />
+        <Splash title="Stello Kitchens" sub={t("menu.loading")} />
       </ThemeProvider>
     );
 
@@ -187,23 +189,44 @@ export function Menu({ mode, token }: { mode: "table" | "kiosk"; token: string }
   return (
     <ThemeProvider themeId={menu?.themeId}>
     <div className={`menu${mode === "kiosk" ? " menu-kiosk" : ""}`}>
+      {mode === "kiosk" && <InstallPrompt placement="kiosk" />}
       <header className="menu-head">
         <div className="brand-row">
           <span className="mark">Stello Kitchens</span>
           <span className="where">
-            {mode === "table" ? `Table ${menu.tableName}` : "Takeaway"}
+            {mode === "table" ? t("menu.table", { name: menu.tableName ?? "" }) : t("menu.takeaway")}
           </span>
+          <LanguageSwitcher />
         </div>
-        <h1>What are you craving?</h1>
+        <h1>{t("menu.headline")}</h1>
         {mode === "table" && (
-          <button
-            className="waiter"
-            disabled={waiterPaged}
-            onClick={() => api.callWaiter(token).then(() => setWaiterPaged(true)).catch(() => {})}
-          >
-            {waiterPaged ? "A server is on the way ✓" : "Call a server"}
-          </button>
+          <div className="call-row" role="group" aria-label={t("menu.callServer")}>
+            {(
+              [
+                ["WAITER", `🙋 ${t("menu.callServer")}`],
+                ["WATER", `💧 ${t("menu.callWater")}`],
+                ["BILL", `🧾 ${t("menu.callBill")}`],
+              ] as const
+            ).map(([type, label]) => (
+              <button
+                key={type}
+                className={paged === type ? "waiter sent" : "waiter"}
+                onClick={() =>
+                  api
+                    .callServer(token, type)
+                    .then(() => {
+                      setPaged(type);
+                      setPageError(false);
+                    })
+                    .catch(() => setPageError(true))
+                }
+              >
+                {paged === type ? t("menu.onTheWay") : label}
+              </button>
+            ))}
+          </div>
         )}
+        {pageError && <p className="call-error">Couldn’t reach the staff — please wave to a server.</p>}
       </header>
 
       <nav className="cat-rail">
@@ -231,39 +254,40 @@ export function Menu({ mode, token }: { mode: "table" | "kiosk"; token: string }
                   <span className={combo.isVeg ? "veg dot" : "nonveg dot"} aria-hidden />
                   <div>
                     <h3>
-                      <span className="combo-chip">COMBO</span> {combo.name}
+                      <span className="combo-chip">{t("common.combo")}</span> {combo.name}
                     </h3>
                     <span className="price">{rupee(combo.price)}</span>
-                    <span className="cust">{combo.slots.length} to choose</span>
+                    <span className="cust">{t("menu.toChoose", { count: combo.slots.length })}</span>
                   </div>
                 </div>
                 {combo.inStock ? (
                   <button className="add" onClick={() => setConfiguringCombo(combo)}>
-                    Add
+                    {t("common.add")}
                   </button>
                 ) : (
-                  <span className="sold">Sold out</span>
+                  <span className="sold">{t("common.soldOut")}</span>
                 )}
               </article>
             ))}
             {c.items.map((it) => (
               <article key={it.id} className={it.inStock ? "item" : "item off"}>
                 <div className="item-main">
+                  {it.imageUrl && <img className="item-photo" src={it.imageUrl} alt="" loading="lazy" />}
                   <span className={it.isVeg ? "veg dot" : "nonveg dot"} aria-hidden />
                   <div>
-                    <h3>{it.name}</h3>
+                    <h3>{itemName(it)}</h3>
                     <span className="price">
-                      {it.variations.length ? `from ${rupee(it.variations[0].price)}` : rupee(it.price)}
+                      {it.variations.length ? t("menu.from", { price: rupee(it.variations[0].price) }) : rupee(it.price)}
                     </span>
-                    {it.addonGroups.length > 0 && <span className="cust">customisable</span>}
+                    {it.addonGroups.length > 0 && <span className="cust">{t("menu.customisable")}</span>}
                   </div>
                 </div>
                 {it.inStock ? (
                   <button className="add" onClick={() => onAdd(it)}>
-                    Add
+                    {t("common.add")}
                   </button>
                 ) : (
-                  <span className="sold">Sold out</span>
+                  <span className="sold">{t("common.soldOut")}</span>
                 )}
               </article>
             ))}
@@ -274,10 +298,8 @@ export function Menu({ mode, token }: { mode: "table" | "kiosk"; token: string }
 
       {count > 0 && (
         <button className="cart-bar" onClick={() => setCartOpen(true)}>
-          <span>
-            {count} item{count > 1 ? "s" : ""}
-          </span>
-          <span className="cart-cta">Review order · {rupee(total)}</span>
+          <span>{count > 1 ? t("menu.itemsMany", { count }) : t("menu.itemsOne")}</span>
+          <span className="cart-cta">{t("menu.review", { amount: rupee(total) })}</span>
         </button>
       )}
 
@@ -307,7 +329,7 @@ export function Menu({ mode, token }: { mode: "table" | "kiosk"; token: string }
         <div className="sheet-wrap" onClick={() => setCartOpen(false)}>
           <div className="sheet" onClick={(e) => e.stopPropagation()}>
             <div className="sheet-grip" />
-            <h2>Your order</h2>
+            <h2>{t("cart.title")}</h2>
             <div className="cart-lines">
               {cart.map((l) => (
                 <div key={l.key} className="cart-line">
@@ -329,9 +351,9 @@ export function Menu({ mode, token }: { mode: "table" | "kiosk"; token: string }
               ))}
             </div>
             <div className="who">
-              <input placeholder="Your name (optional)" value={name} onChange={(e) => setName(e.target.value)} />
+              <input placeholder={t("cart.namePlaceholder")} value={name} onChange={(e) => setName(e.target.value)} />
               <input
-                placeholder="Phone (optional)"
+                placeholder={t("cart.phonePlaceholder")}
                 inputMode="tel"
                 value={phone}
                 onChange={(e) => setPhone(e.target.value)}
@@ -339,9 +361,9 @@ export function Menu({ mode, token }: { mode: "table" | "kiosk"; token: string }
             </div>
             {error && <p className="err">{error}</p>}
             <button className="place" onClick={place}>
-              Send to kitchen · {rupee(total)}
+              {t("cart.send", { amount: rupee(total) })}
             </button>
-            <p className="fineprint">A server will confirm your order before it's prepared.</p>
+            <p className="fineprint">{t("cart.fineprint")}</p>
           </div>
         </div>
       )}
@@ -361,6 +383,7 @@ function Configurator({
 }) {
   const [variationId, setVariationId] = useState<string | undefined>(item.variations[0]?.id);
   const [addonIds, setAddonIds] = useState<string[]>([]);
+  const { t, money, itemName } = useT();
 
   const toggleAddon = (id: string, max: number, groupIds: string[]) =>
     setAddonIds((prev) => {
@@ -379,15 +402,15 @@ function Configurator({
     <div className="sheet-wrap" onClick={onClose}>
       <div className="sheet" onClick={(e) => e.stopPropagation()}>
         <div className="sheet-grip" />
-        <h2>{item.name}</h2>
+        <h2>{itemName(item)}</h2>
         {item.variations.length > 0 && (
           <div className="opt-group">
-            <span className="opt-label">Choose one</span>
+            <span className="opt-label">{t("config.chooseOne")}</span>
             {item.variations.map((v) => (
               <label key={v.id} className="opt">
                 <input type="radio" checked={variationId === v.id} onChange={() => setVariationId(v.id)} />
                 <span>{v.name}</span>
-                <span className="opt-price">₹{v.price.toFixed(0)}</span>
+                <span className="opt-price">{money(v.price)}</span>
               </label>
             ))}
           </div>
@@ -398,7 +421,7 @@ function Configurator({
             <div key={g.id} className="opt-group">
               <span className="opt-label">
                 {g.name}
-                {g.maxSelect > 0 && <em> · up to {g.maxSelect}</em>}
+                {g.maxSelect > 0 && <em>{t("config.upTo", { count: g.maxSelect })}</em>}
               </span>
               {g.addons.map((a) => (
                 <label key={a.id} className="opt">
@@ -408,14 +431,14 @@ function Configurator({
                     onChange={() => toggleAddon(a.id, g.maxSelect || 99, groupIds)}
                   />
                   <span>{a.name}</span>
-                  <span className="opt-price">+₹{a.price.toFixed(0)}</span>
+                  <span className="opt-price">+{money(a.price)}</span>
                 </label>
               ))}
             </div>
           );
         })}
         <button className="place" onClick={() => onConfirm(variationId, addonIds)}>
-          Add · ₹{(base + addonSum).toFixed(0)}
+          {t("common.addAmount", { amount: money(base + addonSum) })}
         </button>
       </div>
     </div>
@@ -441,6 +464,7 @@ function ComboConfigurator({
     return init;
   });
 
+  const { t, money } = useT();
   const price = useMemo(() => {
     let p = combo.price;
     for (const slot of combo.slots) {
@@ -455,7 +479,7 @@ function ComboConfigurator({
       <div className="sheet" onClick={(e) => e.stopPropagation()}>
         <div className="sheet-grip" />
         <h2>
-          <span className="combo-chip">COMBO</span> {combo.name}
+          <span className="combo-chip">{t("common.combo")}</span> {combo.name}
         </h2>
         {combo.slots.map((slot) => (
           <div key={slot.id} className="opt-group">
@@ -469,8 +493,8 @@ function ComboConfigurator({
                   checked={chosen[slot.id] === o.itemId}
                   onChange={() => setChosen((p) => ({ ...p, [slot.id]: o.itemId }))}
                 />
-                <span>{o.name}{!o.inStock && " (sold out)"}</span>
-                <span className="opt-price">{o.priceDelta > 0 ? `+₹${o.priceDelta.toFixed(0)}` : ""}</span>
+                <span>{o.name}{!o.inStock && t("config.soldOutTag")}</span>
+                <span className="opt-price">{o.priceDelta > 0 ? `+${money(o.priceDelta)}` : ""}</span>
               </label>
             ))}
           </div>
@@ -479,7 +503,7 @@ function ComboConfigurator({
           className="place"
           onClick={() => onConfirm(combo.slots.map((s) => ({ slotId: s.id, itemId: chosen[s.id] })))}
         >
-          Add · ₹{price.toFixed(0)}
+          {t("common.addAmount", { amount: money(price) })}
         </button>
       </div>
     </div>
@@ -497,33 +521,34 @@ function Confirmation({
   outletName: string;
   onDone: () => void;
 }) {
+  const { t } = useT();
   return (
     <div className={`confirm ${status.toLowerCase()}`}>
       <span className="mark">{outletName}</span>
       {status === "PENDING" && (
         <>
           <div className="pulse" />
-          <h1>Sent to the counter</h1>
-          <p>A server is confirming your order. Hang tight — this is usually quick.</p>
+          <h1>{t("confirm.sentTitle")}</h1>
+          <p>{t("confirm.sentBody")}</p>
         </>
       )}
       {status === "ACCEPTED" && (
         <>
-          <span className="token-label">Your token</span>
+          <span className="token-label">{t("confirm.tokenLabel")}</span>
           <div className="token-ticket">{tokenNumber ?? "—"}</div>
-          <h1>Order confirmed</h1>
-          <p>We're preparing it now. Watch for your token on the screen.</p>
+          <h1>{t("confirm.okTitle")}</h1>
+          <p>{t("confirm.okBody")}</p>
           <button className="again" onClick={onDone}>
-            Order more
+            {t("confirm.more")}
           </button>
         </>
       )}
       {status === "REJECTED" && (
         <>
-          <h1>Order not confirmed</h1>
-          <p>The counter couldn't take this order. Please check with a server.</p>
+          <h1>{t("confirm.noTitle")}</h1>
+          <p>{t("confirm.noBody")}</p>
           <button className="again" onClick={onDone}>
-            Start over
+            {t("confirm.startOver")}
           </button>
         </>
       )}

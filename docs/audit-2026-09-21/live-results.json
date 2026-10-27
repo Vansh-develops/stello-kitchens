@@ -1,0 +1,113 @@
+{
+  "at": "2026-09-21T01:48:53.128Z",
+  "checks": [
+    {
+      "url": "https://kitchens.stellotechs.com/",
+      "finalUrl": "https://kitchens.stellotechs.com/",
+      "status": 200,
+      "ms": 151,
+      "headers": {
+        "cache-control": "s-maxage=31536000",
+        "connection": "keep-alive",
+        "content-encoding": "gzip",
+        "content-type": "text/html; charset=utf-8",
+        "date": "Mon, 21 Sep 2026 01:48:55 GMT",
+        "etag": "\"17pxd4qzyu45y\"",
+        "server": "nginx/1.28.3",
+        "transfer-encoding": "chunked",
+        "vary": "rsc, next-router-state-tree, next-router-prefetch, next-router-segment-prefetch, Accept-Encoding",
+        "x-nextjs-cache": "HIT",
+        "x-nextjs-prerender": "1, 1",
+        "x-nextjs-stale-time": "300",
+        "x-powered-by": "Next.js"
+      }
+    },
+    {
+      "url": "https://kitchens.stellotechs.com/api/v1/health",
+      "finalUrl": "https://kitchens.stellotechs.com/api/v1/health",
+      "status": 200,
+      "ms": 20,
+      "headers": {
+        "access-control-allow-credentials": "true",
+        "connection": "keep-alive",
+        "content-length": "47",
+        "content-type": "application/json; charset=utf-8",
+        "cross-origin-opener-policy": "same-origin",
+        "cross-origin-resource-policy": "same-origin",
+        "date": "Mon, 21 Sep 2026 01:48:55 GMT",
+        "etag": "W/\"2f-gM3PifNu1U06HoPDXo7k3DSskw4\"",
+        "origin-agent-cluster": "?1",
+        "referrer-policy": "no-referrer",
+        "server": "nginx/1.28.3",
+        "strict-transport-security": "max-age=31536000; includeSubDomains",
+        "vary": "Origin, Accept-Encoding",
+        "x-content-type-options": "nosniff",
+        "x-dns-prefetch-control": "off",
+        "x-download-options": "noopen",
+        "x-frame-options": "SAMEORIGIN",
+        "x-permitted-cross-domain-policies": "none",
+        "x-xss-protection": "0"
+      },
+      "body": "{\"status\":\"ok\",\"ts\":\"2026-09-21T01:48:55.106Z\"}"
+    },
+    {
+      "url": "https://kitchens.stellotechs.com/api/v1/health/ready",
+      "finalUrl": "https://kitchens.stellotechs.com/api/v1/health/ready",
+      "status": 404,
+      "ms": 51,
+      "headers": {
+        "access-control-allow-credentials": "true",
+        "connection": "keep-alive",
+        "content-length": "82",
+        "content-type": "application/json; charset=utf-8",
+        "cross-origin-opener-policy": "same-origin",
+        "cross-origin-resource-policy": "same-origin",
+        "date": "Mon, 21 Sep 2026 01:48:55 GMT",
+        "etag": "W/\"52-UbQoLzjwQXqJFZwT6ecmDCJWEnY\"",
+        "origin-agent-cluster": "?1",
+        "referrer-policy": "no-referrer",
+        "server": "nginx/1.28.3",
+        "strict-transport-security": "max-age=31536000; includeSubDomains",
+        "vary": "Origin, Accept-Encoding",
+        "x-content-type-options": "nosniff",
+        "x-dns-prefetch-control": "off",
+        "x-download-options": "noopen",
+        "x-frame-options": "SAMEORIGIN",
+        "x-permitted-cross-domain-policies": "none",
+        "x-xss-protection": "0"
+      },
+      "body": "{\"message\":\"Cannot GET /api/v1/health/ready\",\"error\":\"Not Found\",\"statusCode\":404}"
+    },
+    {
+      "url": "https://kitchens.stellotechs.com/api/v1/outlets",
+      "finalUrl": "https://kitchens.stellotechs.com/api/v1/outlets",
+      "status": 401,
+      "ms": 34,
+      "headers": {
+        "access-control-allow-credentials": "true",
+        "connection": "keep-alive",
+        "content-length": "74",
+        "content-type": "application/json; charset=utf-8",
+        "cross-origin-opener-policy": "same-origin",
+        "cross-origin-resource-policy": "same-origin",
+        "date": "Mon, 21 Sep 2026 01:48:55 GMT",
+        "etag": "W/\"4a-5NdhA8LdI4t+oMYp2BYbi6fs4Ws\"",
+        "origin-agent-cluster": "?1",
+        "referrer-policy": "no-referrer",
+        "server": "nginx/1.28.3",
+        "strict-transport-security": "max-age=31536000; includeSubDomains",
+        "vary": "Origin, Accept-Encoding",
+        "x-content-type-options": "nosniff",
+        "x-dns-prefetch-control": "off",
+        "x-download-options": "noopen",
+        "x-frame-options": "SAMEORIGIN",
+        "x-permitted-cross-domain-policies": "none",
+        "x-ratelimit-limit": "300",
+        "x-ratelimit-remaining": "299",
+        "x-ratelimit-reset": "60",
+        "x-xss-protection": "0"
+      },
+      "body": "{\"message\":\"Missing bearer token\",\"error\":\"Unauthorized\",\"statusCode\":401}"
+    }
+  ]
+}

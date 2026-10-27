@@ -45,7 +45,8 @@ import type {
   ReportOverviewDto,
   ItemCostDto,
   ItemRecipeDto,
-  LoginResponse,
+  CookieSessionResponse,
+  MfaChallengeResponse,
   LoyaltyAdjustInput,
   OutletDto,
   RawMaterialDto,
@@ -64,28 +65,59 @@ import type {
 
 const BASE = "/api/v1";
 
-let token: string | null = typeof window !== "undefined" ? localStorage.getItem("stello.token") : null;
+// Browser sessions live in an httpOnly cookie set by the API (never readable
+// here). Unsafe requests echo the session-bound CSRF token from the readable
+// `stello_csrf` cookie. Bearer tokens are only for non-browser clients.
+const CSRF_COOKIE = "stello_csrf";
+const LEGACY_TOKEN_KEY = "stello.token";
 
-export function setToken(t: string | null) {
-  token = t;
-  if (typeof window === "undefined") return;
-  if (t) localStorage.setItem("stello.token", t);
-  else localStorage.removeItem("stello.token");
+function readCookie(name: string): string | null {
+  if (typeof document === "undefined") return null;
+  const hit = document.cookie.split("; ").find((c) => c.startsWith(`${name}=`));
+  return hit ? decodeURIComponent(hit.slice(name.length + 1)) : null;
 }
 
+/** Drop any pre-cookie token left in localStorage by older builds. */
+function clearLegacyToken() {
+  try {
+    if (typeof window !== "undefined") localStorage.removeItem(LEGACY_TOKEN_KEY);
+  } catch {
+    /* storage unavailable */
+  }
+}
+clearLegacyToken();
+
+/** @deprecated Sessions are cookies now; kept so older call sites compile. Passing null is a no-op. */
+export function setToken(_t: string | null) {
+  clearLegacyToken();
+}
+
+/** Whether a browser session probably exists (the CSRF cookie rides alongside the session cookie). */
 export function hasToken() {
-  return !!token;
+  return !!readCookie(CSRF_COOKIE);
 }
 
-export async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
-  const res = await fetch(`${BASE}${path}`, {
+const UNSAFE = new Set(["POST", "PUT", "PATCH", "DELETE"]);
+
+/** fetch() against the API with the cookie session + CSRF header applied. */
+export async function apiFetch(path: string, options: RequestInit = {}): Promise<Response> {
+  const method = (options.method ?? "GET").toUpperCase();
+  const csrf = UNSAFE.has(method) ? readCookie(CSRF_COOKIE) : null;
+  return fetch(`${BASE}${path}`, {
     ...options,
+    credentials: "same-origin",
     headers: {
-      "Content-Type": "application/json",
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      // Multipart bodies (FormData) need the browser-generated boundary header.
+      ...(options.body instanceof FormData ? {} : { "Content-Type": "application/json" }),
+      "X-Session-Mode": "cookie",
+      ...(csrf ? { "X-CSRF-Token": csrf } : {}),
       ...options.headers,
     },
   });
+}
+
+export async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
+  const res = await apiFetch(path, options);
   if (!res.ok) {
     let message = `Request failed (${res.status})`;
     try {
@@ -97,7 +129,6 @@ export async function request<T>(path: string, options: RequestInit = {}): Promi
     } catch {
       /* keep default */
     }
-    if (res.status === 401) setToken(null);
     throw new Error(message);
   }
   if (res.status === 204) return undefined as T;
@@ -108,7 +139,8 @@ export async function request<T>(path: string, options: RequestInit = {}): Promi
 
 export const api = {
   login: (email: string, password: string) =>
-    request<LoginResponse>("/auth/login", { method: "POST", body: JSON.stringify({ email, password }) }),
+    request<CookieSessionResponse | MfaChallengeResponse>("/auth/login", { method: "POST", body: JSON.stringify({ email, password }) }),
+  logout: () => request<{ status: string }>("/auth/logout", { method: "POST" }),
   me: () => request<AuthUser>("/auth/me"),
   outlets: () => request<OutletDto[]>("/outlets"),
   adminMenu: (outletId: string) => request<AdminMenuDto>(`/outlets/${outletId}/menu/admin`),
@@ -341,7 +373,7 @@ export const api = {
   signup: (body: { restaurantName: string; ownerName: string; email: string; password: string }) =>
     request<{ status: string }>("/signup", { method: "POST", body: JSON.stringify(body) }),
   verifySignup: (token: string) =>
-    request<LoginResponse>("/signup/verify", { method: "POST", body: JSON.stringify({ token }) }),
+    request<CookieSessionResponse>("/signup/verify", { method: "POST", body: JSON.stringify({ token }) }),
   forgotPassword: (email: string) =>
     request<{ status: string }>("/auth/forgot-password", { method: "POST", body: JSON.stringify({ email }) }),
   resetPassword: (token: string, newPassword: string) =>
@@ -350,5 +382,5 @@ export const api = {
   createInvite: (email: string, roleId: string) =>
     request<{ inviteLink: string }>("/tenant/invites", { method: "POST", body: JSON.stringify({ email, roleId }) }),
   acceptInvite: (token: string, name: string, password: string) =>
-    request<LoginResponse>("/invite/accept", { method: "POST", body: JSON.stringify({ token, name, password }) }),
+    request<CookieSessionResponse>("/invite/accept", { method: "POST", body: JSON.stringify({ token, name, password }) }),
 };

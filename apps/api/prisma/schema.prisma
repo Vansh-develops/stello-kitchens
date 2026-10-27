@@ -130,6 +130,8 @@ model User {
   isActive     Boolean @default(true)
   isPlatformAdmin Boolean @default(false)
   emailVerified   Boolean @default(false)
+  tokenVersion Int @default(0)
+  locale       String? // UI language preference (en, hi, ...); null = device default
 
   tenant      Tenant       @relation(fields: [tenantId], references: [id])
   role        Role         @relation(fields: [roleId], references: [id])
@@ -192,6 +194,7 @@ model MenuCategory {
   name      String
   sortOrder Int       @default(0)
   deletedAt DateTime?
+  masterCategoryId String? // linked brand master category (null = outlet-only)
 
   outlet  Outlet   @relation(fields: [outletId], references: [id])
   station Station? @relation(fields: [stationId], references: [id])
@@ -218,6 +221,10 @@ model Item {
   availableStart String? // "HH:MM" local; null = all day (e.g. breakfast till 11:00)
   availableEnd   String?
   deletedAt      DateTime?
+  imageUrl       String? // public URL of the dish photo (local disk or S3-compatible storage)
+  masterItemId     String? // linked brand master item (null = outlet-only item)
+  masterVersion    Int? // master item version last applied to this outlet row
+  nameTranslations Json? // { hi: "...", ta: "..." } diner-facing names
 
   category      MenuCategory       @relation(fields: [categoryId], references: [id])
   variations    ItemVariation[]
@@ -295,6 +302,7 @@ model AddonGroup {
   name      String
   minSelect Int    @default(0)
   maxSelect Int    @default(1)
+  masterAddonGroupId String? // linked brand master addon group
 
   addons Addon[]
   items  ItemAddonGroup[]
@@ -341,6 +349,7 @@ model Combo {
   hsnCode    String?   @default("996331")
   sortOrder  Int       @default(0)
   deletedAt  DateTime?
+  masterComboId String? // linked brand master combo
 
   category MenuCategory @relation(fields: [categoryId], references: [id])
   slots    ComboSlot[]
@@ -433,6 +442,18 @@ model Order {
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
   deletedAt      DateTime?
+  // Billing controls: service charge (snapshot of outlet config), round-off, split/merge.
+  serviceChargeAmount       Decimal @default(0) @db.Decimal(10, 2)
+  serviceChargeRate         Decimal @default(0) @db.Decimal(5, 2)
+  serviceChargeTaxable      Boolean @default(false)
+  serviceChargeWaived       Boolean @default(false)
+  serviceChargeWaivedReason String?
+  roundOff                  Decimal @default(0) @db.Decimal(10, 2)
+  allocatedDiscount         Decimal @default(0) @db.Decimal(10, 2) // split check's share of a parent discount
+  parentOrderId             String? // split check → its parent bill
+  splitIndex                Int?
+  splitCount                Int? // set on the parent once split
+  mergedIntoOrderId         String?
 
   outlet   Outlet         @relation(fields: [outletId], references: [id])
   table    DiningTable?   @relation(fields: [tableId], references: [id])
@@ -444,6 +465,7 @@ model Order {
   @@unique([deviceId, clientId])
   @@index([tenantId, outletId, status])
   @@index([outletId, updatedAt])
+  @@index([parentOrderId])
   @@map("orders")
 }
 
@@ -468,6 +490,8 @@ model OrderItem {
   comboId          String? // the combo this line belongs to (parent + components)
   comboGroupId     String? // groups one combo instance's parent + components in an order
   isComboComponent Boolean @default(false)
+  splitFromItemId  String? // split check copy → the parent line it bills
+  splitParts       Int? // equal split: this line is a 1/N share (reports count qty / N)
 
   order  Order            @relation(fields: [orderId], references: [id])
   kot    Kot?             @relation(fields: [kotId], references: [id])
@@ -538,6 +562,9 @@ model RawMaterial {
   // Multi-stage recipes: this material's own prep recipe, and uses of it as an input.
   prepRecipe  PrepRecipeIngredient[] @relation("PrepOutput")
   prepInputs  PrepRecipeIngredient[] @relation("PrepInput")
+  planning        MaterialPlanning?
+  poLines         PurchaseOrderLine[]
+  stockCountLines StockCountLine[]
 
   @@index([tenantId, outletId])
   @@map("raw_materials")
@@ -582,6 +609,13 @@ model Vendor {
 
   outlet    Outlet          @relation(fields: [outletId], references: [id])
   movements StockMovement[]
+  gstin            String?
+  email            String?
+  address          String?
+  paymentTermsDays Int?
+  purchaseOrders   PurchaseOrder[]
+  supplierBills    SupplierBill[]
+  supplierPayments SupplierPayment[]
 
   @@map("vendors")
 }
@@ -750,8 +784,15 @@ model Refund {
   mode       String // CASH | CARD | UPI | WALLET | OTHER
   reason     String?
   gatewayRef String?
+  // PENDING and UNKNOWN reserve balance until provider reconciliation.
+  status     String   @default("PROCESSED")
+  requestKey String?
   createdAt  DateTime @default(now())
+  gatewayPaymentId String? // captured Razorpay payment this refund draws from
+  reconciledAt     DateTime? // last provider reconciliation attempt
 
+  @@unique([tenantId, outletId, orderId, requestKey])
+  @@index([orderId])
   @@index([tenantId, outletId])
   @@map("refunds")
 }
@@ -782,6 +823,11 @@ model Invoice {
   ackDate       DateTime?
   status        String    @default("PENDING") // PENDING | GENERATED | CANCELLED
   createdAt     DateTime  @default(now())
+  gspProvider   String?
+  cancelledAt   DateTime?
+  cancelReason  String?
+  ewbNo         String?
+  ewbValidTill  DateTime?
 
   @@index([tenantId, outletId])
   @@map("invoices")
@@ -948,4 +994,1506 @@ model AuthToken {
 
   @@index([tokenHash])
   @@map("auth_tokens")
+}
+
+// ── Staff/HR, accounting, gift cards ─────
+
+// An employee. Linked to a User when they log in; kitchen helpers etc. may have
+// no login and clock in with a PIN on the POS terminal.
+model StaffMember {
+  id               String    @id @default(cuid())
+  tenantId         String
+  outletId         String // home outlet
+  userId           String?
+  employeeCode     String
+  name             String
+  phone            String?
+  designation      String?
+  joiningDate      DateTime  @db.Date
+  exitDate         DateTime? @db.Date
+  pinHash          String? // bcrypt of a 4-6 digit clock-in PIN
+  pinFailedCount   Int       @default(0)
+  pinLockedUntil   DateTime?
+  payType          String    @default("MONTHLY") // MONTHLY | DAILY | HOURLY
+  payRate          Decimal   @default(0) @db.Decimal(12, 2)
+  allowances       Json? // [{ name, amount }] monthly
+  deductions       Json? // [{ name, amount }] monthly
+  pfApplicable     Boolean   @default(false)
+  esiApplicable    Boolean   @default(false)
+  ptApplicable     Boolean   @default(false)
+  overtimeEligible Boolean   @default(true)
+  isActive         Boolean   @default(true)
+  createdAt        DateTime  @default(now())
+
+  attendance AttendanceRecord[]
+  shifts     RosterShift[]
+  leaves     LeaveRequest[]
+
+  @@unique([tenantId, employeeCode])
+  @@unique([tenantId, userId])
+  @@index([tenantId, outletId])
+  @@map("staff_members")
+}
+
+// One clock-in to clock-out span. Several per day are allowed (split shifts).
+model AttendanceRecord {
+  id               String    @id @default(cuid())
+  tenantId         String
+  outletId         String
+  staffId          String
+  date             DateTime  @db.Date // IST business date of the clock-in
+  clockIn          DateTime
+  clockOut         DateTime?
+  breakMinutes     Int       @default(0) // completed breaks
+  breakStartedAt   DateTime?
+  source           String    @default("PIN") // PIN | MANUAL | CORRECTED
+  correctionReason String?
+  correctedById    String?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  staff StaffMember @relation(fields: [staffId], references: [id])
+
+  @@index([tenantId, outletId, date])
+  @@index([staffId, date])
+  @@map("attendance_records")
+}
+
+model ShiftTemplate {
+  id           String  @id @default(cuid())
+  tenantId     String
+  outletId     String
+  name         String
+  startTime    String // "HH:MM" IST
+  endTime      String // earlier than start = overnight
+  breakMinutes Int     @default(30)
+  graceMinutes Int     @default(10)
+  isActive     Boolean @default(true)
+
+  @@index([tenantId, outletId])
+  @@map("shift_templates")
+}
+
+// A rostered shift (one per staff per day). Times are snapshotted from the template.
+model RosterShift {
+  id           String   @id @default(cuid())
+  tenantId     String
+  outletId     String
+  staffId      String
+  date         DateTime @db.Date
+  templateId   String?
+  startTime    String
+  endTime      String
+  breakMinutes Int      @default(30)
+  graceMinutes Int      @default(10)
+
+  staff StaffMember @relation(fields: [staffId], references: [id])
+
+  @@unique([staffId, date])
+  @@index([tenantId, outletId, date])
+  @@map("roster_shifts")
+}
+
+model ShiftSwapRequest {
+  id            String    @id @default(cuid())
+  tenantId      String
+  outletId      String
+  fromShiftId   String
+  toStaffId     String
+  toShiftId     String? // null = cover (toStaff takes the shift outright)
+  reason        String?
+  status        String    @default("PENDING") // PENDING | APPROVED | REJECTED | CANCELLED
+  requestedById String?
+  decidedById   String?
+  decidedAt     DateTime?
+  decisionNote  String?
+  createdAt     DateTime  @default(now())
+
+  @@index([tenantId, outletId, status])
+  @@map("shift_swap_requests")
+}
+
+model LeaveRequest {
+  id            String    @id @default(cuid())
+  tenantId      String
+  outletId      String
+  staffId       String
+  type          String // CASUAL | SICK | EARNED | UNPAID
+  fromDate      DateTime  @db.Date
+  toDate        DateTime  @db.Date
+  halfDay       Boolean   @default(false)
+  days          Decimal   @db.Decimal(5, 1)
+  reason        String?
+  status        String    @default("PENDING") // PENDING | APPROVED | REJECTED | CANCELLED
+  requestedById String?
+  decidedById   String?
+  decidedAt     DateTime?
+  decisionNote  String?
+  createdAt     DateTime  @default(now())
+
+  staff StaffMember @relation(fields: [staffId], references: [id])
+
+  @@index([tenantId, outletId, status])
+  @@index([staffId, fromDate])
+  @@map("leave_requests")
+}
+
+model LeaveBalance {
+  id       String  @id @default(cuid())
+  tenantId String
+  staffId  String
+  year     Int
+  type     String // CASUAL | SICK | EARNED
+  allotted Decimal @default(0) @db.Decimal(5, 1)
+  used     Decimal @default(0) @db.Decimal(5, 1)
+
+  @@unique([staffId, year, type])
+  @@index([tenantId])
+  @@map("leave_balances")
+}
+
+// Tenant-wide payroll settings (statutory components are configurable).
+model PayrollSetting {
+  id       String @id @default(cuid())
+  tenantId String @unique
+  config   Json
+
+  @@map("payroll_settings")
+}
+
+model SalaryAdvance {
+  id              String   @id @default(cuid())
+  tenantId        String
+  outletId        String
+  staffId         String
+  amount          Decimal  @db.Decimal(12, 2)
+  monthlyRecovery Decimal  @db.Decimal(12, 2)
+  recovered       Decimal  @default(0) @db.Decimal(12, 2)
+  givenOn         DateTime @db.Date
+  paidFrom        String   @default("BANK") // CASH_DRAWER | BANK
+  status          String   @default("OPEN") // OPEN | CLOSED
+  note            String?
+  createdById     String?
+  createdAt       DateTime @default(now())
+
+  @@index([tenantId, outletId])
+  @@index([staffId, status])
+  @@map("salary_advances")
+}
+
+model PayrollRun {
+  id            String    @id @default(cuid())
+  tenantId      String
+  outletId      String
+  month         String // "YYYY-MM"
+  status        String    @default("DRAFT") // DRAFT | FINALISED (locked)
+  config        Json // settings snapshot used for this run
+  createdById   String?
+  finalisedById String?
+  finalisedAt   DateTime?
+  createdAt     DateTime  @default(now())
+
+  payslips Payslip[]
+
+  @@unique([outletId, month])
+  @@index([tenantId, outletId])
+  @@map("payroll_runs")
+}
+
+model Payslip {
+  id              String  @id @default(cuid())
+  tenantId        String
+  runId           String
+  staffId         String
+  staffName       String
+  employeeCode    String
+  designation     String?
+  payType         String
+  payRate         Decimal @db.Decimal(12, 2)
+  inputs          Json // pay profile snapshot + attendance summary
+  lopDays         Decimal @db.Decimal(5, 1)
+  overtimeMinutes Int     @default(0)
+  adjustments     Json? // [{ name, amount, kind }]
+  calc            Json // PayslipCalc
+  gross           Decimal @db.Decimal(12, 2)
+  totalDeductions Decimal @db.Decimal(12, 2)
+  net             Decimal @db.Decimal(12, 2)
+  employerCost    Decimal @db.Decimal(12, 2) // gross + employer PF/ESI
+  advanceRecovery Decimal @default(0) @db.Decimal(12, 2)
+  note            String?
+
+  run PayrollRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+
+  @@unique([runId, staffId])
+  @@index([tenantId])
+  @@map("payslips")
+}
+
+model ExpenseCategory {
+  id         String  @id @default(cuid())
+  tenantId   String
+  name       String
+  ledgerName String?
+  isActive   Boolean @default(true)
+
+  expenses Expense[]
+
+  @@unique([tenantId, name])
+  @@map("expense_categories")
+}
+
+model Expense {
+  id             String    @id @default(cuid())
+  tenantId       String
+  outletId       String
+  categoryId     String
+  date           DateTime  @db.Date
+  taxableAmount  Decimal   @db.Decimal(12, 2)
+  cgst           Decimal   @default(0) @db.Decimal(12, 2)
+  sgst           Decimal   @default(0) @db.Decimal(12, 2)
+  igst           Decimal   @default(0) @db.Decimal(12, 2)
+  total          Decimal   @db.Decimal(12, 2)
+  itcEligible    Boolean   @default(true)
+  vendorName     String?
+  vendorGstin    String?
+  invoiceNumber  String?
+  paidFrom       String // CASH_DRAWER | BANK | UPI | CARD | PAYABLE
+  reference      String?
+  note           String?
+  attachmentUrl  String?
+  cashMovementId String?   @unique // the drawer movement when paid from the cash drawer
+  createdById    String?
+  voidedAt       DateTime?
+  voidReason     String?
+  createdAt      DateTime  @default(now())
+
+  category ExpenseCategory @relation(fields: [categoryId], references: [id])
+
+  @@index([tenantId, outletId, date])
+  @@map("expenses")
+}
+
+// Prepaid gift cards and refund store credit. Tenant-wide: redeemable at any outlet.
+model GiftCard {
+  id             String    @id @default(cuid())
+  tenantId       String
+  issuedOutletId String
+  code           String
+  kind           String    @default("GIFT_CARD") // GIFT_CARD | STORE_CREDIT
+  initialValue   Decimal   @db.Decimal(12, 2)
+  balance        Decimal   @db.Decimal(12, 2)
+  expiresOn      DateTime? @db.Date // usable through the end of this IST date
+  status         String    @default("ACTIVE") // ACTIVE | VOID
+  customerName   String?
+  customerPhone  String?
+  note           String?
+  issuedById     String?
+  voidedAt       DateTime?
+  voidReason     String?
+  createdAt      DateTime  @default(now())
+
+  txns GiftCardTxn[]
+
+  @@unique([tenantId, code])
+  @@index([tenantId, createdAt])
+  @@map("gift_cards")
+}
+
+// Append-only ledger; GiftCard.balance is the running balance.
+model GiftCardTxn {
+  id           String   @id @default(cuid())
+  tenantId     String
+  giftCardId   String
+  outletId     String
+  type         String // ISSUE | REDEEM | VOID | STORE_CREDIT
+  amount       Decimal  @db.Decimal(12, 2) // signed
+  balanceAfter Decimal  @db.Decimal(12, 2)
+  orderId      String?
+  paymentMode  String? // how a sale was paid (ISSUE)
+  userId       String?
+  note         String?
+  createdAt    DateTime @default(now())
+
+  giftCard GiftCard @relation(fields: [giftCardId], references: [id])
+
+  @@index([giftCardId, createdAt])
+  @@index([tenantId, outletId, createdAt])
+  @@map("gift_card_txns")
+}
+
+// ── Offline edge POS ─────
+// An activated offline edge terminal. Authenticates /edge/device/* with a bearer
+// secret (stored hashed) and owns its own GST invoice series (`seriesCode`).
+model EdgeDevice {
+  id            String    @id @default(cuid())
+  tenantId      String
+  outletId      String
+  terminalId    String
+  seriesCode    String // e.g. "E03" — re-activation always allocates a fresh series
+  secretHash    String // sha256 of the device bearer secret
+  activatedById String?
+  activatedAt   DateTime  @default(now())
+  lastPushAt    DateTime?
+  lastPullAt    DateTime?
+  clockSkewMs   Int? // serverTime − deviceTime measured on the last push
+  revokedAt     DateTime?
+
+  @@unique([outletId, seriesCode])
+  @@index([tenantId, outletId])
+  @@index([terminalId])
+  @@map("edge_devices")
+}
+
+// Materialised per-outlet change feed: one row per catalog entity with a content
+// hash; `seq` is bumped (from EdgeFeedState) whenever the hash changes or the
+// entity disappears (tombstone). Devices pull rows with seq > cursor.
+model EdgeFeedEntry {
+  id        String   @id @default(cuid())
+  tenantId  String
+  outletId  String
+  entity    String // settings | category | item | combo | area | table | staff | coupon
+  entityId  String
+  hash      String
+  seq       Int
+  deleted   Boolean  @default(false)
+  data      Json?
+  updatedAt DateTime @updatedAt
+
+  @@unique([outletId, entity, entityId])
+  @@index([outletId, seq])
+  @@map("edge_feed_entries")
+}
+
+// Per-outlet feed sequence + serialisation lock for feed refreshes.
+model EdgeFeedState {
+  outletId    String   @id
+  tenantId    String
+  lastSeq     Int      @default(0)
+  refreshedAt DateTime @default(now())
+
+  @@map("edge_feed_states")
+}
+
+// Hashed offline PIN for a staff user (verified on the edge device).
+model EdgeStaffPin {
+  id        String   @id @default(cuid())
+  tenantId  String
+  userId    String   @unique
+  pinHash   String
+  setById   String?
+  updatedAt DateTime @updatedAt
+
+  @@index([tenantId])
+  @@map("edge_staff_pins")
+}
+
+// Every offline invoice number accepted from a device series. The unique key makes
+// a re-used number impossible and lets the console report gaps per series/FY.
+model EdgeInvoiceSeq {
+  id           String   @id @default(cuid())
+  tenantId     String
+  outletId     String
+  edgeDeviceId String
+  seriesCode   String
+  fiscalYear   String
+  seq          Int
+  billNumber   String
+  orderId      String
+  createdAt    DateTime @default(now())
+
+  @@unique([edgeDeviceId, fiscalYear, seq])
+  @@unique([outletId, billNumber])
+  @@index([tenantId, outletId])
+  @@map("edge_invoice_seqs")
+}
+
+// Something about an offline sale that the server could not honour exactly
+// (exhausted coupon, price drift, unknown staff…). The sale is kept; a manager reviews.
+model EdgeSyncConflict {
+  id             String    @id @default(cuid())
+  tenantId       String
+  outletId       String
+  edgeDeviceId   String
+  clientId       String
+  orderId        String?
+  billNumber     String?
+  kind           String
+  message        String
+  detail         Json?
+  status         String    @default("OPEN") // OPEN | RESOLVED
+  resolvedById   String?
+  resolvedAt     DateTime?
+  resolutionNote String?
+  createdAt      DateTime  @default(now())
+
+  @@index([tenantId, outletId, status])
+  @@map("edge_sync_conflicts")
+}
+
+// ── Billing ─────────────────────────────────────────────────────────────────
+
+// Per-outlet billing rules. One row per outlet, created on first save; absent =
+// defaults (no service charge, no round-off, IST).
+model OutletBillingSettings {
+  id                      String   @id @default(cuid())
+  tenantId                String
+  outletId                String   @unique
+  serviceChargeEnabled    Boolean  @default(false)
+  serviceChargePercent    Decimal  @default(0) @db.Decimal(5, 2)
+  serviceChargeTaxable    Boolean  @default(true)
+  serviceChargeOrderTypes String[] @default(["DINE_IN"])
+  roundOffEnabled         Boolean  @default(false)
+  timezone                String   @default("Asia/Kolkata") // drives item availability windows
+  updatedAt               DateTime @updatedAt
+
+  @@index([tenantId])
+  @@map("outlet_billing_settings")
+}
+
+// A cart parked server-side (held order) so any terminal can resume it.
+model ParkedCart {
+  id            String   @id @default(cuid())
+  tenantId      String
+  outletId      String
+  label         String
+  orderType     String
+  tableId       String?
+  orderId       String? // pending additions to this running order
+  customerName  String?
+  customerPhone String?
+  lines         Json
+  itemCount     Int      @default(0)
+  amount        Decimal  @default(0) @db.Decimal(10, 2)
+  parkedById    String?
+  createdAt     DateTime @default(now())
+
+  @@index([tenantId, outletId])
+  @@map("parked_carts")
+}
+
+// ── Printing ─────
+// LAN receipt/KOT printers. The cloud API never talks to a printer: it records
+// print jobs, and an on-premise edge print agent (NETWORK/USB) or a POS browser
+// (BROWSER) claims and delivers them.
+model Printer {
+  id            String   @id @default(cuid())
+  tenantId      String
+  outletId      String
+  name          String
+  connection    String   @default("BROWSER") // NETWORK | USB | BROWSER
+  host          String?
+  port          Int      @default(9100)
+  usbPath       String?
+  paperWidth    Int      @default(80) // 58 | 80
+  codepage      String   @default("CP437")
+  printKots     Boolean  @default(false)
+  printBills    Boolean  @default(false)
+  stationIds    Json? // string[]; empty/null = every station
+  copies        Int      @default(1)
+  autoPrintKot  Boolean  @default(true)
+  autoPrintBill Boolean  @default(true)
+  drawerKick    Boolean  @default(false)
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  jobs PrintJob[]
+
+  @@index([tenantId, outletId])
+  @@map("printers")
+}
+
+// Bill header/footer details for an outlet's printed bills.
+model OutletPrintSettings {
+  id          String   @id @default(cuid())
+  tenantId    String
+  outletId    String   @unique
+  fssaiNumber String?
+  headerLines Json? // string[]
+  footerLines Json? // string[]
+  upiQrOnBill Boolean  @default(true)
+  updatedAt   DateTime @updatedAt
+
+  @@index([tenantId])
+  @@map("outlet_print_settings")
+}
+
+model PrintJob {
+  id          String    @id @default(cuid())
+  tenantId    String
+  outletId    String
+  printerId   String?
+  kind        String // KOT | BILL | TEST | DRAWER
+  status      String    @default("QUEUED") // QUEUED | PRINTING | PRINTED | FAILED | CANCELLED
+  payload     Json // PrintPayload snapshot — reprints print exactly what was sent
+  copies      Int       @default(1)
+  reprint     Boolean   @default(false)
+  openDrawer  Boolean   @default(false)
+  orderId     String?
+  kotId       String?
+  // Idempotency key for automatic jobs (one auto KOT per kot+printer).
+  sourceKey   String?   @unique
+  attempts    Int       @default(0)
+  error       String?
+  claimedBy   String?
+  claimedAt   DateTime?
+  printedAt   DateTime?
+  createdById String?
+  createdAt   DateTime  @default(now())
+
+  printer Printer? @relation(fields: [printerId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId, outletId, status, createdAt])
+  @@index([orderId])
+  @@map("print_jobs")
+}
+
+// ── Front of house ─────────────────────────────────────────────────────────
+
+// Per-area floor canvas for the visual floor plan (logical units, not pixels).
+model FloorPlan {
+  id        String   @id @default(cuid())
+  tenantId  String
+  outletId  String
+  areaId    String   @unique
+  width     Int      @default(1000)
+  height    Int      @default(700)
+  updatedAt DateTime @updatedAt
+
+  placements TablePlacement[]
+
+  @@index([tenantId, outletId])
+  @@map("floor_plans")
+}
+
+// Where a dining table sits on its area's floor plan.
+model TablePlacement {
+  id          String @id @default(cuid())
+  tenantId    String
+  outletId    String
+  floorPlanId String
+  tableId     String @unique
+  x           Int
+  y           Int
+  width       Int
+  height      Int
+  rotation    Int    @default(0) // degrees, 0..359
+  shape       String @default("SQUARE") // ROUND | SQUARE | RECT
+
+  floorPlan FloorPlan @relation(fields: [floorPlanId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, outletId])
+  @@map("table_placements")
+}
+
+model Reservation {
+  id              String    @id @default(cuid())
+  tenantId        String
+  outletId        String
+  guestName       String
+  phone           String
+  partySize       Int
+  startAt         DateTime
+  durationMinutes Int       @default(90)
+  status          String    @default("BOOKED") // BOOKED | CONFIRMED | SEATED | NO_SHOW | CANCELLED
+  source          String    @default("PHONE") // PHONE | WALK_IN | WEB | AGGREGATOR | OTHER
+  notes           String?
+  customerId      String? // CRM customer matched by phone
+  createdById     String?
+  seatedAt        DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  tables ReservationTable[]
+
+  @@index([tenantId, outletId, startAt])
+  @@map("reservations")
+}
+
+model ReservationTable {
+  reservationId String
+  tableId       String
+
+  reservation Reservation @relation(fields: [reservationId], references: [id], onDelete: Cascade)
+
+  @@id([reservationId, tableId])
+  @@index([tableId])
+  @@map("reservation_tables")
+}
+
+model WaitlistEntry {
+  id            String    @id @default(cuid())
+  tenantId      String
+  outletId      String
+  guestName     String
+  phone         String?
+  partySize     Int
+  quotedMinutes Int       @default(15)
+  status        String    @default("WAITING") // WAITING | NOTIFIED | SEATED | LEFT
+  notes         String?
+  tableId       String?
+  customerId    String?
+  notifiedAt    DateTime?
+  seatedAt      DateTime?
+  createdAt     DateTime  @default(now())
+
+  @@index([tenantId, outletId, status])
+  @@map("waitlist_entries")
+}
+
+// A diner (or staff) request for service at a table.
+model ServerCall {
+  id               String    @id @default(cuid())
+  tenantId         String
+  outletId         String
+  tableId          String
+  type             String // WAITER | WATER | BILL
+  source           String    @default("DINER") // DINER | STAFF
+  status           String    @default("OPEN") // OPEN | ACKNOWLEDGED | RESOLVED
+  createdById      String?
+  acknowledgedById String?
+  acknowledgedAt   DateTime?
+  resolvedById     String?
+  resolvedAt       DateTime?
+  createdAt        DateTime  @default(now())
+
+  @@index([tenantId, outletId, status])
+  @@index([tableId, status])
+  @@map("server_calls")
+}
+
+// A waiter's section: either a whole area or a single table.
+model WaiterAssignment {
+  id        String   @id @default(cuid())
+  tenantId  String
+  outletId  String
+  userId    String
+  areaId    String?
+  tableId   String?
+  createdAt DateTime @default(now())
+
+  @@index([outletId, userId])
+  @@index([tenantId, outletId])
+  @@map("waiter_assignments")
+}
+
+// The bill for a running order was requested/printed (floor shows "bill printed").
+model BillRequest {
+  id            String   @id @default(cuid())
+  tenantId      String
+  outletId      String
+  orderId       String   @unique
+  tableId       String?
+  requestedById String?
+  createdAt     DateTime @default(now())
+
+  @@index([tenantId, outletId])
+  @@map("bill_requests")
+}
+
+// A customer-facing display paired to a POS. The display holds `token` (secret);
+// staff pair it by typing the short `pairingCode` shown on screen.
+model CfdSession {
+  id          String    @id @default(cuid())
+  tenantId    String?
+  outletId    String?
+  token       String    @unique
+  pairingCode String    @unique
+  pairedById  String?
+  pairedAt    DateTime?
+  state       Json?
+  expiresAt   DateTime
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([tenantId, outletId])
+  @@map("cfd_sessions")
+}
+
+// ── Procurement, stock control & insights ─────
+
+// Per-outlet procurement knobs: over-receipt tolerance, price-variance alert and
+// the forecast window used by reorder suggestions.
+model ProcurementSettings {
+  id                    String   @id @default(cuid())
+  tenantId              String
+  outletId              String   @unique
+  overReceiptPct        Decimal  @default(0) @db.Decimal(5, 2)
+  priceVarianceAlertPct Decimal  @default(5) @db.Decimal(5, 2)
+  coverDays             Int      @default(3)
+  leadDays              Int      @default(1)
+  lookbackDays          Int      @default(28)
+  updatedAt             DateTime @updatedAt
+
+  @@map("procurement_settings")
+}
+
+// Planning attributes of a material (reorder level stays on RawMaterial).
+model MaterialPlanning {
+  id                String   @id @default(cuid())
+  tenantId          String
+  outletId          String
+  rawMaterialId     String   @unique
+  category          String? // stocktake scope / grouping
+  parLevel          Decimal? @db.Decimal(12, 3) // order-up-to level
+  preferredVendorId String?
+  leadTimeDays      Int?
+  minOrderQty       Decimal? @db.Decimal(12, 3) // pack size; suggestions round up to it
+
+  material RawMaterial @relation(fields: [rawMaterialId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, outletId])
+  @@map("material_planning")
+}
+
+model PurchaseOrder {
+  id           String    @id @default(cuid())
+  tenantId     String
+  outletId     String
+  vendorId     String
+  poNumber     String
+  status       String    @default("DRAFT") // DRAFT | APPROVED | SENT | PARTIALLY_RECEIVED | RECEIVED | CLOSED | CANCELLED
+  expectedDate DateTime?
+  note         String?
+  subtotal     Decimal   @default(0) @db.Decimal(12, 2)
+  taxAmount    Decimal   @default(0) @db.Decimal(12, 2)
+  total        Decimal   @default(0) @db.Decimal(12, 2)
+  createdById  String?
+  approvedById String?
+  approvedAt   DateTime?
+  sentAt       DateTime?
+  closedAt     DateTime?
+  cancelledAt  DateTime?
+  cancelReason String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  vendor   Vendor              @relation(fields: [vendorId], references: [id])
+  lines    PurchaseOrderLine[]
+  receipts GoodsReceipt[]
+
+  @@unique([outletId, poNumber])
+  @@index([tenantId, outletId, status])
+  @@map("purchase_orders")
+}
+
+// Quantities/rates are in the purchase unit; unitFactor converts to material units.
+model PurchaseOrderLine {
+  id              String  @id @default(cuid())
+  tenantId        String
+  purchaseOrderId String
+  rawMaterialId   String
+  materialName    String
+  unit            String
+  unitFactor      Decimal @default(1) @db.Decimal(12, 6)
+  orderedQty      Decimal @db.Decimal(12, 3)
+  receivedQty     Decimal @default(0) @db.Decimal(12, 3)
+  rate            Decimal @db.Decimal(12, 4)
+  taxRate         Decimal @default(0) @db.Decimal(5, 2)
+  sortOrder       Int     @default(0)
+
+  purchaseOrder PurchaseOrder      @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
+  material      RawMaterial        @relation(fields: [rawMaterialId], references: [id])
+  receiptLines  GoodsReceiptLine[]
+
+  @@index([purchaseOrderId])
+  @@map("purchase_order_lines")
+}
+
+// Goods received note against a PO (partial receipts allowed).
+model GoodsReceipt {
+  id              String   @id @default(cuid())
+  tenantId        String
+  outletId        String
+  purchaseOrderId String
+  vendorId        String
+  grnNumber       String
+  invoiceNo       String?
+  note            String?
+  subtotal        Decimal  @default(0) @db.Decimal(12, 2)
+  taxAmount       Decimal  @default(0) @db.Decimal(12, 2)
+  total           Decimal  @default(0) @db.Decimal(12, 2)
+  varianceAmount  Decimal  @default(0) @db.Decimal(12, 2) // (actual − PO rate) × qty
+  receivedAt      DateTime @default(now())
+  createdById     String?
+
+  purchaseOrder PurchaseOrder      @relation(fields: [purchaseOrderId], references: [id])
+  lines         GoodsReceiptLine[]
+
+  @@unique([outletId, grnNumber])
+  @@index([tenantId, outletId, receivedAt])
+  @@map("goods_receipts")
+}
+
+model GoodsReceiptLine {
+  id                  String  @id @default(cuid())
+  tenantId            String
+  goodsReceiptId      String
+  purchaseOrderLineId String
+  rawMaterialId       String
+  quantity            Decimal @db.Decimal(12, 3) // purchase unit
+  rate                Decimal @db.Decimal(12, 4) // actual, per purchase unit
+  poRate              Decimal @db.Decimal(12, 4)
+  taxRate             Decimal @default(0) @db.Decimal(5, 2)
+  stockQty            Decimal @db.Decimal(12, 3) // material units added to stock
+  unitCost            Decimal @db.Decimal(12, 4) // per material unit
+  lineTotal           Decimal @db.Decimal(12, 2) // incl. tax
+  priceVariance       Decimal @default(0) @db.Decimal(12, 2)
+
+  receipt GoodsReceipt      @relation(fields: [goodsReceiptId], references: [id], onDelete: Cascade)
+  poLine  PurchaseOrderLine @relation(fields: [purchaseOrderLineId], references: [id])
+
+  @@index([rawMaterialId])
+  @@map("goods_receipt_lines")
+}
+
+// Vendor payables: supplier bills and payments allocated against them.
+model SupplierBill {
+  id              String    @id @default(cuid())
+  tenantId        String
+  outletId        String
+  vendorId        String
+  billNumber      String
+  billDate        DateTime
+  dueDate         DateTime?
+  amount          Decimal   @db.Decimal(12, 2)
+  paidAmount      Decimal   @default(0) @db.Decimal(12, 2)
+  status          String    @default("OPEN") // OPEN | PARTIAL | PAID | VOID
+  purchaseOrderId String?
+  goodsReceiptId  String?   @unique
+  note            String?
+  createdById     String?
+  createdAt       DateTime  @default(now())
+
+  vendor      Vendor                      @relation(fields: [vendorId], references: [id])
+  allocations SupplierPaymentAllocation[]
+
+  @@unique([vendorId, billNumber])
+  @@index([tenantId, outletId, status])
+  @@map("supplier_bills")
+}
+
+model SupplierPayment {
+  id          String   @id @default(cuid())
+  tenantId    String
+  outletId    String
+  vendorId    String
+  amount      Decimal  @db.Decimal(12, 2)
+  unallocated Decimal  @default(0) @db.Decimal(12, 2) // advance / credit with the vendor
+  mode        String // CASH | BANK | UPI | CHEQUE | OTHER
+  reference   String?
+  note        String?
+  paidAt      DateTime @default(now())
+  createdById String?
+  createdAt   DateTime @default(now())
+
+  vendor      Vendor                      @relation(fields: [vendorId], references: [id])
+  allocations SupplierPaymentAllocation[]
+
+  @@index([tenantId, outletId, vendorId])
+  @@map("supplier_payments")
+}
+
+model SupplierPaymentAllocation {
+  id        String  @id @default(cuid())
+  tenantId  String
+  paymentId String
+  billId    String
+  amount    Decimal @db.Decimal(12, 2)
+
+  payment SupplierPayment @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+  bill    SupplierBill    @relation(fields: [billId], references: [id])
+
+  @@index([billId])
+  @@map("supplier_payment_allocations")
+}
+
+// Stocktake: expected quantities are frozen at start; posting applies the
+// variance as a delta (ADJUSTMENT movement) so concurrent sales are preserved.
+model StockCount {
+  id            String    @id @default(cuid())
+  tenantId      String
+  outletId      String
+  countNumber   String
+  scope         String    @default("FULL") // FULL | CATEGORY
+  category      String?
+  status        String    @default("COUNTING") // COUNTING | SUBMITTED | POSTED | CANCELLED
+  note          String?
+  startedAt     DateTime  @default(now())
+  startedById   String?
+  submittedAt   DateTime?
+  postedAt      DateTime?
+  postedById    String?
+  cancelledAt   DateTime?
+  varianceValue Decimal   @default(0) @db.Decimal(12, 2)
+
+  lines StockCountLine[]
+
+  @@unique([outletId, countNumber])
+  @@index([tenantId, outletId, status])
+  @@map("stock_counts")
+}
+
+model StockCountLine {
+  id            String    @id @default(cuid())
+  tenantId      String
+  stockCountId  String
+  rawMaterialId String
+  materialName  String
+  unit          String
+  expectedQty   Decimal   @db.Decimal(12, 3) // frozen at start
+  unitCost      Decimal   @db.Decimal(12, 4) // frozen at start (posting uses current cost)
+  countedQty    Decimal?  @db.Decimal(12, 3)
+  countedAt     DateTime?
+  countedById   String?
+  note          String?
+  varianceQty   Decimal?  @db.Decimal(12, 3)
+  varianceValue Decimal?  @db.Decimal(12, 2)
+
+  stockCount StockCount  @relation(fields: [stockCountId], references: [id], onDelete: Cascade)
+  material   RawMaterial @relation(fields: [rawMaterialId], references: [id])
+
+  @@unique([stockCountId, rawMaterialId])
+  @@map("stock_count_lines")
+}
+
+// ── Platform & security ─────
+
+// TOTP second factor for a user. The shared secret is AES-256-GCM encrypted at
+// rest; enabledAt is null while enrolment is pending confirmation.
+model UserMfa {
+  userId       String    @id
+  tenantId     String
+  secretEnc    String
+  enabledAt    DateTime?
+  lastUsedStep Int? // last accepted TOTP time-step; blocks code replay
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@index([tenantId])
+  @@map("user_mfa")
+}
+
+// One-time recovery codes (sha256 hashed) for a user's 2FA.
+model MfaRecoveryCode {
+  id        String    @id @default(cuid())
+  tenantId  String
+  userId    String
+  codeHash  String    @unique
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId])
+  @@map("mfa_recovery_codes")
+}
+
+// Per-tenant security policy.
+model TenantSecurity {
+  tenantId        String   @id
+  requireOwnerMfa Boolean  @default(false)
+  updatedAt       DateTime @updatedAt
+
+  @@map("tenant_security")
+}
+
+// Tenant API key for the public API / MCP. Only a sha256 hash is stored.
+model ApiKey {
+  id          String    @id @default(cuid())
+  tenantId    String
+  name        String
+  prefix      String // first chars, shown in the UI to identify the key
+  keyHash     String    @unique
+  permissions Json // string[] of permission keys (never "*")
+  outletIds   Json? // string[] | null (= every outlet)
+  createdById String?
+  lastUsedAt  DateTime?
+  expiresAt   DateTime?
+  revokedAt   DateTime?
+  createdAt   DateTime  @default(now())
+
+  @@index([tenantId])
+  @@map("api_keys")
+}
+
+// Outbound webhook subscription. The signing secret is encrypted at rest.
+model WebhookEndpoint {
+  id          String   @id @default(cuid())
+  tenantId    String
+  outletId    String? // null = every outlet
+  url         String
+  description String?
+  secretEnc   String
+  events      Json // string[] of event types
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+
+  deliveries WebhookDelivery[]
+
+  @@index([tenantId])
+  @@map("webhook_endpoints")
+}
+
+// One event delivered (or being retried) to one endpoint.
+model WebhookDelivery {
+  id             String    @id @default(cuid())
+  tenantId       String
+  endpointId     String
+  eventId        String
+  eventType      String
+  payload        Json
+  status         String    @default("PENDING") // PENDING | SUCCEEDED | FAILED
+  attempts       Int       @default(0)
+  nextAttemptAt  DateTime? @default(now())
+  lastStatusCode Int?
+  lastError      String?
+  durationMs     Int?
+  deliveredAt    DateTime?
+  createdAt      DateTime  @default(now())
+
+  endpoint WebhookEndpoint @relation(fields: [endpointId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, endpointId, createdAt])
+  @@index([status, nextAttemptAt])
+  @@map("webhook_deliveries")
+}
+
+// Scheduled report email for an outlet (daily or weekly).
+model ReportSchedule {
+  id          String    @id @default(cuid())
+  tenantId    String
+  outletId    String
+  name        String
+  frequency   String // DAILY | WEEKLY
+  weekday     Int? // 0 = Sunday (WEEKLY)
+  hour        Int // local hour of day to send
+  recipients  Json // string[]
+  reports     Json // ReportExportKey[]
+  format      String    @default("XLSX") // CSV | XLSX
+  isActive    Boolean   @default(true)
+  nextRunAt   DateTime
+  lastRunAt   DateTime?
+  lastStatus  String?
+  lastError   String?
+  createdById String?
+  createdAt   DateTime  @default(now())
+
+  @@index([tenantId, outletId])
+  @@index([isActive, nextRunAt])
+  @@map("report_schedules")
+}
+
+// ── Track 8: chains, SaaS billing, languages ─────
+
+// ---------- Brand master menu (franchise / chain central menu) ----------
+
+// One row per brand: the master menu's edit version. Every master edit bumps it;
+// an outlet is "in sync" when its OutletMenuSync.publishedVersion matches.
+model MasterMenu {
+  id        String   @id @default(cuid())
+  tenantId  String
+  brandId   String   @unique
+  version   Int      @default(1)
+  updatedAt DateTime @updatedAt
+
+  @@index([tenantId])
+  @@map("master_menus")
+}
+
+model MasterCategory {
+  id          String    @id @default(cuid())
+  tenantId    String
+  brandId     String
+  name        String
+  sortOrder   Int       @default(0)
+  stationName String? // outlet station matched by name on publish
+  deletedAt   DateTime?
+  updatedAt   DateTime  @updatedAt
+
+  items  MasterItem[]
+  combos MasterCombo[]
+
+  @@index([tenantId, brandId])
+  @@map("master_categories")
+}
+
+model MasterItem {
+  id               String    @id @default(cuid())
+  tenantId         String
+  brandId          String
+  categoryId       String
+  name             String
+  shortCode        String?
+  price            Decimal   @db.Decimal(10, 2)
+  isVeg            Boolean   @default(true)
+  taxRate          Decimal   @default(5) @db.Decimal(5, 2)
+  hsnCode          String?   @default("996331")
+  sortOrder        Int       @default(0)
+  availableStart   String?
+  availableEnd     String?
+  variations       Json? // [{ name, price }]
+  addonGroupIds    Json? // MasterAddonGroup ids
+  nameTranslations Json?
+  version          Int       @default(1) // bumped on every edit (drift detection)
+  deletedAt        DateTime?
+  updatedAt        DateTime  @updatedAt
+
+  category  MasterCategory       @relation(fields: [categoryId], references: [id])
+  overrides MasterItemOverride[]
+
+  @@index([tenantId, brandId])
+  @@map("master_items")
+}
+
+model MasterAddonGroup {
+  id        String    @id @default(cuid())
+  tenantId  String
+  brandId   String
+  name      String
+  minSelect Int       @default(0)
+  maxSelect Int       @default(1)
+  addons    Json // [{ name, price }]
+  deletedAt DateTime?
+  updatedAt DateTime  @updatedAt
+
+  @@index([tenantId, brandId])
+  @@map("master_addon_groups")
+}
+
+model MasterCombo {
+  id         String    @id @default(cuid())
+  tenantId   String
+  brandId    String
+  categoryId String
+  name       String
+  price      Decimal   @db.Decimal(10, 2)
+  isVeg      Boolean   @default(true)
+  taxRate    Decimal   @default(5) @db.Decimal(5, 2)
+  hsnCode    String?   @default("996331")
+  sortOrder  Int       @default(0)
+  slots      Json // [{ name, options: [{ masterItemId, priceDelta, isDefault }] }]
+  deletedAt  DateTime?
+  updatedAt  DateTime  @updatedAt
+
+  category MasterCategory @relation(fields: [categoryId], references: [id])
+
+  @@index([tenantId, brandId])
+  @@map("master_combos")
+}
+
+// Per-outlet override of a master item. Null fields inherit from the master.
+model MasterItemOverride {
+  id           String   @id @default(cuid())
+  tenantId     String
+  outletId     String
+  masterItemId String
+  price        Decimal? @db.Decimal(10, 2)
+  inStock      Boolean? // availability override; null = leave the outlet's own toggle alone
+  isHidden     Boolean  @default(false)
+  updatedAt    DateTime @updatedAt
+
+  masterItem MasterItem @relation(fields: [masterItemId], references: [id], onDelete: Cascade)
+
+  @@unique([outletId, masterItemId])
+  @@index([tenantId, outletId])
+  @@map("master_item_overrides")
+}
+
+model OutletMenuSync {
+  id               String    @id @default(cuid())
+  tenantId         String
+  brandId          String
+  outletId         String    @unique
+  publishedVersion Int       @default(0)
+  status           String    @default("NEVER") // NEVER | IN_SYNC | FAILED
+  lastPublishedAt  DateTime?
+  lastError        String?
+
+  @@index([tenantId, brandId])
+  @@map("outlet_menu_syncs")
+}
+
+model MenuPublication {
+  id            String   @id @default(cuid())
+  tenantId      String
+  brandId       String
+  version       Int
+  publishedById String?
+  outletIds     Json
+  summary       Json // per-outlet op counts
+  createdAt     DateTime @default(now())
+
+  @@index([tenantId, brandId, createdAt])
+  @@map("menu_publications")
+}
+
+// ---------- SaaS subscription billing (Stello's own plans) ----------
+
+enum SubscriptionStatus {
+  TRIAL
+  ACTIVE
+  PAST_DUE
+  SUSPENDED
+  CANCELLED
+}
+
+// Platform-wide plan catalogue (not tenant-owned). Prices in integer paise, excl. GST.
+model Plan {
+  id             String   @id @default(cuid())
+  code           String   @unique
+  name           String
+  priceMonthly   Int
+  priceYearly    Int
+  limits         Json // { outlets, terminals, users } (null = unlimited)
+  features       Json // module keys, e.g. ["pos","kds","chain_menu"]
+  providerPlanId Json? // { MONTHLY: "plan_...", YEARLY: "plan_..." } at the payment provider
+  isActive       Boolean  @default(true)
+  sortOrder      Int      @default(0)
+  createdAt      DateTime @default(now())
+
+  subscriptions TenantSubscription[]
+
+  @@map("plans")
+}
+
+model TenantSubscription {
+  id                     String             @id @default(cuid())
+  tenantId               String             @unique
+  planId                 String
+  status                 SubscriptionStatus @default(TRIAL)
+  billingCycle           String             @default("MONTHLY") // MONTHLY | YEARLY
+  trialEndsAt            DateTime?
+  currentPeriodStart     DateTime?
+  currentPeriodEnd       DateTime?
+  graceEndsAt            DateTime?
+  cancelAtPeriodEnd      Boolean            @default(false)
+  provider               String             @default("mock")
+  providerSubscriptionId String?            @unique
+  checkoutUrl            String?
+  createdAt              DateTime           @default(now())
+  updatedAt              DateTime           @updatedAt
+
+  plan     Plan                  @relation(fields: [planId], references: [id])
+  invoices SubscriptionInvoice[]
+
+  @@map("tenant_subscriptions")
+}
+
+model SubscriptionInvoice {
+  id             String    @id @default(cuid())
+  tenantId       String
+  subscriptionId String
+  number         String    @unique
+  planCode       String
+  billingCycle   String
+  periodStart    DateTime
+  periodEnd      DateTime
+  subtotal       Int // paise
+  taxAmount      Int // paise (18% GST)
+  total          Int // paise
+  status         String    @default("OPEN") // OPEN | PAID | FAILED | VOID
+  dueAt          DateTime
+  paidAt         DateTime?
+  attempts       Int       @default(0)
+  providerRef    String?
+  createdAt      DateTime  @default(now())
+
+  subscription TenantSubscription @relation(fields: [subscriptionId], references: [id])
+
+  @@index([tenantId, createdAt])
+  @@map("subscription_invoices")
+}
+
+// Lifecycle audit + webhook idempotency (providerEventId).
+model SubscriptionEvent {
+  id              String   @id @default(cuid())
+  tenantId        String
+  type            String
+  fromStatus      String?
+  toStatus        String?
+  providerEventId String?  @unique
+  data            Json?
+  createdAt       DateTime @default(now())
+
+  @@index([tenantId, createdAt])
+  @@map("subscription_events")
+}
+
+// Atomic counters (e.g. the SaaS invoice number series per financial year).
+model BillingCounter {
+  key   String @id
+  value Int    @default(0)
+
+  @@map("billing_counters")
+}
+
+// ── Track 4: real providers & integrations ─────
+
+/// One collection attempt through the payment gateway (Razorpay UPI QR or payment link).
+model GatewayPayment {
+  id          String    @id @default(cuid())
+  tenantId    String
+  outletId    String
+  orderId     String
+  provider    String    @default("razorpay")
+  kind        String // QR | LINK
+  amount      Decimal   @db.Decimal(10, 2)
+  // CREATED → PAID | EXPIRED | CANCELLED | FAILED
+  status      String    @default("CREATED")
+  providerRef String? // qr_… / plink_…
+  paymentId   String? // pay_… once captured
+  imageUrl    String?
+  shortUrl    String?
+  upiString   String?
+  expiresAt   DateTime?
+  paidAt      DateTime?
+  createdById String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@unique([provider, providerRef])
+  @@index([tenantId, outletId, orderId])
+  @@index([status, expiresAt])
+  @@map("gateway_payments")
+}
+
+/// Webhook deliveries, keyed by the provider's event id so redelivery is a no-op.
+model GatewayEvent {
+  id          String    @id @default(cuid())
+  tenantId    String?
+  provider    String
+  eventId     String
+  event       String
+  payload     Json
+  outcome     String?
+  processedAt DateTime?
+  createdAt   DateTime  @default(now())
+
+  @@unique([provider, eventId])
+  @@map("gateway_events")
+}
+
+/// Per-tenant messaging setup: sender identities, template ids and alert recipients.
+model MessagingConfig {
+  id                    String   @id @default(cuid())
+  tenantId              String   @unique
+  smsEnabled            Boolean  @default(true)
+  whatsappEnabled       Boolean  @default(true)
+  emailEnabled          Boolean  @default(true)
+  smsSenderId           String? // DLT-registered 6-char header
+  whatsappPhoneNumberId String? // overrides the platform number
+  otpChannel            String   @default("SMS") // SMS | WHATSAPP
+  templates             Json? // { [purpose]: { sms?: {...}, whatsapp?: {...} } }
+  ratePerMinute         Int      @default(60)
+  lowStockEnabled       Boolean  @default(true)
+  lowStockRecipients    Json? // [{ name, phone?, email?, channels: [...] }]
+  updatedAt             DateTime @updatedAt
+
+  @@map("messaging_configs")
+}
+
+/// Every outbound SMS/WhatsApp/email, queued and rate limited, with delivery status.
+model MessageOutbox {
+  id                String    @id @default(cuid())
+  tenantId          String
+  outletId          String?
+  campaignId        String?
+  purpose           String // OTP | CAMPAIGN | LOW_STOCK
+  channel           String // SMS | WHATSAPP | EMAIL
+  recipient         String
+  body              String
+  vars              Json?
+  // QUEUED → SENDING → SENT → DELIVERED | READ, or FAILED | SKIPPED
+  status            String    @default("QUEUED")
+  provider          String?
+  providerMessageId String?
+  attempts          Int       @default(0)
+  nextAttemptAt     DateTime  @default(now())
+  error             String?
+  sentAt            DateTime?
+  deliveredAt       DateTime?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  @@index([status, nextAttemptAt])
+  @@index([tenantId, campaignId])
+  @@index([providerMessageId])
+  @@map("message_outbox")
+}
+
+model MessagingOptOut {
+  id        String   @id @default(cuid())
+  tenantId  String
+  phone     String
+  channel   String // SMS | WHATSAPP | EMAIL | ALL
+  source    String // STAFF | WHATSAPP_STOP | SMS_STOP
+  createdAt DateTime @default(now())
+
+  @@unique([tenantId, phone, channel])
+  @@map("messaging_opt_outs")
+}
+
+/// Seller address details the IRP requires (INV-01 SellerDtls).
+model EInvoiceProfile {
+  id        String   @id @default(cuid())
+  tenantId  String
+  outletId  String   @unique
+  legalName String
+  tradeName String?
+  address1  String
+  address2  String?
+  location  String
+  pincode   Int
+  stateCode String
+  phone     String?
+  email     String?
+  updatedAt DateTime @updatedAt
+
+  @@map("einvoice_profiles")
+}
+
+/// Low-stock crossing state: one row per material; `isLow` flips once per crossing.
+model LowStockState {
+  id            String    @id @default(cuid())
+  tenantId      String
+  outletId      String
+  rawMaterialId String    @unique
+  isLow         Boolean   @default(false)
+  lastAlertAt   DateTime?
+
+  @@index([tenantId, outletId])
+  @@map("low_stock_states")
+}
+
+model LowStockAlert {
+  id             String    @id @default(cuid())
+  tenantId       String
+  outletId       String
+  rawMaterialId  String
+  materialName   String
+  stockQty       Decimal   @db.Decimal(12, 3)
+  reorderLevel   Decimal   @db.Decimal(12, 3)
+  unit           String
+  notified       Int       @default(0)
+  acknowledgedAt DateTime?
+  createdAt      DateTime  @default(now())
+
+  @@index([tenantId, outletId, createdAt])
+  @@map("low_stock_alerts")
+}
+
+/// Outbound aggregator sync calls (menu/stock/store/order status) and their result.
+model AggregatorSyncLog {
+  id          String   @id @default(cuid())
+  tenantId    String
+  outletId    String
+  platform    String
+  kind        String // MENU | ITEM_STOCK | STORE | ORDER_STATUS
+  status      String // OK | ERROR
+  referenceId String?
+  detail      Json?
+  error       String?
+  createdAt   DateTime @default(now())
+
+  @@index([tenantId, outletId, createdAt])
+  @@map("aggregator_sync_logs")
 }

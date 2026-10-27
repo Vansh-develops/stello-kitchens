@@ -9,6 +9,8 @@ export interface AuthUser {
   permissions: string[];
   outletIds: string[];
   isPlatformAdmin: boolean;
+  /** Set when the caller is a tenant API key rather than a person. */
+  apiKeyId?: string;
 }
 
 export interface LoginResponse {
@@ -46,6 +48,10 @@ export interface MenuItemDto {
   taxRate: number;
   variations: MenuVariationDto[];
   addonGroups: MenuAddonGroupDto[];
+  availableStart?: string | null; // "HH:MM" outlet-local sale window; null = all day
+  availableEnd?: string | null;
+  imageUrl?: string | null;
+  nameTranslations?: Record<string, string> | null; // locale code → display name
 }
 
 export interface ComboSlotOptionDto {
@@ -109,6 +115,7 @@ export interface OrderItemDto {
   comboName: string | null; // set on a combo's parent line
   comboGroupId: string | null; // groups a combo's parent + component lines
   isComboComponent: boolean; // zero-priced kitchen line under a combo
+  shareParts?: number | null; // equal-split check line: this line is a 1/N share
 }
 
 export interface KotDto {
@@ -138,6 +145,17 @@ export interface OrderDto {
   kots: KotDto[];
   payments: { mode: PaymentMode; amount: number }[];
   createdAt: string;
+  // Billing controls (service charge, round-off, split checks)
+  igst?: number;
+  serviceChargeAmount?: number;
+  serviceChargePercent?: number;
+  serviceChargeRemoved?: boolean;
+  serviceChargeRemovedReason?: string | null;
+  roundOff?: number;
+  parentOrderId?: string | null; // set on a split check
+  splitIndex?: number | null; // 1-based check number within its parent
+  splitCount?: number | null; // number of checks (on the parent and each check)
+  splitChildren?: { id: string; splitIndex: number; status: OrderStatus; total: number; billNumber: string | null }[];
 }
 
 export interface OutletDto {
@@ -233,6 +251,8 @@ export interface AdminItemDto {
   variations: { id: string; name: string; price: number }[];
   addonGroupIds: string[];
   channels: ItemChannelConfigDto[];
+  imageUrl?: string | null;
+  nameTranslations?: Record<string, string> | null;
 }
 
 export interface AdminCategoryDto {
@@ -510,6 +530,8 @@ export interface ReportOverviewDto {
   avgOrderValue: number;
   taxCollected: number;
   discountsGiven: number;
+  serviceCharge?: number;
+  roundOff?: number;
   newCustomers: number;
   series: SalesPointDto[];
 }
@@ -534,6 +556,9 @@ export interface TaxSummaryDto {
   cgst: number;
   sgst: number;
   totalTax: number;
+  igst?: number;
+  serviceCharge?: number;
+  roundOff?: number;
 }
 
 export interface ReportBreakdownDto {
@@ -575,6 +600,9 @@ export interface DayEndReportDto {
   discounts: number;
   cgst: number;
   sgst: number;
+  igst?: number;
+  serviceCharge?: number;
+  roundOff?: number;
   firstBill: string | null;
   lastBill: string | null;
   payments: BreakdownRowDto[];
@@ -694,6 +722,12 @@ export interface InvoiceDto {
   ackNo: string | null;
   ackDate: string | null;
   status: InvoiceStatus;
+  // GSP e-invoicing details (track 4)
+  gspProvider?: string | null;
+  cancelledAt?: string | null;
+  cancelReason?: string | null;
+  ewbNo?: string | null;
+  ewbValidTill?: string | null;
 }
 
 /** Compact row for the invoices list. */
@@ -864,7 +898,7 @@ export interface CallerIdDto {
 
 // ---------- Device fleet management ----------
 
-export type DeviceType = "POS" | "KDS" | "PRINTER" | "KIOSK" | "DISPLAY";
+export type DeviceType = "POS" | "KDS" | "KIOSK" | "DISPLAY";
 
 export interface DeviceDto {
   id: string;

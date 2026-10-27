@@ -8,7 +8,9 @@ import type {
   ChannelDto,
   CreateItemInput,
 } from "@stello/shared";
+import { SUPPORTED_LOCALES } from "@stello/shared";
 import { api } from "@/lib/api";
+import { ItemPhoto } from "./foh/ItemPhoto";
 
 type ChannelForm = { price: string; externalId: string };
 
@@ -58,6 +60,7 @@ export function ItemDialog({
   });
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [translations, setTranslations] = useState<Record<string, string>>(item?.nameTranslations ?? {});
 
   const aggregatorChannels = useMemo(
     () => channels.filter((c) => c.kind === "AGGREGATOR"),
@@ -99,6 +102,10 @@ export function ItemDialog({
         .filter((v) => v.name.trim())
         .map((v) => ({ name: v.name.trim(), price: Number(v.price) || 0 })),
       addonGroupIds: [...addonGroupIds],
+      nameTranslations: (() => {
+        const clean = Object.fromEntries(Object.entries(translations).filter(([, v]) => v.trim()).map(([k, v]) => [k, v.trim()]));
+        return Object.keys(clean).length ? clean : null;
+      })(),
       channels: channels.map((ch) => {
         const f = channelForm[ch.id];
         return {
@@ -132,6 +139,7 @@ export function ItemDialog({
         </header>
 
         <div className="modal-body">
+          <ItemPhoto outletId={outletId} item={item} />
           <div className="field-row">
             <label className="field grow">
               Name
@@ -186,6 +194,24 @@ export function ItemDialog({
             </label>
           </div>
           <p className="hint">Leave times empty for all-day availability (e.g. set 07:00–11:00 for breakfast-only).</p>
+
+          <section className="editor-section">
+            <div className="section-head">
+              <h3>Name translations</h3>
+            </div>
+            <p className="hint">Optional — shown to diners who pick that language in Scan &amp; Order. Leave blank to use the name above.</p>
+            <div className="translation-grid">
+              {SUPPORTED_LOCALES.filter((l) => l.code !== "en").map((l) => (
+                <label key={l.code} className="field">
+                  {l.nativeName}
+                  <input
+                    value={translations[l.code] ?? ""}
+                    onChange={(e) => setTranslations((p) => ({ ...p, [l.code]: e.target.value }))}
+                  />
+                </label>
+              ))}
+            </div>
+          </section>
 
           <section className="editor-section">
             <div className="section-head">

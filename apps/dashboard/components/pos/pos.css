@@ -1683,3 +1683,255 @@
 }
 
 
+
+/* ── Billing controls: held orders, move/merge, split checks, service charge ── */
+
+.pos-root .oo-split {
+  margin-left: 6px;
+  font-family: var(--font-num);
+  font-size: 11px;
+  color: var(--accent);
+}
+
+.pos-root .oo-chip.held {
+  border-style: dashed;
+  color: var(--muted);
+}
+
+.pos-root .oo-chip.held.has {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.pos-root .ctx-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.pos-root .split-checks .check-row {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 0;
+  border-bottom: 1px dashed var(--line);
+}
+
+.pos-root .split-checks .check-row.done {
+  opacity: 0.6;
+}
+
+.pos-root .split-checks .bl-name small {
+  display: block;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.pos-root .check-settle {
+  padding: 8px 14px;
+  font-size: 13px;
+}
+
+.pos-root .ops-modal {
+  width: min(560px, 100%);
+}
+
+.pos-root .ops-modal.wide {
+  width: min(820px, 100%);
+}
+
+.pos-root .seg {
+  display: flex;
+  gap: 4px;
+  background: var(--panel-2);
+  border-radius: var(--radius-sm);
+  padding: 4px;
+}
+
+.pos-root .seg button {
+  flex: 1;
+  padding: 9px 10px;
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.pos-root .seg button.on {
+  background: var(--panel);
+  color: var(--accent);
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+
+.pos-root .ops-lines {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.pos-root .ops-line {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 10px;
+  background: var(--bg);
+  border-radius: var(--radius-sm);
+}
+
+.pos-root .ops-check {
+  cursor: pointer;
+}
+
+.pos-root .ops-line-name {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  font-size: 14px;
+}
+
+.pos-root .ops-line-name em {
+  font-style: normal;
+  color: var(--muted);
+}
+
+.pos-root .ops-line-name small {
+  color: var(--faint);
+  font-size: 11px;
+  font-family: var(--font-num);
+}
+
+.pos-root .ops-line-name.warn {
+  color: var(--danger, #e2725b);
+}
+
+.pos-root .ops-amt {
+  font-family: var(--font-num);
+  font-variant-numeric: tabular-nums;
+}
+
+.pos-root .tp-table.busy {
+  border-style: dashed;
+}
+
+.pos-root .ops-equal {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  align-items: flex-start;
+}
+
+.pos-root .ops-check-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.pos-root .qty-stepper.small button {
+  width: 30px;
+  height: 30px;
+  font-size: 16px;
+}
+
+.pos-root .qty-stepper.small span {
+  min-width: 70px;
+  font-size: 13px;
+}
+
+.pos-root .split-grid {
+  display: grid;
+  gap: 8px 10px;
+  align-items: center;
+  overflow-x: auto;
+}
+
+.pos-root .split-col-head {
+  font-family: var(--font-num);
+  font-size: 11px;
+  text-transform: var(--label-tt);
+  letter-spacing: var(--label-ls);
+  color: var(--muted);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.pos-root .split-col-head small {
+  color: var(--ink);
+  font-size: 12px;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.pos-root .split-cell {
+  justify-content: center;
+}
+
+.pos-root .ss-link {
+  margin-left: 8px;
+  color: var(--accent);
+  font-size: 12px;
+  text-decoration: underline;
+}
+
+.pos-root .ss-note {
+  margin-left: 6px;
+  color: var(--faint);
+  font-size: 11px;
+}
+
+.pos-root .sc-reason {
+  display: flex;
+  gap: 6px;
+}
+
+.pos-root .sc-reason input {
+  flex: 1;
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  padding: 8px 10px;
+  color: var(--ink);
+  font-size: 13px;
+}
+
+.pos-root .parked-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 8px 12px;
+  padding: 12px;
+  background: var(--bg);
+  border-radius: var(--radius-sm);
+}
+
+.pos-root .parked-main {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.pos-root .parked-main small {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.pos-root .parked-main .parked-lines {
+  color: var(--faint);
+}
+
+.pos-root .parked-actions {
+  grid-column: 1 / -1;
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.pos-root .parked-actions .btn-primary {
+  padding: 8px 18px;
+}
+
+@media (max-width: 768px) {
+  .pos-root .ops-modal.wide {
+    width: 100%;
+  }
+}

@@ -1,5 +1,6 @@
 import { UnauthorizedException } from "@nestjs/common";
-import { createHash, createHmac, createPublicKey, timingSafeEqual, verify as edVerify } from "node:crypto";
+import { createHmac, timingSafeEqual } from "node:crypto";
+import { parseOndcAuthorization, verifyOndcAuthorization } from "../outbound/ondc";
 
 /** Express lower-cases header names; values may arrive as string or string[]. */
 export type WebhookHeaders = Record<string, string | string[] | undefined>;
@@ -10,7 +11,7 @@ export function header(headers: WebhookHeaders, name: string): string | undefine
 }
 
 /**
- * Shared-secret HMAC verification used by Zomato, Swiggy and UrbanPiper. Each
+ * Shared-secret HMAC verification used by Zomato and Swiggy. Each
  * signs the exact raw request body with HMAC-SHA256 and sends the hex digest in
  * a provider-specific header (optionally "sha256="-prefixed). We recompute over
  * the raw bytes and compare in constant time. A missing signature, malformed
@@ -28,7 +29,11 @@ export function verifyHmacSha256(params: {
   // onboarding and MUST be provided via the connector's environment. The dev
   // default keeps local delivery working while exercising the real code path;
   // it must never be relied on in production.
-  const secret = process.env[secretEnv] ?? `dev-${platform.toLowerCase()}-secret`;
+  const configuredSecret = process.env[secretEnv];
+  if (process.env.NODE_ENV === "production" && !configuredSecret) {
+    throw new UnauthorizedException(`${platform} webhook verification is not configured`);
+  }
+  const secret = configuredSecret ?? `dev-${platform.toLowerCase()}-secret`;
 
   const provided = header(headers, headerName);
   if (!provided) throw new UnauthorizedException(`Missing ${headerName} webhook signature`);
@@ -45,44 +50,47 @@ export function verifyHmacSha256(params: {
   if (!ok) throw new UnauthorizedException(`Invalid ${platform} webhook signature`);
 }
 
-// DER SubjectPublicKeyInfo prefix for a raw 32-byte ed25519 public key. Lets us
-// build a KeyObject from the registry's base64 key without extra dependencies.
-const ED25519_SPKI_PREFIX = Buffer.from("302a300506032b6570032100", "hex");
-
 /**
- * ONDC/Beckn seller-side signature check. Beckn signs a blake2b-512 hash of the
- * request body with ed25519 and carries keyId + signature in an `Authorization`
- * (or `X-Gateway-Authorization`) signature block, verified against the caller's
- * public key resolved from the ONDC registry.
+ * ONDC/Beckn seller-side signature check. Beckn signs the signing string
+ * "(created) (expires) digest" — where digest is BLAKE-512 of the raw body — with
+ * ed25519, and carries keyId/created/expires/signature in an `Authorization` (or
+ * `X-Gateway-Authorization`) header. Verified against the caller's public key.
  *
- * GATED: full onboarding wires up (1) parsing keyId to identify the subscriber,
- * (2) resolving that subscriber's ed25519 public key via the ONDC registry
- * (/v2/lookup) with our own network credentials, and (3) freshness/created-expires
- * checks. Registry credentials and our signing key pair are issued at ONDC
- * certification. Until a public key is provisioned (ONDC_SIGNING_PUBLIC_KEY), we
- * reject unsigned/malformed deliveries structurally and skip the live crypto;
- * once the key is set the real ed25519 verification below becomes active.
+ * GATED: production resolves each caller's key from the ONDC registry
+ * (/v2.0/lookup by subscriber id + unique key id) with our own network
+ * credentials, issued at ONDC onboarding. Until then a single key can be pinned
+ * with ONDC_SIGNING_PUBLIC_KEY; without it, dev accepts structurally valid
+ * headers and production rejects.
  */
 export function verifyOndcEd25519(params: { rawBody: Buffer; headers: WebhookHeaders }): void {
   const auth = header(params.headers, "authorization") ?? header(params.headers, "x-gateway-authorization");
   if (!auth) throw new UnauthorizedException("Missing ONDC Authorization signature");
-  const sig = auth.match(/signature="([^"]+)"/);
-  if (!/keyId="[^"]+"/.test(auth) || !sig) throw new UnauthorizedException("Malformed ONDC signature header");
+  if (!parseOndcAuthorization(auth)) throw new UnauthorizedException("Malformed ONDC signature header");
 
   const pubKeyB64 = process.env.ONDC_SIGNING_PUBLIC_KEY;
-  if (!pubKeyB64) return; // GATED: live key not yet provisioned; structural check only.
-
-  const digest = createHash("blake2b512").update(params.rawBody).digest();
-  const publicKey = createPublicKey({
-    key: Buffer.concat([ED25519_SPKI_PREFIX, Buffer.from(pubKeyB64, "base64")]),
-    format: "der",
-    type: "spki",
-  });
-  let ok = false;
-  try {
-    ok = edVerify(null, digest, publicKey, Buffer.from(sig[1], "base64"));
-  } catch {
-    ok = false;
+  if (!pubKeyB64) {
+    if (process.env.NODE_ENV === "production") {
+      throw new UnauthorizedException("ONDC signature verification is not configured");
+    }
+    return;
   }
-  if (!ok) throw new UnauthorizedException("Invalid ONDC ed25519 signature");
+  if (!verifyOndcAuthorization(params.rawBody, auth, pubKeyB64)) throw new UnauthorizedException("Invalid ONDC ed25519 signature");
+}
+
+/**
+ * Static-token check for providers whose webhooks are not signed but let us
+ * register fixed request headers (UrbanPiper's webhook config `headers`).
+ */
+export function verifyStaticToken(params: { platform: string; headers: WebhookHeaders; headerName: string; secretEnv: string }): void {
+  const configured = process.env[params.secretEnv];
+  if (process.env.NODE_ENV === "production" && !configured) {
+    throw new UnauthorizedException(`${params.platform} webhook verification is not configured`);
+  }
+  const expected = Buffer.from(configured ?? `dev-${params.platform.toLowerCase()}-secret`);
+  const provided = header(params.headers, params.headerName);
+  if (!provided) throw new UnauthorizedException(`Missing ${params.headerName} webhook token`);
+  const got = Buffer.from(provided);
+  if (got.length !== expected.length || !timingSafeEqual(got, expected)) {
+    throw new UnauthorizedException(`Invalid ${params.platform} webhook token`);
+  }
 }

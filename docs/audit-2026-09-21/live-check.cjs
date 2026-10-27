@@ -1,0 +1,4 @@
+const fs=require('node:fs');
+const path=require('node:path');
+const urls=['https://kitchens.stellotechs.com/','https://kitchens.stellotechs.com/api/v1/health','https://kitchens.stellotechs.com/api/v1/health/ready','https://kitchens.stellotechs.com/api/v1/outlets'];
+(async()=>{const out=[];for(const url of urls){const start=performance.now();try{const r=await fetch(url,{signal:AbortSignal.timeout(20000)});const body=await r.text();out.push({url,finalUrl:r.url,status:r.status,ms:Math.round(performance.now()-start),headers:Object.fromEntries(r.headers),body:r.headers.get('content-type')?.includes('json')?body:undefined});}catch(e){out.push({url,error:String(e)});}}fs.writeFileSync(path.join(__dirname,'live-results.json'),JSON.stringify({at:new Date().toISOString(),checks:out},null,2));console.log(out.map(x=>({url:x.url,status:x.status,ms:x.ms,body:x.body,error:x.error})));})();

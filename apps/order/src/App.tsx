@@ -1,10 +1,12 @@
 import { Menu } from "./Menu";
 import { Board } from "./Board";
 import { ThemeProvider } from "./ThemeProvider";
+import { LanguageSwitcher, useT } from "./i18n";
 
 // Tiny path router — the diner app is only ever opened via a QR deep link, so
 // a full router dependency would be overkill.
 export function App() {
+  const { t } = useT();
   const parts = window.location.pathname.split("/").filter(Boolean);
   const [route, token] = parts;
 
@@ -16,11 +18,9 @@ export function App() {
     <ThemeProvider>
       <div className="landing">
         <div className="mark">Stello Kitchens</div>
-        <h1>Scan to order</h1>
-        <p>
-          Point your camera at the QR code on your table to browse the menu and order without
-          waiting for a server.
-        </p>
+        <h1>{t("landing.title")}</h1>
+        <p>{t("landing.body")}</p>
+        <LanguageSwitcher />
       </div>
     </ThemeProvider>
   );

@@ -8,6 +8,7 @@ import type {
 } from "@stello/shared";
 import { PrismaService } from "../prisma/prisma.service";
 import { RealtimeGateway } from "../realtime/realtime.gateway";
+import { emitDomainEvent } from "../events/domain-events";
 
 // How long a readied ticket lingers in the "Ready" column before dropping off.
 const READY_WINDOW_MS = 5 * 60 * 1000;
@@ -119,6 +120,7 @@ export class KdsService {
     if (result.count === 0) throw new BadRequestException("No items for that station on this KOT");
 
     this.realtime.notifyOutlet(kot.outletId);
+    emitDomainEvent("kot.status", user.tenantId, kot.outletId, { kotId, orderId: kot.orderId, kotNumber: kot.kotNumber, stationId: input.stationId, status: input.toStatus });
     return { ok: true };
   }
 

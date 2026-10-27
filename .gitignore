@@ -14,3 +14,14 @@ stello.zip
 
 # Local DB snapshots (backup-db.sh)
 backups/
+
+# Edge runtime state (may contain orders, device identity, and cached customer data)
+apps/edge/edge-data/
+
+# Local agent/editor settings
+.claude/settings.local.json
+
+# Local build artifacts
+stello.zip
+*.docx
+apps/api/uploads/

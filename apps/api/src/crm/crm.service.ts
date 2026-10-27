@@ -238,7 +238,10 @@ export class CrmService {
     const channel = campaign.channel as "SMS" | "WHATSAPP" | "EMAIL";
     for (const c of recipients) {
       const to = channel === "EMAIL" ? (c.email ?? c.phone) : c.phone;
-      await this.notifications.send(channel, to, campaign.message);
+      // Queued through the messaging outbox: opt-outs, rate limits, delivery status.
+      await this.notifications.send(channel, to, campaign.message, {
+        tenantId: user.tenantId, outletId, purpose: "CAMPAIGN", vars: [campaign.message], campaignId: campaign.id,
+      });
     }
     await this.prisma.campaign.update({
       where: { id },

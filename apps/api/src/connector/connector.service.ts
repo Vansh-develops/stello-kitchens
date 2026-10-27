@@ -11,6 +11,8 @@ import { Prisma } from "@prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
 import { OrdersService } from "../orders/orders.service";
 import { RealtimeGateway } from "../realtime/realtime.gateway";
+import { orderEvents } from "../common/order-events";
+import { emitDomainEvent } from "../events/domain-events";
 
 // Aggregator platform → the sales-channel name that carries its pricing/maps.
 const PLATFORM_CHANNEL: Record<string, string> = {
@@ -89,6 +91,7 @@ export class ConnectorService {
             items: matched.map((m) => ({ itemId: m.itemId, quantity: m.quantity, addonIds: [] })),
             customerName: input.customerName ?? null,
             customerPhone: input.customerPhoneMasked ?? null,
+            channelName: channel?.name ?? PLATFORM_CHANNEL[input.platform] ?? null,
           });
           orderId = r.orderId;
           kotNumber = r.kotNumber;
@@ -97,7 +100,11 @@ export class ConnectorService {
         return { aggregatorOrderId: agg.id, orderId, kotNumber, matched: matched.length, unmatched, duplicate: false };
       });
 
-      if (result.orderId) this.realtime.notifyOutlet(input.outletId);
+      if (result.orderId) {
+        this.realtime.notifyOutlet(input.outletId);
+        await orderEvents.emit({ type: "kot.created", tenantId: outlet.tenantId, outletId: input.outletId, orderId: result.orderId, userId: null });
+        emitDomainEvent("order.created", outlet.tenantId, input.outletId, { orderId: result.orderId, source: "aggregator" });
+      }
       return result;
     } catch (e) {
       // Duplicate delivery: the unique constraint fired. Return the winner's row.

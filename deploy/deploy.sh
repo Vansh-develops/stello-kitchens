@@ -17,6 +17,9 @@ if [ ! -f deploy/.env ]; then
     echo "POSTGRES_PASSWORD=$(openssl rand -hex 16)"
     echo "JWT_SECRET=$(openssl rand -hex 32)"
     echo "CONNECTOR_KEY=$(openssl rand -hex 24)"
+    echo "ZOMATO_WEBHOOK_SECRET=$(openssl rand -hex 32)"
+    echo "SWIGGY_WEBHOOK_SECRET=$(openssl rand -hex 32)"
+    echo "URBANPIPER_WEBHOOK_SECRET=$(openssl rand -hex 32)"
   } > deploy/.env
   chmod 600 deploy/.env
 fi

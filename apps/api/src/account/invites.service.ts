@@ -1,6 +1,6 @@
-import { BadRequestException, ConflictException, Inject, Injectable, NotFoundException } from "@nestjs/common";
+import { BadRequestException, ConflictException, ForbiddenException, Inject, Injectable, NotFoundException } from "@nestjs/common";
 import * as bcrypt from "bcryptjs";
-import type { AuthUser, CreateInviteInput, AcceptInviteInput } from "@stello/shared";
+import { missingPermissions, type AuthUser, type CreateInviteInput, type AcceptInviteInput } from "@stello/shared";
 import { PrismaService } from "../prisma/prisma.service";
 import { EMAIL_PROVIDER, type EmailProvider } from "../email/email.provider";
 import { newToken, hashToken } from "../common/token";
@@ -22,8 +22,12 @@ export class InvitesService {
   }
 
   async create(user: AuthUser, input: CreateInviteInput): Promise<{ inviteLink: string; raw: string }> {
-    const role = await this.prisma.role.findFirst({ where: { id: input.roleId, tenantId: user.tenantId }, select: { id: true } });
+    const role = await this.prisma.role.findFirst({ where: { id: input.roleId, tenantId: user.tenantId }, select: { id: true, permissions: true } });
     if (!role) throw new NotFoundException("Role not found");
+    // No escalation by invitation: you can only invite onto a role within your own access.
+    if (missingPermissions(user.permissions, Array.isArray(role.permissions) ? (role.permissions as string[]) : []).length) {
+      throw new ForbiddenException("You can't invite someone to a role with more access than your own");
+    }
     const existing = await this.prisma.user.findFirst({ where: { tenantId: user.tenantId, email: input.email }, select: { id: true } });
     if (existing) throw new ConflictException("That email is already a user in this restaurant");
     const brand = await this.prisma.brand.findFirst({ where: { tenantId: user.tenantId }, select: { name: true } });

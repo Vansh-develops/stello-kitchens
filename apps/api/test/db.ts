@@ -1,6 +1,5 @@
-import { execSync } from "node:child_process";
 import { PrismaClient } from "@prisma/client";
-import { beforeAll, beforeEach } from "vitest";
+import { beforeEach } from "vitest";
 import { clearTenantContext } from "../src/common/tenant-context";
 
 // A dedicated throwaway database on the dev Postgres (port 5455).
@@ -10,18 +9,6 @@ const TEST_URL =
 process.env.DATABASE_URL = TEST_URL;
 
 export const testPrisma = new PrismaClient({ datasources: { db: { url: TEST_URL } } });
-
-beforeAll(() => {
-  // Create the DB if missing, then push the current schema to it.
-  execSync(
-    `docker exec stello-postgres psql -U stello -tc "SELECT 1 FROM pg_database WHERE datname='stello_test'" | grep -q 1 || docker exec stello-postgres createdb -U stello stello_test`,
-    { stdio: "ignore", shell: "bash" },
-  );
-  execSync("pnpm --filter @stello/api exec prisma db push --skip-generate --accept-data-loss", {
-    stdio: "inherit",
-    env: { ...process.env, DATABASE_URL: TEST_URL },
-  });
-});
 
 // Truncate every table between tests for isolation.
 export async function resetDb(): Promise<void> {

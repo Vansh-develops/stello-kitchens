@@ -30,6 +30,28 @@ import { OnboardingModule } from "./onboarding/onboarding.module";
 import { TenantModule } from "./tenant/tenant.module";
 import { EmailModule } from "./email/email.module";
 import { AccountModule } from "./account/account.module";
+import { StaffModule } from "./staff/staff.module";
+import { FinanceModule } from "./finance/finance.module";
+import { GiftCardsModule } from "./gift-cards/gift-cards.module";
+import { EdgeModule } from "./edge/edge.module";
+import { BillingModule } from "./billing/billing.module";
+import { PrintingModule } from "./printing/printing.module";
+import { FohModule } from "./foh/foh.module";
+import { MediaModule } from "./media/media.module";
+import { ProcurementModule } from "./procurement/procurement.module";
+import { ApiKeysModule } from "./api-keys/api-keys.module";
+import { RolesModule } from "./roles/roles.module";
+import { AuditModule } from "./audit/audit.module";
+import { WebhooksModule } from "./webhooks/webhooks.module";
+import { McpModule } from "./mcp/mcp.module";
+import { ReportExportModule } from "./report-export/report-export.module";
+import { SaasBillingModule } from "./saas-billing/saas-billing.module";
+import { ChainModule } from "./chain/chain.module";
+import { PreferencesModule } from "./preferences/preferences.module";
+import { GatewayPaymentsModule } from "./gateway-payments/gateway-payments.module";
+import { MessagingModule } from "./messaging/messaging.module";
+import { LowStockModule } from "./low-stock/low-stock.module";
+import { AggregatorSyncModule } from "./aggregator-sync/aggregator-sync.module";
 
 @Module({
   imports: [
@@ -64,6 +86,28 @@ import { AccountModule } from "./account/account.module";
     TenantModule,
     EmailModule,
     AccountModule,
+    StaffModule,
+    FinanceModule,
+    GiftCardsModule,
+    EdgeModule,
+    BillingModule,
+    PrintingModule,
+    FohModule,
+    MediaModule,
+    ProcurementModule,
+    ApiKeysModule,
+    RolesModule,
+    AuditModule,
+    WebhooksModule,
+    McpModule,
+    ReportExportModule,
+    SaasBillingModule,
+    ChainModule,
+    PreferencesModule,
+    GatewayPaymentsModule,
+    MessagingModule,
+    LowStockModule,
+    AggregatorSyncModule,
   ],
   providers: [
     // ThrottlerGuard first so rate limiting applies even to unauthenticated

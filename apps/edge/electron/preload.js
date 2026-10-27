@@ -4,7 +4,11 @@
 // integrations (silent printing, drawer kick, peripheral access).
 const { contextBridge } = require("electron");
 
+const tokenArg = process.argv.find((arg) => arg.startsWith("--edge-sidecar-token="));
+const sidecarToken = tokenArg?.slice("--edge-sidecar-token=".length) ?? "";
+
 contextBridge.exposeInMainWorld("edgeShell", {
   platform: process.platform,
   isElectron: true,
+  sidecarToken,
 });

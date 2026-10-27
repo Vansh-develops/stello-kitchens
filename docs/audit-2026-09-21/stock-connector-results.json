@@ -1,0 +1,39 @@
+{
+  "at": "2026-09-21T01:53:14.099Z",
+  "results": [
+    {
+      "name": "concurrent stock receipts preserve both quantities",
+      "result": "FAIL",
+      "evidence": {
+        "before": 10,
+        "receipts": [
+          5,
+          5
+        ],
+        "expected": 20,
+        "actual": 15,
+        "statuses": [
+          201,
+          201
+        ]
+      }
+    },
+    {
+      "name": "modifier maximum and duplicate add-ons rejected",
+      "result": "FAIL",
+      "evidence": {
+        "maxSelect": 3,
+        "submitted": 4,
+        "status": 201
+      }
+    },
+    {
+      "name": "connector outbound menu endpoint requires authentication",
+      "result": "FAIL",
+      "evidence": {
+        "status": 201,
+        "snapshotRows": 0
+      }
+    }
+  ]
+}

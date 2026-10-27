@@ -21,6 +21,7 @@ import type {
 import { Prisma } from "@prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
 import { RealtimeGateway } from "../realtime/realtime.gateway";
+import { emitDomainEvent } from "../events/domain-events";
 
 const D = (n: Prisma.Decimal | number) => (typeof n === "number" ? n : Number(n));
 
@@ -98,7 +99,30 @@ export class InventoryService {
 
   /** Inward stock with a weighted-average cost update. */
   async receiveStock(user: AuthUser, outletId: string, id: string, input: ReceiveStockInput) {
-    const material = await this.requireMaterial(user, outletId, id);
+    this.assertOutlet(user, outletId);
+    const result = await this.prisma.$transaction(async (tx) => {
+      if (input.vendorId && !await tx.vendor.findFirst({ where: { id: input.vendorId, tenantId: user.tenantId, outletId, deletedAt: null } })) {
+        throw new BadRequestException("Vendor not found in this outlet");
+      }
+      return this.applyReceiptTx(tx, user, outletId, id, input);
+    });
+    this.realtime.notifyOutlet(outletId);
+    return result;
+  }
+
+  /**
+   * The locked receiving path, inside a caller-owned transaction: lock the
+   * material, blend the weighted-average cost and write the RECEIPT movement.
+   * Shared by direct receiving and PO goods-receipt notes.
+   */
+  async applyReceiptTx(
+    tx: Prisma.TransactionClient,
+    user: AuthUser,
+    outletId: string,
+    id: string,
+    input: ReceiveStockInput & { refType?: string; refId?: string; reason?: string },
+  ) {
+    const material = await this.lockMaterial(tx, user, outletId, id);
     const oldQty = D(material.stockQty);
     const oldCost = D(material.costPerUnit);
     const newQty = oldQty + input.quantity;
@@ -106,34 +130,35 @@ export class InventoryService {
     const blendedCost =
       newQty > 0 ? (oldQty * oldCost + input.quantity * input.unitCost) / newQty : input.unitCost;
 
-    await this.prisma.$transaction([
-      this.prisma.rawMaterial.update({
-        where: { id },
-        data: { stockQty: newQty, costPerUnit: blendedCost },
-      }),
-      this.prisma.stockMovement.create({
-        data: {
-          tenantId: user.tenantId,
-          outletId,
-          rawMaterialId: id,
-          type: "RECEIPT",
-          quantity: input.quantity,
-          unitCost: input.unitCost,
-          vendorId: input.vendorId ?? null,
-          createdById: user.id,
-        },
-      }),
-    ]);
-    this.realtime.notifyOutlet(outletId);
+    await tx.rawMaterial.update({
+      where: { id },
+      data: { stockQty: newQty, costPerUnit: blendedCost },
+    });
+    await tx.stockMovement.create({
+      data: {
+        tenantId: user.tenantId,
+        outletId,
+        rawMaterialId: id,
+        type: "RECEIPT",
+        quantity: input.quantity,
+        unitCost: input.unitCost,
+        vendorId: input.vendorId ?? null,
+        refType: input.refType ?? null,
+        refId: input.refId ?? null,
+        reason: input.reason ?? null,
+        createdById: user.id,
+      },
+    });
     return { id, stockQty: newQty, costPerUnit: Math.round(blendedCost * 10000) / 10000 };
   }
 
   async recordWastage(user: AuthUser, outletId: string, id: string, input: WastageInput) {
-    const material = await this.requireMaterial(user, outletId, id);
-    const newQty = D(material.stockQty) - input.quantity;
-    await this.prisma.$transaction([
-      this.prisma.rawMaterial.update({ where: { id }, data: { stockQty: newQty } }),
-      this.prisma.stockMovement.create({
+    this.assertOutlet(user, outletId);
+    const result = await this.prisma.$transaction(async (tx) => {
+      const material = await this.lockMaterial(tx, user, outletId, id);
+      const newQty = D(material.stockQty) - input.quantity;
+      await tx.rawMaterial.update({ where: { id }, data: { stockQty: { decrement: input.quantity } } });
+      await tx.stockMovement.create({
         data: {
           tenantId: user.tenantId,
           outletId,
@@ -144,10 +169,12 @@ export class InventoryService {
           reason: input.reason ?? null,
           createdById: user.id,
         },
-      }),
-    ]);
+      });
+      return { id, stockQty: newQty };
+    });
     this.realtime.notifyOutlet(outletId);
-    return { id, stockQty: newQty };
+    emitDomainEvent("stock.changed", user.tenantId, outletId, { rawMaterialId: id });
+    return result;
   }
 
   // ---------- Vendors ----------
@@ -506,5 +533,13 @@ export class InventoryService {
     if (!material) throw new NotFoundException("Material not found");
     this.assertOutlet(user, outletId);
     return material;
+  }
+
+  private async lockMaterial(tx: Prisma.TransactionClient, user: AuthUser, outletId: string, id: string) {
+    const rows = await tx.$queryRaw<{ id: string }[]>`
+      SELECT id FROM raw_materials WHERE id = ${id} AND "tenantId" = ${user.tenantId}
+      AND "outletId" = ${outletId} AND "deletedAt" IS NULL FOR UPDATE`;
+    if (!rows.length) throw new NotFoundException("Material not found");
+    return tx.rawMaterial.findFirstOrThrow({ where: { id, tenantId: user.tenantId, outletId, deletedAt: null } });
   }
 }

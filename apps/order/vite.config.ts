@@ -1,8 +1,9 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
+import { precacheManifest } from "./pwa-plugin";
 
 export default defineConfig({
-  plugins: [react()],
+  plugins: [react(), precacheManifest()],
   build: { commonjsOptions: { include: [/node_modules/, /packages\/shared/] } },
   optimizeDeps: { include: ["@stello/shared"] },
   server: {

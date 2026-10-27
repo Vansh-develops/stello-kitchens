@@ -4,11 +4,13 @@
 // run inside Electron itself — better-sqlite3 lives only in the sidecar (plain Node).
 
 const path = require("node:path");
+const { randomBytes } = require("node:crypto");
 const { spawn } = require("node:child_process");
 const { app, BrowserWindow } = require("electron");
 
 const DEV_URL = process.env.EDGE_RENDERER_URL || "http://localhost:5175";
 let sidecar;
+const sidecarToken = randomBytes(32).toString("base64url");
 
 function startSidecar() {
   // Spawn with SYSTEM Node (not Electron): better-sqlite3 is compiled for Node's ABI,
@@ -18,6 +20,7 @@ function startSidecar() {
   const nodeBin = process.platform === "win32" ? "node.exe" : "node";
   sidecar = spawn(nodeBin, [path.join(__dirname, "..", "sidecar", "server.js")], {
     stdio: "inherit",
+    env: { ...process.env, EDGE_SIDECAR_TOKEN: sidecarToken },
   });
 }
 
@@ -27,7 +30,12 @@ function createWindow() {
     height: 860,
     backgroundColor: "#14110f",
     title: "Stello Kitchens · Edge POS",
-    webPreferences: { preload: path.join(__dirname, "preload.js") },
+    webPreferences: {
+      preload: path.join(__dirname, "preload.js"),
+      contextIsolation: true,
+      nodeIntegration: false,
+      additionalArguments: [`--edge-sidecar-token=${sidecarToken}`],
+    },
   });
   if (process.env.EDGE_LOAD_FILE) win.loadFile(path.join(__dirname, "..", "dist", "index.html"));
   else win.loadURL(DEV_URL);

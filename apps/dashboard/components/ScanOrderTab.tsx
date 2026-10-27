@@ -7,8 +7,14 @@ import { api } from "@/lib/api";
 
 // Where the diner PWA is served. In dev it's the Vite app on :5176; in prod this
 // would be the ordering site's own origin.
-const ORDER_BASE =
-  typeof window !== "undefined" ? `${window.location.protocol}//${window.location.hostname}:5176` : "";
+function orderBase(): string {
+  if (process.env.NEXT_PUBLIC_ORDER_ORIGIN) return process.env.NEXT_PUBLIC_ORDER_ORIGIN.replace(/\/$/, "");
+  if (typeof window === "undefined") return "";
+  if (["localhost", "127.0.0.1"].includes(window.location.hostname)) {
+    return `${window.location.protocol}//${window.location.hostname}:5176`;
+  }
+  return "https://order.stellotechs.com";
+}
 
 const money = (n: number) => `₹${n.toLocaleString("en-IN", { maximumFractionDigits: 0 })}`;
 
@@ -44,10 +50,11 @@ export function ScanOrderTab({ outletId }: { outletId: string }) {
 
   const links = useMemo(() => {
     const map: Record<string, string> = {};
-    tables.forEach((t) => (map[`t-${t.tableId}`] = `${ORDER_BASE}/t/${t.token}`));
+    const base = orderBase();
+    tables.forEach((t) => (map[`t-${t.tableId}`] = `${base}/t/${t.token}`));
     if (publicToken) {
-      map["kiosk"] = `${ORDER_BASE}/kiosk/${publicToken}`;
-      map["board"] = `${ORDER_BASE}/board/${publicToken}`;
+      map["kiosk"] = `${base}/kiosk/${publicToken}`;
+      map["board"] = `${base}/board/${publicToken}`;
     }
     return map;
   }, [tables, publicToken]);

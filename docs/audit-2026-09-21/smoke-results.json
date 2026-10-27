@@ -1,0 +1,182 @@
+{
+  "at": "2026-09-21T01:52:36.906Z",
+  "results": [
+    {
+      "app": "api",
+      "file": "combo-smoke.mjs",
+      "exit": 0,
+      "assertions": {
+        "passed": 21,
+        "failed": 0
+      },
+      "error": null
+    },
+    {
+      "app": "api",
+      "file": "connector-idem-smoke.mjs",
+      "exit": 0,
+      "assertions": null,
+      "error": null
+    },
+    {
+      "app": "api",
+      "file": "core-smoke.mjs",
+      "exit": 0,
+      "assertions": {
+        "passed": 19,
+        "failed": 0
+      },
+      "error": null
+    },
+    {
+      "app": "api",
+      "file": "custom-report-smoke.mjs",
+      "exit": 0,
+      "assertions": {
+        "passed": 12,
+        "failed": 0
+      },
+      "error": null
+    },
+    {
+      "app": "api",
+      "file": "fleet-smoke.mjs",
+      "exit": 0,
+      "assertions": {
+        "passed": 16,
+        "failed": 0
+      },
+      "error": null
+    },
+    {
+      "app": "api",
+      "file": "igst-smoke.mjs",
+      "exit": 0,
+      "assertions": {
+        "passed": 9,
+        "failed": 0
+      },
+      "error": null
+    },
+    {
+      "app": "api",
+      "file": "invoice-series-smoke.mjs",
+      "exit": 0,
+      "assertions": {
+        "passed": 8,
+        "failed": 0
+      },
+      "error": null
+    },
+    {
+      "app": "api",
+      "file": "loyalty-atomic-smoke.mjs",
+      "exit": 0,
+      "assertions": {
+        "passed": 8,
+        "failed": 0
+      },
+      "error": null
+    },
+    {
+      "app": "api",
+      "file": "loyalty-otp-smoke.mjs",
+      "exit": 0,
+      "assertions": {
+        "passed": 11,
+        "failed": 0
+      },
+      "error": null
+    },
+    {
+      "app": "api",
+      "file": "prep-smoke.mjs",
+      "exit": 1,
+      "assertions": {
+        "passed": 16,
+        "failed": 1
+      },
+      "error": null
+    },
+    {
+      "app": "api",
+      "file": "scan-combo-smoke.mjs",
+      "exit": 0,
+      "assertions": {
+        "passed": 13,
+        "failed": 0
+      },
+      "error": null
+    },
+    {
+      "app": "api",
+      "file": "scan-smoke.mjs",
+      "exit": 0,
+      "assertions": {
+        "passed": 29,
+        "failed": 0
+      },
+      "error": null
+    },
+    {
+      "app": "api",
+      "file": "sync-idem-smoke.mjs",
+      "exit": 0,
+      "assertions": {
+        "passed": 9,
+        "failed": 0
+      },
+      "error": null
+    },
+    {
+      "app": "api",
+      "file": "tenant-smoke.mjs",
+      "exit": 0,
+      "assertions": {
+        "passed": 7,
+        "failed": 0
+      },
+      "error": null
+    },
+    {
+      "app": "edge",
+      "file": "device-binding-smoke.mjs",
+      "exit": 0,
+      "assertions": {
+        "passed": 7,
+        "failed": 0
+      },
+      "error": null
+    },
+    {
+      "app": "edge",
+      "file": "money-parity-smoke.mjs",
+      "exit": 0,
+      "assertions": {
+        "passed": 7,
+        "failed": 0
+      },
+      "error": null
+    },
+    {
+      "app": "edge",
+      "file": "theme-cache-smoke.mjs",
+      "exit": 0,
+      "assertions": {
+        "passed": 4,
+        "failed": 0
+      },
+      "error": null
+    },
+    {
+      "app": "connector",
+      "file": "webhook-signature-smoke.mjs",
+      "exit": 0,
+      "assertions": {
+        "passed": 12,
+        "failed": 0
+      },
+      "error": null
+    }
+  ]
+}

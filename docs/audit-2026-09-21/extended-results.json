@@ -1,0 +1,82 @@
+{
+  "at": "2026-09-21T01:47:42.951Z",
+  "results": [
+    {
+      "name": "suspended tenant access blocked",
+      "result": "FAIL",
+      "evidence": {
+        "status": 200
+      }
+    },
+    {
+      "name": "socket refuses unassigned outlet in same tenant",
+      "result": "FAIL",
+      "evidence": {
+        "ack": {
+          "joined": "cmual0b490006syj08gvdh65n"
+        }
+      }
+    },
+    {
+      "name": "settlement records CRM customer and loyalty",
+      "result": "PASS",
+      "evidence": {
+        "orders": 1,
+        "points": 30
+      }
+    },
+    {
+      "name": "owner sales overview responds",
+      "result": "PASS",
+      "evidence": {
+        "status": 200,
+        "orders": 13
+      }
+    },
+    {
+      "name": "cashier reports permission denied",
+      "result": "PASS",
+      "evidence": {
+        "status": 403
+      }
+    },
+    {
+      "name": "password reset invalidates existing session",
+      "result": "FAIL",
+      "evidence": {
+        "resetStatus": 201,
+        "oldTokenStatus": 200
+      }
+    },
+    {
+      "name": "sync cursor preserves records sharing a timestamp",
+      "result": "FAIL",
+      "evidence": {
+        "firstPage": 200,
+        "secondPage": 0,
+        "fixtureRows": 205
+      }
+    },
+    {
+      "name": "offline local billing and persistence",
+      "result": "PASS",
+      "evidence": {
+        "total": 304.5,
+        "pending": 1
+      }
+    },
+    {
+      "name": "offline sale retains price after catalog change",
+      "result": "FAIL",
+      "evidence": {
+        "offlineTotal": 304.5,
+        "serverTotal": 315,
+        "paid": 304.5,
+        "pushed": {
+          "pushed": 1,
+          "pending": 0
+        }
+      }
+    }
+  ]
+}

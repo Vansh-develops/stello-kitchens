@@ -7,6 +7,8 @@ import { IngestProcessor, INGEST_QUEUE } from "./ingest.processor";
 import { WebhooksController } from "./webhooks.controller";
 import { PushController } from "./push.controller";
 import { HealthController } from "./health.controller";
+import { PushService } from "./outbound/push.service";
+import { UrbanPiperClient, urbanPiperConfigFromEnv } from "./outbound/urbanpiper.client";
 
 @Module({
   imports: [
@@ -23,6 +25,12 @@ import { HealthController } from "./health.controller";
     BullModule.registerQueue({ name: INGEST_QUEUE }),
   ],
   controllers: [WebhooksController, PushController, HealthController],
-  providers: [AdapterRegistry, MainApiService, IngestProcessor],
+  providers: [
+    AdapterRegistry,
+    MainApiService,
+    IngestProcessor,
+    PushService,
+    { provide: UrbanPiperClient, useFactory: () => new UrbanPiperClient(urbanPiperConfigFromEnv()) },
+  ],
 })
 export class AppModule {}

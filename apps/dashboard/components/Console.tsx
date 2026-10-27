@@ -25,6 +25,26 @@ import { PrepTab } from "./PrepTab";
 import { FleetTab } from "./FleetTab";
 import { AppearanceTab } from "./AppearanceTab";
 import { InviteStaffTab } from "./InviteStaffTab";
+import { StaffTab } from "./hr/StaffTab";
+import { GiftCardsTab } from "./hr/GiftCardsTab";
+import { EdgeTab } from "./EdgeTab";
+import { BillingSettingsTab } from "./BillingSettingsTab";
+import { PrintersTab } from "./PrintersTab";
+import { FloorPlanEditor } from "./foh/FloorPlanEditor";
+import { ReservationsBoard } from "./foh/ReservationsBoard";
+import { InventoryHub } from "./InventoryHub";
+import { RolesTab } from "./platform/RolesTab";
+import { AuditTab } from "./platform/AuditTab";
+import { IntegrationsTab } from "./platform/IntegrationsTab";
+import { SecurityTab } from "./platform/SecurityTab";
+import { useSession } from "./SessionProvider";
+import { ChainMenuTab } from "./ChainMenuTab";
+import { BillingTab } from "./BillingTab";
+import { PlatformTab } from "./PlatformTab";
+import { useT } from "@/lib/i18n";
+import type { MessageKey } from "@/lib/i18n/en";
+import { IntegrationsTab as ProviderIntegrationsTab } from "./IntegrationsTab";
+import { LowStockToaster } from "./LowStockToaster";
 
 const rupee = (n: number) => `₹${n.toFixed(0)}`;
 type Tab =
@@ -44,7 +64,22 @@ type Tab =
   | "prep"
   | "fleet"
   | "invite"
-  | "settings";
+  | "settings"
+  | "staff"
+  | "giftcards"
+  | "edge"
+  | "billing"
+  | "printers"
+  | "floor"
+  | "reservations"
+  | "roles"
+  | "audit"
+  | "integrations"
+  | "security"
+  | "chain"
+  | "subscription"
+  | "platform"
+  | "providers";
 
 export function Console({
   user,
@@ -53,6 +88,7 @@ export function Console({
   user: AuthUser;
   outlet: OutletDto;
 }) {
+  const { outlets } = useSession();
   const [menu, setMenu] = useState<AdminMenuDto | null>(null);
   const [tab, setTab] = useState<Tab>("menu");
   const [selectedCat, setSelectedCat] = useState<string | null>(null);
@@ -101,9 +137,16 @@ export function Console({
     [menu, selectedCat],
   );
   const channelName = (id: string) => menu?.channels.find((c) => c.id === id)?.name ?? "";
+  const { t: tr } = useT();
+  // Translated tab label; tabs without a catalogue key keep their English label.
+  const tabLabel = (id: string, english: string) => {
+    const key = `console.tab.${id}` as MessageKey;
+    const s = tr(key);
+    return s === key ? english : s;
+  };
 
   if (!menu) {
-    return <div className="boot">{error ?? "Loading menu…"}</div>;
+    return <div className="boot">{error ?? tr("console.loadingMenu")}</div>;
   }
 
   return (
@@ -111,7 +154,7 @@ export function Console({
       <header className="top">
         <div className="top-brand">
           <span className="wordmark">STELLO KITCHENS</span>
-          <span className="top-sub">Console · {outlet.name.replace("Stello Kitchens - ", "")}</span>
+          <span className="top-sub">{tr("console.sub", { outlet: outlet.name.replace("Stello Kitchens - ", "") })}</span>
         </div>
         <nav className="top-tabs">
           {(
@@ -133,8 +176,23 @@ export function Console({
               "fleet",
               "invite",
               "settings",
+              "staff",
+              "giftcards",
+              "edge",
+              "billing",
+              "printers",
+              "floor",
+              "reservations",
+              "roles",
+              "audit",
+              "integrations",
+              "security",
+              "chain",
+              "subscription",
+              "platform",
+              "providers",
             ] as const
-          ).map((t) => {
+          ).filter((t) => t !== "platform" || user.isPlatformAdmin).map((t) => {
             const labels: Record<string, string> = {
               menu: "Menu",
               addons: "Add-ons",
@@ -153,10 +211,25 @@ export function Console({
               fleet: "Fleet",
               invite: "Invite staff",
               settings: "Settings",
+              staff: "Staff",
+              giftcards: "Gift cards",
+              edge: "Offline POS",
+              billing: "Billing rules",
+              printers: "Printers",
+              floor: "Floor plan",
+              reservations: "Reservations",
+              roles: "Roles & staff",
+              audit: "Audit log",
+              integrations: "API & webhooks",
+              security: "Security",
+              chain: "Brand menu",
+              subscription: "Subscription",
+              platform: "Platform",
+              providers: "Integrations",
             };
             return (
               <button key={t} className={`top-tab ${tab === t ? "active" : ""}`} onClick={() => setTab(t)}>
-                {labels[t]}
+                {tabLabel(t, labels[t])}
               </button>
             );
           })}
@@ -167,6 +240,7 @@ export function Console({
       </header>
 
       {error && <div className="banner-error" onClick={() => setError(null)}>{error} — dismiss</div>}
+      <LowStockToaster outletId={outlet.id} />
 
       {tab === "menu" && (
         <div className="menu-layout">
@@ -437,7 +511,7 @@ export function Console({
         </div>
       )}
 
-      {tab === "inventory" && <InventoryTab outletId={outlet.id} />}
+      {tab === "inventory" && <InventoryHub outletId={outlet.id} />}
       {tab === "recipes" && <RecipesTab outletId={outlet.id} />}
       {tab === "online" && <AggregatorsTab outletId={outlet.id} />}
       {tab === "customers" && <CustomersTab outletId={outlet.id} />}
@@ -451,6 +525,21 @@ export function Console({
       {tab === "fleet" && <FleetTab outletId={outlet.id} />}
       {tab === "invite" && <InviteStaffTab />}
       {tab === "settings" && <AppearanceTab outlet={outlet} />}
+      {tab === "staff" && <StaffTab outletId={outlet.id} />}
+      {tab === "giftcards" && <GiftCardsTab outletId={outlet.id} />}
+      {tab === "edge" && <EdgeTab outletId={outlet.id} />}
+      {tab === "billing" && <BillingSettingsTab outletId={outlet.id} />}
+      {tab === "printers" && <PrintersTab outletId={outlet.id} />}
+      {tab === "floor" && <FloorPlanEditor outletId={outlet.id} />}
+      {tab === "reservations" && <ReservationsBoard outletId={outlet.id} />}
+      {tab === "roles" && <RolesTab user={user} />}
+      {tab === "audit" && <AuditTab user={user} />}
+      {tab === "integrations" && <IntegrationsTab user={user} outlets={outlets} />}
+      {tab === "security" && <SecurityTab user={user} />}
+      {tab === "chain" && <ChainMenuTab outletId={outlet.id} />}
+      {tab === "subscription" && <BillingTab />}
+      {tab === "platform" && user.isPlatformAdmin && <PlatformTab />}
+      {tab === "providers" && <ProviderIntegrationsTab outletId={outlet.id} />}
 
       {itemDialog && (
         <ItemDialog

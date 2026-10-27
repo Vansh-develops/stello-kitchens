@@ -1,5 +1,13 @@
 import type {
   AddItemsInput,
+  BillingSettingsDto,
+  BillPreviewDto,
+  MergeOrdersInput,
+  ParkCartInput,
+  ParkedCartDto,
+  SettlePreviewInput,
+  SplitOrderInput,
+  TransferOrderInput,
   AreaDto,
   CashMovementInput,
   CashSessionDto,
@@ -61,4 +69,24 @@ export const posApi = {
       method: "POST",
       body: JSON.stringify({ amount }),
     }),
+  // Billing controls
+  billingSettings: (outletId: string) => request<BillingSettingsDto>(`/outlets/${outletId}/billing-settings`),
+  preview: (orderId: string, input: SettlePreviewInput) =>
+    request<BillPreviewDto>(`/orders/${orderId}/preview`, { method: "POST", body: JSON.stringify(input) }),
+  removeServiceCharge: (orderId: string, reason: string) =>
+    request<OrderDto>(`/orders/${orderId}/service-charge/remove`, { method: "POST", body: JSON.stringify({ reason }) }),
+  restoreServiceCharge: (orderId: string) =>
+    request<OrderDto>(`/orders/${orderId}/service-charge/restore`, { method: "POST" }),
+  merge: (orderId: string, input: MergeOrdersInput) =>
+    request<OrderDto>(`/orders/${orderId}/merge`, { method: "POST", body: JSON.stringify(input) }),
+  transfer: (orderId: string, input: TransferOrderInput) =>
+    request<{ from: OrderDto | null; to: OrderDto }>(`/orders/${orderId}/transfer`, { method: "POST", body: JSON.stringify(input) }),
+  split: (orderId: string, input: SplitOrderInput) =>
+    request<OrderDto>(`/orders/${orderId}/split`, { method: "POST", body: JSON.stringify(input) }),
+  unsplit: (orderId: string) => request<OrderDto>(`/orders/${orderId}/unsplit`, { method: "POST" }),
+  parked: (outletId: string) => request<ParkedCartDto[]>(`/outlets/${outletId}/parked`),
+  park: (outletId: string, input: ParkCartInput) =>
+    request<ParkedCartDto>(`/outlets/${outletId}/parked`, { method: "POST", body: JSON.stringify(input) }),
+  resumeParked: (id: string) => request<ParkedCartDto>(`/parked/${id}/resume`, { method: "POST" }),
+  discardParked: (id: string) => request<{ ok: true }>(`/parked/${id}`, { method: "DELETE" }),
 };

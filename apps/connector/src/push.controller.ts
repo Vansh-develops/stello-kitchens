@@ -1,30 +1,57 @@
-import { Body, Controller, Logger, Param, Post } from "@nestjs/common";
-import { MainApiService } from "./main-api.service";
+import { Body, Controller, Headers, Param, Post, UnauthorizedException } from "@nestjs/common";
+import { timingSafeEqual } from "node:crypto";
+import { PushService } from "./outbound/push.service";
 
 /**
- * Outbound menu + stock sync. Pulls the push payload from the main API (mapped
- * items, per-channel prices, out-of-stock ids) and would POST it to the provider.
- * The actual provider call is simulated (logged) until onboarding credentials exist.
+ * Outbound aggregator sync, called by the main API (x-connector-key). Menu,
+ * item/stock and store availability and order-status callbacks go to
+ * UrbanPiper when URBANPIPER_* credentials are set (otherwise they are logged
+ * and reported as simulated); ONDC payloads are built and returned; direct
+ * Zomato/Swiggy are partner-gated (501).
  */
 @Controller("push")
 export class PushController {
-  private readonly logger = new Logger(PushController.name);
+  constructor(private readonly push: PushService) {}
 
-  constructor(private readonly mainApi: MainApiService) {}
+  private authorize(key?: string) {
+    const expected = process.env.CONNECTOR_KEY;
+    const ok = !!expected && !!key && key.length === expected.length && timingSafeEqual(Buffer.from(key), Buffer.from(expected));
+    if (!ok) throw new UnauthorizedException("Connector authentication required");
+  }
 
   @Post(":platform/menu")
-  async menu(@Param("platform") platform: string, @Body() body: { outletId: string }) {
-    const rows = await this.mainApi.menuPush(platform.toUpperCase(), body.outletId);
-    // Triggering a full menu upsert toggles the outlet off provider search until
-    // processing completes; only the entities sent are retained (full snapshot).
-    this.logger.log(`[${platform}] menu snapshot: ${rows.length} items → (simulated send to provider)`);
-    return { platform: platform.toUpperCase(), pushed: rows.length, snapshot: rows };
+  menu(@Headers("x-connector-key") key: string | undefined, @Param("platform") platform: string, @Body() body: { outletId: string }) {
+    this.authorize(key);
+    return this.push.menu(platform.toUpperCase(), body.outletId);
   }
 
   @Post(":platform/stock")
-  async stock(@Param("platform") platform: string, @Body() body: { outletId: string }) {
-    const oos = await this.mainApi.stockPush(platform.toUpperCase(), body.outletId);
-    this.logger.log(`[${platform}] stock sync: ${oos.length} item(s) marked out of stock → (simulated)`);
-    return { platform: platform.toUpperCase(), outOfStock: oos };
+  stock(
+    @Headers("x-connector-key") key: string | undefined,
+    @Param("platform") platform: string,
+    @Body() body: { outletId: string; items?: { externalId: string; available: boolean }[] },
+  ) {
+    this.authorize(key);
+    return this.push.stock(platform.toUpperCase(), body.outletId, body.items);
+  }
+
+  @Post(":platform/store")
+  store(
+    @Headers("x-connector-key") key: string | undefined,
+    @Param("platform") platform: string,
+    @Body() body: { outletId: string; online: boolean; reason?: string },
+  ) {
+    this.authorize(key);
+    return this.push.store(platform.toUpperCase(), body.outletId, !!body.online, body.reason);
+  }
+
+  @Post(":platform/order-status")
+  orderStatus(
+    @Headers("x-connector-key") key: string | undefined,
+    @Param("platform") platform: string,
+    @Body() body: { externalOrderId: string; status: string; prepTimeMins?: number },
+  ) {
+    this.authorize(key);
+    return this.push.orderStatus(platform.toUpperCase(), body.externalOrderId, body.status, body.prepTimeMins);
   }
 }

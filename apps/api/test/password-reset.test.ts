@@ -19,6 +19,7 @@ it("issues a reset token and resets the password", async () => {
   await svc().reset(raw!, "newpass12");
   const fresh = await testPrisma.user.findUnique({ where: { id: u.id } });
   expect(await bcrypt.compare("newpass12", fresh!.passwordHash)).toBe(true);
+  expect(fresh!.tokenVersion).toBe(u.tokenVersion + 1);
 });
 it("requestReset returns null for unknown email (no enumeration) and reset rejects reused/invalid token", async () => {
   expect(await svc().requestReset("nobody@x.com")).toBeNull();

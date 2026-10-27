@@ -1,9 +1,11 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import QRCode from "qrcode";
 import type { InvoiceDto, InvoiceRowDto } from "@stello/shared";
 import { api } from "@/lib/api";
+import { DayBookView, ExpensesView, PnlView, type FinanceView } from "./hr/FinanceViews";
+import { integrationsApi } from "@/lib/integrations-api";
 
 const money = (n: number) => `₹${n.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 const date = (iso: string) => new Date(iso).toLocaleDateString("en-IN", { day: "numeric", month: "short" });
@@ -13,7 +15,38 @@ function dstr(d: Date) {
 }
 const statusTone: Record<string, string> = { GENERATED: "good", PENDING: "muted", CANCELLED: "bad" };
 
+const VIEWS: { id: FinanceView | "invoices"; label: string }[] = [
+  { id: "invoices", label: "GST invoices" },
+  { id: "expenses", label: "Expenses" },
+  { id: "pnl", label: "Profit & loss" },
+  { id: "daybook", label: "Day book" },
+];
+
+/** Accounting: GST invoices plus expenses, P&L and the day book. */
 export function AccountingTab({ outletId }: { outletId: string }) {
+  const [view, setView] = useState<FinanceView | "invoices">("invoices");
+  const switcher = (
+    <div className="seg" style={{ marginBottom: 14 }}>
+      {VIEWS.map((v) => (
+        <button key={v.id} className={view === v.id ? "on" : ""} onClick={() => setView(v.id)}>{v.label}</button>
+      ))}
+    </div>
+  );
+  if (view === "invoices") return <InvoicesPane outletId={outletId} switcher={switcher} />;
+  return (
+    <div className="tab-pane">
+      <div className="pane-head">
+        <h1>Accounting</h1>
+      </div>
+      {switcher}
+      {view === "expenses" && <ExpensesView outletId={outletId} />}
+      {view === "pnl" && <PnlView outletId={outletId} />}
+      {view === "daybook" && <DayBookView outletId={outletId} />}
+    </div>
+  );
+}
+
+function InvoicesPane({ outletId, switcher }: { outletId: string; switcher: ReactNode }) {
   const [invoices, setInvoices] = useState<InvoiceRowDto[]>([]);
   const [detail, setDetail] = useState<InvoiceDto | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -78,6 +111,7 @@ export function AccountingTab({ outletId }: { outletId: string }) {
           <button className="btn-primary sm" onClick={downloadTally}>Export to Tally (XML)</button>
         </div>
       </div>
+      {switcher}
       <p className="hint wide">
         GST invoices for settled orders. Generate an IRN + signed QR through the GSP (e-invoicing), and export
         ledger-mapped sales vouchers to Tally. E-invoices are immutable once generated.
@@ -164,6 +198,24 @@ function InvoiceModal({
     }
   }, [invoice.signedQr]);
 
+  // IRP cancellation is only allowed within 24h of the acknowledgement.
+  const [cancelCode, setCancelCode] = useState<"1" | "2" | "3" | "4">("2");
+  const cancellable =
+    invoice.status === "GENERATED" && !!invoice.ackDate && Date.now() - new Date(invoice.ackDate).getTime() < 24 * 3600_000;
+  const cancelIrn = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      const reason = { "1": "Duplicate", "2": "Data entry mistake", "3": "Order cancelled", "4": "Other" }[cancelCode];
+      await integrationsApi.cancelIrn(outletId, invoice.orderId, reason, cancelCode);
+      onChanged();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not cancel IRN");
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const generate = async () => {
     setBusy(true);
     setError(null);
@@ -238,12 +290,26 @@ function InvoiceModal({
                   <span className={`status-pill ${statusTone[invoice.status]}`}>{invoice.status}</span>
                 </div>
                 {qr && <img className="irn-qr" src={qr} alt="Signed e-invoice QR" width={150} height={150} />}
+                {invoice.cancelledAt && (
+                  <p className="hint">Cancelled at the IRP {new Date(invoice.cancelledAt).toLocaleString("en-IN")} — {invoice.cancelReason}</p>
+                )}
+                {cancellable && (
+                  <div className="field-row">
+                    <select value={cancelCode} onChange={(e) => setCancelCode(e.target.value as "1" | "2" | "3" | "4")}>
+                      <option value="1">Duplicate</option>
+                      <option value="2">Data entry mistake</option>
+                      <option value="3">Order cancelled</option>
+                      <option value="4">Other</option>
+                    </select>
+                    <button className="btn-ghost sm" onClick={cancelIrn} disabled={busy}>Cancel IRN</button>
+                  </div>
+                )}
               </div>
             ) : (
               <div className="irn-generate">
                 <p className="hint">No IRN yet. Submit to the IRP via the GSP to get an IRN + signed QR.</p>
                 <div className="field-row">
-                  <input placeholder="Buyer GSTIN (optional, B2B)" value={buyerGstin} onChange={(e) => setBuyerGstin(e.target.value)} />
+                  <input placeholder="Buyer GSTIN (B2B — required by the IRP)" value={buyerGstin} onChange={(e) => setBuyerGstin(e.target.value)} />
                   <button className="btn-primary" onClick={generate} disabled={busy}>
                     {busy ? "Generating…" : "Generate IRN"}
                   </button>

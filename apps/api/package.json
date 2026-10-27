@@ -11,12 +11,14 @@
     "prisma:seed": "prisma db seed",
     "test": "vitest run",
     "test:watch": "vitest",
+    "typecheck": "tsc -p tsconfig.json --noEmit --incremental false",
     "provision:platform-admin": "ts-node prisma/provision-platform-admin.ts"
   },
   "prisma": {
-    "seed": "ts-node prisma/seed.ts"
+    "seed": "node -r ts-node/register prisma/seed.ts"
   },
   "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.32.2",
     "@nestjs/common": "^11.0.0",
     "@nestjs/config": "^4.0.0",
     "@nestjs/core": "^11.0.0",
@@ -28,7 +30,9 @@
     "@prisma/client": "^6.8.0",
     "@stello/shared": "workspace:*",
     "bcryptjs": "^3.0.0",
+    "exceljs": "^4.4.0",
     "helmet": "^8.2.0",
+    "nodemailer": "6.9.16",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.0",
     "socket.io": "^4.8.0",
@@ -40,11 +44,13 @@
     "@swc/core": "^1.15.43",
     "@types/express": "^5.0.0",
     "@types/node": "^22.0.0",
+    "@types/nodemailer": "6.4.17",
     "@types/supertest": "^7.2.0",
     "prisma": "^6.8.0",
     "supertest": "^7.2.2",
     "ts-node": "^10.9.2",
     "typescript": "^5.8.0",
+    "undici": "6.21.0",
     "unplugin-swc": "^1.5.9",
     "vitest": "^2.1.9"
   }

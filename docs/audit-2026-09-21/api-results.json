@@ -1,0 +1,172 @@
+{
+  "at": "2026-09-21T01:47:39.353Z",
+  "environment": "isolated localhost:13001 / postgres localhost:15455",
+  "results": [
+    {
+      "name": "unauthenticated order access denied",
+      "result": "PASS",
+      "evidence": {}
+    },
+    {
+      "name": "cashier cannot read unassigned outlet",
+      "result": "PASS",
+      "evidence": {
+        "status": 403
+      }
+    },
+    {
+      "name": "kitchen cannot create order",
+      "result": "PASS",
+      "evidence": {
+        "status": 403
+      }
+    },
+    {
+      "name": "negative order quantity rejected",
+      "result": "PASS",
+      "evidence": {
+        "status": 400
+      }
+    },
+    {
+      "name": "create order and KOT",
+      "result": "PASS",
+      "evidence": {
+        "status": 201,
+        "total": 304.5,
+        "kots": 1
+      }
+    },
+    {
+      "name": "order visible in kitchen and can become ready",
+      "result": "PASS",
+      "evidence": {
+        "visible": true,
+        "bumpStatus": 201
+      }
+    },
+    {
+      "name": "online underpayment rejected",
+      "result": "PASS",
+      "evidence": {
+        "status": 400
+      }
+    },
+    {
+      "name": "cash settlement and authoritative bill",
+      "result": "PASS",
+      "evidence": {
+        "status": 201,
+        "bill": "B-11",
+        "total": 304.5
+      }
+    },
+    {
+      "name": "sequential duplicate settlement rejected",
+      "result": "PASS",
+      "evidence": {
+        "status": 400
+      }
+    },
+    {
+      "name": "cumulative refunds cannot exceed sale",
+      "result": "FAIL",
+      "evidence": {
+        "statuses": [
+          201,
+          201
+        ],
+        "sale": 304.5,
+        "refunded": 609
+      }
+    },
+    {
+      "name": "concurrent settlements create one payment",
+      "result": "FAIL",
+      "evidence": {
+        "statuses": [
+          201,
+          201,
+          201
+        ],
+        "paymentRows": 3,
+        "total": 304.5,
+        "paid": 913.5
+      }
+    },
+    {
+      "name": "cross-tenant table reference rejected",
+      "result": "FAIL",
+      "evidence": {
+        "status": 201,
+        "returnedTableName": "Private foreign table 1789955255468",
+        "storedForeignReference": true
+      }
+    },
+    {
+      "name": "direct foreign tenant menu read rejected",
+      "result": "PASS",
+      "evidence": {
+        "status": 403
+      }
+    },
+    {
+      "name": "one open order per dining table under concurrency",
+      "result": "FAIL",
+      "evidence": {
+        "statuses": [
+          201,
+          201
+        ],
+        "openOrders": 2
+      }
+    },
+    {
+      "name": "QR acceptance is idempotent under concurrency",
+      "result": "FAIL",
+      "evidence": {
+        "statuses": [
+          201,
+          201
+        ],
+        "ordersCreated": 2
+      }
+    },
+    {
+      "name": "offline settled orders require correct payment",
+      "result": "FAIL",
+      "evidence": {
+        "httpStatus": 201,
+        "result": "applied",
+        "saleTotal": 304.5,
+        "paymentRows": 0,
+        "deviceRegistered": false
+      }
+    },
+    {
+      "name": "offline push retry deduplicated",
+      "result": "PASS",
+      "evidence": {
+        "result": "duplicate"
+      }
+    },
+    {
+      "name": "invoice split tax reconciles to order tax",
+      "result": "FAIL",
+      "evidence": {
+        "orderTax": 0.05,
+        "invoiceTax": 0.06,
+        "cgst": 0.03,
+        "sgst": 0.03,
+        "total": 1.05
+      }
+    },
+    {
+      "name": "database readiness succeeds",
+      "result": "PASS",
+      "evidence": {
+        "status": 200
+      }
+    }
+  ]
+}

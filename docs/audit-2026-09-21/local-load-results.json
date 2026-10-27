@@ -1,0 +1,17 @@
+{
+  "at": "2026-09-21T01:56:33.683Z",
+  "environment": "local Windows / Node 23.1.0 / disposable Docker PostgreSQL",
+  "scope": "50 order-create + settlement workflows, five concurrent workers",
+  "requests": 99,
+  "completed": 49,
+  "uniqueBills": 49,
+  "errors": [
+    "Error: /orders: 500 {\"statusCode\":500,\"message\":\"Internal server error\"}"
+  ],
+  "elapsedMs": 2200,
+  "latencyMs": {
+    "p50": 54,
+    "p95": 106,
+    "p99": 2144
+  }
+}

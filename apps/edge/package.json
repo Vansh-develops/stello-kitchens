@@ -8,7 +8,9 @@
     "sidecar": "node sidecar/server.js",
     "dev": "vite",
     "build": "vite build",
-    "electron": "electron ."
+    "electron": "electron .",
+    "typecheck": "tsc -p tsconfig.json --noEmit --incremental false",
+    "test": "node --test \"test/*.test.js\""
   },
   "dependencies": {
     "@stello/shared": "workspace:*",

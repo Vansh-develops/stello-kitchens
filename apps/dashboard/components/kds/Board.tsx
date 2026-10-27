@@ -4,16 +4,15 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { io, type Socket } from "socket.io-client";
 import type { KdsStockItemDto, KdsTicketDto, OutletDto, PrepStatus, StationDto } from "@stello/shared";
 import { kdsApi as api } from "@/lib/kds-api";
+import { usePrintStation } from "@/lib/print/station";
+import { reprintKotNow } from "@/lib/print/actions";
+import { PrintPanel } from "../printing/PrintPanel";
+import { LanguageSwitcher, useT } from "@/lib/i18n";
 
 const NEXT: Record<PrepStatus, PrepStatus> = {
   PENDING: "PREPARING",
   PREPARING: "READY",
   READY: "PREPARING", // tap a ready ticket to recall it
-};
-const ADVANCE_LABEL: Record<PrepStatus, string> = {
-  PENDING: "Start",
-  PREPARING: "Bump ready",
-  READY: "Recall",
 };
 
 function ageColor(elapsedMin: number, prepMinutes: number): "fresh" | "warm" | "late" {
@@ -37,8 +36,18 @@ export function Board({ outlet, onExit }: { outlet: OutletDto; onExit: () => voi
   const [station, setStation] = useState<string>("all");
   const [cookList, setCookList] = useState(false);
   const [connected, setConnected] = useState(false);
+  const [connectionError, setConnectionError] = useState(false);
   const [now, setNow] = useState(() => Date.now());
   const [busyKey, setBusyKey] = useState<string | null>(null);
+  // A kitchen screen can be the print station for its station printers.
+  const printStation = usePrintStation(outlet.id);
+  const [printOpen, setPrintOpen] = useState(false);
+  const [printError, setPrintError] = useState<string | null>(null);
+  const reprint = (kotId: string) =>
+    void reprintKotNow(outlet.id, kotId, printStation)
+      .then(() => setPrintError(null))
+      .catch((err) => setPrintError(err instanceof Error ? err.message : "Reprint failed"));
+  const { t: tr } = useT();
 
   const refresh = useCallback(async () => {
     const [t, s] = await Promise.all([api.tickets(outlet.id), api.stock(outlet.id)]);
@@ -60,21 +69,29 @@ export function Board({ outlet, onExit }: { outlet: OutletDto; onExit: () => voi
 
   // Real-time: join the outlet room, refetch on signal; poll as a fallback.
   useEffect(() => {
-    const authToken =
-      typeof window !== "undefined" ? localStorage.getItem("stello.token") : null;
-    const socket: Socket = io({
+    const socketOrigin = process.env.NEXT_PUBLIC_SOCKET_ORIGIN ??
+      (typeof window !== "undefined" && ["localhost", "127.0.0.1"].includes(window.location.hostname)
+        ? `${window.location.protocol}//${window.location.hostname}:3001`
+        : undefined);
+    const socket: Socket = io(socketOrigin, {
       path: "/socket.io",
       transports: ["websocket", "polling"],
-      auth: { token: authToken },
+      // Authenticated by the httpOnly session cookie (same-site with the API).
+      withCredentials: true,
     });
     const onChange = (msg: { outletId: string }) => {
       if (msg.outletId === outlet.id) void refresh();
     };
     socket.on("connect", () => {
       setConnected(true);
+      setConnectionError(false);
       socket.emit("join", { outletId: outlet.id });
     });
     socket.on("disconnect", () => setConnected(false));
+    socket.on("connect_error", () => {
+      setConnected(false);
+      setConnectionError(true);
+    });
     socket.on("kds:changed", onChange);
 
     const poll = setInterval(() => void refresh(), 8000);
@@ -114,11 +131,10 @@ export function Board({ outlet, onExit }: { outlet: OutletDto; onExit: () => voi
     [tickets, station],
   );
 
-  const columns: { key: PrepStatus; label: string }[] = [
-    { key: "PENDING", label: "New" },
-    { key: "PREPARING", label: "Preparing" },
-    { key: "READY", label: "Ready" },
-  ];
+  const columns: { key: PrepStatus; label: string }[] = (["PENDING", "PREPARING", "READY"] as const).map((key) => ({
+    key,
+    label: tr(`kds.lane.${key}`),
+  }));
   const byStatus = (s: PrepStatus) => visible.filter((t) => t.status === s);
 
   const stockMap = useMemo(() => new Map(stock.map((s) => [s.itemId, s])), [stock]);
@@ -144,7 +160,7 @@ export function Board({ outlet, onExit }: { outlet: OutletDto; onExit: () => voi
       <header className="kds-head">
         <div className="kds-brand">
           <span className="wordmark">STELLO KITCHENS</span>
-          <span className="kds-sub">KDS · {outlet.name.replace("Stello Kitchens - ", "")}</span>
+          <span className="kds-sub">{tr("kds.sub", { outlet: outlet.name.replace("Stello Kitchens - ", "") })}</span>
         </div>
 
         <nav className="station-tabs">
@@ -152,7 +168,7 @@ export function Board({ outlet, onExit }: { outlet: OutletDto; onExit: () => voi
             className={`st-tab ${station === "all" ? "active" : ""}`}
             onClick={() => setStation("all")}
           >
-            All
+            {tr("kds.all")}
             <span className="st-count">{tickets.filter((t) => t.status !== "READY").length}</span>
           </button>
           {stations.map((s) => {
@@ -175,13 +191,21 @@ export function Board({ outlet, onExit }: { outlet: OutletDto; onExit: () => voi
             className={`cook-toggle ${cookList ? "on" : ""}`}
             onClick={() => setCookList((v) => !v)}
           >
-            Cook list
+            {tr("kds.cookList")}
           </button>
-          <span className={`conn ${connected ? "live" : "down"}`}>
-            {connected ? "LIVE" : "RECONNECTING"}
+          <button
+            className={`cook-toggle ${printStation.lastError || printError ? "on" : ""}`}
+            onClick={() => setPrintOpen(true)}
+            title={printStation.lastError ?? printError ?? "Printing"}
+          >
+            {printStation.lastError || printError ? "Printer issue" : "Print"}
+          </button>
+          <span className={`conn ${connected ? "live" : "down"}`} role="status">
+            {connected ? tr("kds.live") : connectionError ? tr("kds.offline") : tr("kds.reconnecting")}
           </span>
+          <LanguageSwitcher className="kds-lang" />
           <span className="clock">{clock}</span>
-          <button className="exit" onClick={onExit} title="Sign out">
+          <button className="exit" onClick={onExit} title={tr("common.signOut")} aria-label={tr("common.signOut")}>
             ✕
           </button>
         </div>
@@ -190,11 +214,11 @@ export function Board({ outlet, onExit }: { outlet: OutletDto; onExit: () => voi
       {cookList ? (
         <div className="cook-pane">
           <div className="cook-head">
-            <h2>Cook list — {station === "all" ? "all stations" : stations.find((s) => s.id === station)?.name}</h2>
-            <p>Quantities across all active tickets. Tap 86 to mark an item out of stock everywhere.</p>
+            <h2>{tr("kds.cookListTitle", { station: station === "all" ? tr("kds.allStations") : stations.find((s) => s.id === station)?.name ?? "" })}</h2>
+            <p>{tr("kds.cookHint")}</p>
           </div>
           <div className="cook-rows">
-            {cookRows.length === 0 && <p className="empty">Nothing cooking right now.</p>}
+            {cookRows.length === 0 && <p className="empty">{tr("kds.nothingCooking")}</p>}
             {cookRows.map((r) => {
               const inStock = stockMap.get(r.itemId)?.inStock ?? true;
               return (
@@ -205,7 +229,7 @@ export function Board({ outlet, onExit }: { outlet: OutletDto; onExit: () => voi
                     className={`btn-86 ${!inStock ? "active" : ""}`}
                     onClick={() => toggle86(r.itemId, inStock)}
                   >
-                    {inStock ? "86" : "Restore"}
+                    {inStock ? tr("kds.mark86") : tr("kds.restore")}
                   </button>
                 </div>
               );
@@ -232,12 +256,31 @@ export function Board({ outlet, onExit }: { outlet: OutletDto; onExit: () => voi
                       onClick={() => advance(t)}
                     >
                       <div className="ticket-top">
-                        <span className="ticket-kot">KOT {t.kotNumber}</span>
+                        <span className="ticket-kot">{tr("kds.kot", { number: t.kotNumber })}</span>
                         <span className="ticket-age">{fmtElapsed(elapsedMs)}</span>
+                        <span
+                          role="button"
+                          tabIndex={0}
+                          className="kds-reprint"
+                          title={`Reprint KOT ${t.kotNumber}`}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            reprint(t.kotId);
+                          }}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter" || e.key === " ") {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              reprint(t.kotId);
+                            }
+                          }}
+                        >
+                          ⎙
+                        </span>
                       </div>
                       <div className="ticket-ctx">
                         <span className="ticket-where">
-                          {t.tableName ?? t.orderType.replace("_", " ").toLowerCase()}
+                          {t.tableName ?? tr(`orderType.${t.orderType}` as const)}
                         </span>
                         {station === "all" && <span className="ticket-station">{t.stationName}</span>}
                       </div>
@@ -254,7 +297,7 @@ export function Board({ outlet, onExit }: { outlet: OutletDto; onExit: () => voi
                           </li>
                         ))}
                       </ul>
-                      <span className="ticket-action">{ADVANCE_LABEL[t.status]}</span>
+                      <span className="ticket-action">{tr(`kds.action.${t.status}`)}</span>
                     </button>
                   );
                 })}
@@ -263,6 +306,9 @@ export function Board({ outlet, onExit }: { outlet: OutletDto; onExit: () => voi
             </section>
           ))}
         </div>
+      )}
+      {printOpen && (
+        <PrintPanel outletId={outlet.id} station={printStation} showBills={false} onClose={() => setPrintOpen(false)} />
       )}
     </div>
   );

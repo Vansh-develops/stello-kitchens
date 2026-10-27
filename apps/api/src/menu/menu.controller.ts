@@ -4,6 +4,7 @@ import { PrismaService } from "../prisma/prisma.service";
 import { RealtimeGateway } from "../realtime/realtime.gateway";
 import { CombosService } from "../combos/combos.service";
 import { CurrentUser, RequirePermission } from "../common/decorators";
+import { emitDomainEvent } from "../events/domain-events";
 
 @Controller("outlets/:outletId/menu")
 export class MenuController {
@@ -58,6 +59,10 @@ export class MenuController {
         isVeg: i.isVeg,
         inStock: i.inStock,
         taxRate: Number(i.taxRate),
+        availableStart: i.availableStart,
+        availableEnd: i.availableEnd,
+        imageUrl: i.imageUrl,
+        nameTranslations: (i.nameTranslations as Record<string, string> | null) ?? null,
         variations: i.variations.map((v) => ({ id: v.id, name: v.name, price: Number(v.price) })),
         addonGroups: i.addonGroups.map((ag) => ({
           id: ag.group.id,
@@ -92,6 +97,7 @@ export class MenuController {
       data: { inStock: !!body.inStock },
     });
     this.realtime.notifyOutlet(outletId);
+    emitDomainEvent("item.availability", user.tenantId, outletId, { itemId: item.id, name: item.name, inStock: item.inStock });
     return { id: item.id, inStock: item.inStock };
   }
 }

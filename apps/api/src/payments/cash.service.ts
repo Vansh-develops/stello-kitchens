@@ -8,12 +8,18 @@ import type {
   RefundInput,
   UpiQrDto,
 } from "@stello/shared";
+import { toPaise } from "@stello/shared";
 import { Prisma } from "@prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
 import { PAYMENT_GATEWAY, type PaymentGateway } from "./payment.gateway";
+import { issueStoreCreditTx } from "../gift-cards/gift-cards.service";
+import { recordDrawerExpenseTx } from "../finance/finance.service";
 
 const N = (d: Prisma.Decimal | number) => (typeof d === "number" ? d : Number(d));
 const round2 = (n: number) => Math.round(n * 100) / 100;
+
+/** Provider refund status → our reservation status. Only a verified failure releases balance. */
+export const refundStatusOf = (s: string) => (s === "processed" ? "PROCESSED" : s === "failed" ? "FAILED" : "PENDING");
 
 type SessionWithMovements = Prisma.CashSessionGetPayload<{ include: { movements: true } }>;
 
@@ -67,14 +73,23 @@ export class CashService {
     if (!session) throw new BadRequestException("Open a cash drawer before recording cash movements");
     // PAY_IN adds cash; PAY_OUT / EXPENSE remove it.
     const signed = input.type === "PAY_IN" ? input.amount : -input.amount;
-    await this.prisma.cashMovement.create({
-      data: {
-        sessionId: session.id,
-        type: input.type,
-        amount: signed,
-        category: input.type === "EXPENSE" ? (input.category ?? "General") : null,
-        note: input.note ?? null,
-      },
+    await this.prisma.$transaction(async (tx) => {
+      const movement = await tx.cashMovement.create({
+        data: {
+          sessionId: session.id,
+          type: input.type,
+          amount: signed,
+          category: input.type === "EXPENSE" ? (input.category ?? "General") : null,
+          note: input.note ?? null,
+        },
+      });
+      // Drawer expenses also land in the expense book (and so the P&L).
+      if (input.type === "EXPENSE") {
+        await recordDrawerExpenseTx(tx, {
+          tenantId: user.tenantId, outletId, userId: user.id, cashMovementId: movement.id,
+          category: input.category ?? "General", amount: input.amount, note: input.note ?? null,
+        });
+      }
     });
     return { ok: true };
   }
@@ -131,36 +146,104 @@ export class CashService {
 
   async refund(user: AuthUser, outletId: string, orderId: string, input: RefundInput) {
     this.assertOutlet(user, outletId);
-    const order = await this.prisma.order.findFirst({ where: { id: orderId, outletId } });
-    if (!order || order.status !== "SETTLED") throw new BadRequestException("Only settled orders can be refunded");
-    if (input.amount > N(order.total)) throw new BadRequestException("Refund exceeds the order total");
-
-    let gatewayRef: string | null = null;
-    if (input.mode !== "CASH") {
-      const res = await this.gateway.refund({ amount: input.amount, orderRef: order.billNumber ?? order.id, reason: input.reason });
-      gatewayRef = res.ref;
+    if (!Number.isFinite(input.amount) || input.amount <= 0 || Math.abs(input.amount * 100 - Math.round(input.amount * 100)) > 1e-7) {
+      throw new BadRequestException("Refund amount must be positive whole paise");
     }
-    const refund = await this.prisma.refund.create({
-      data: {
-        tenantId: user.tenantId,
-        outletId,
-        orderId,
-        amount: input.amount,
-        mode: input.mode,
-        reason: input.reason ?? null,
-        gatewayRef,
-      },
-    });
-    // A cash refund leaves the drawer if one is open.
-    if (input.mode === "CASH") {
-      const session = await this.prisma.cashSession.findFirst({ where: { outletId, status: "OPEN" } });
-      if (session) {
-        await this.prisma.cashMovement.create({
+    const reserved = await this.prisma.$transaction(async (tx) => {
+      const rows = await tx.$queryRaw<{ id: string }[]>`
+        SELECT id FROM orders WHERE id = ${orderId} AND "tenantId" = ${user.tenantId}
+        AND "outletId" = ${outletId} FOR UPDATE`;
+      if (!rows.length) throw new NotFoundException("Order not found");
+      const order = await tx.order.findFirstOrThrow({ where: { id: orderId, tenantId: user.tenantId, outletId } });
+      if (order.status !== "SETTLED") throw new BadRequestException("Only settled orders can be refunded");
+      if (input.requestKey) {
+        const existing = await tx.refund.findFirst({ where: { tenantId: user.tenantId, outletId, orderId, requestKey: input.requestKey } });
+        if (existing) {
+          if (toPaise(N(existing.amount)) !== toPaise(input.amount) || existing.mode !== input.mode || existing.reason !== (input.reason ?? null)) {
+            throw new BadRequestException("Refund request key was already used for different details");
+          }
+          return { refund: existing, isNew: false, orderRef: order.billNumber ?? order.id };
+        }
+      }
+      // Include pending/uncertain operations: a provider timeout is not evidence
+      // that money was not refunded. Only verified FAILED operations release funds.
+      const previous = await tx.refund.aggregate({
+        where: { tenantId: user.tenantId, outletId, orderId, status: { not: "FAILED" } },
+        _sum: { amount: true },
+      });
+      const recordedPayments = await tx.orderPayment.aggregate({ where: { orderId }, _sum: { amount: true } });
+      const limit = Math.min(toPaise(N(order.total)), toPaise(N(recordedPayments._sum.amount ?? 0)));
+      if (toPaise(N(previous._sum.amount ?? 0)) + toPaise(input.amount) > limit) {
+        throw new BadRequestException("Refund exceeds the remaining refundable balance");
+      }
+      // Electronic refunds draw from a captured gateway payment with enough
+      // unrefunded balance (computed under the order lock). With a live gateway and
+      // no such payment (card on an EDC machine, static UPI), the money must be
+      // returned outside the system: record it as MANUAL, still reserving balance.
+      let gatewayPaymentId: string | null = null;
+      if (input.mode !== "CASH" && input.mode !== "GIFT_CARD") {
+        const captured = await tx.gatewayPayment.findMany({
+          where: { tenantId: user.tenantId, outletId, orderId, status: "PAID", paymentId: { not: null } },
+          orderBy: { paidAt: "asc" },
+        });
+        for (const gp of captured) {
+          const used = await tx.refund.aggregate({ where: { gatewayPaymentId: gp.id, status: { not: "FAILED" } }, _sum: { amount: true } });
+          if (toPaise(N(gp.amount)) - toPaise(N(used._sum.amount ?? 0)) >= toPaise(input.amount)) {
+            gatewayPaymentId = gp.id;
+            break;
+          }
+        }
+      }
+      // Cash and store-credit (GIFT_CARD) refunds complete immediately.
+      const status = input.mode === "CASH" || input.mode === "GIFT_CARD" ? "PROCESSED" : this.gateway.live && !gatewayPaymentId ? "MANUAL" : "PENDING";
+      let refund = await tx.refund.create({
+        data: {
+          tenantId: user.tenantId, outletId, orderId, amount: input.amount, mode: input.mode,
+          reason: input.reason ?? null, requestKey: input.requestKey ?? null,
+          status, gatewayPaymentId,
+        },
+      });
+      // GIFT_CARD refunds are issued as store credit — no money leaves the business.
+      if (input.mode === "GIFT_CARD") {
+        const code = await issueStoreCreditTx(tx, {
+          tenantId: user.tenantId, outletId, amount: input.amount, orderId, userId: user.id,
+          note: input.reason ?? `Refund for ${order.billNumber ?? orderId}`,
+          customerPhone: order.customerPhone, customerName: order.customerName,
+        });
+        refund = await tx.refund.update({ where: { id: refund.id }, data: { gatewayRef: code } });
+      }
+      if (input.mode === "CASH") {
+        const session = await tx.cashSession.findFirst({ where: { tenantId: user.tenantId, outletId, status: "OPEN" } });
+        if (session) await tx.cashMovement.create({
           data: { sessionId: session.id, type: "REFUND", amount: -input.amount, orderId, note: input.reason ?? "Refund" },
         });
       }
+      await tx.auditLog.create({
+        data: { tenantId: user.tenantId, userId: user.id, action: "REFUND_RESERVED", entity: "refund", entityId: refund.id,
+          data: { orderId, amount: input.amount, mode: input.mode, status: refund.status } },
+      });
+      return { refund, isNew: true, orderRef: order.billNumber ?? order.id };
+    });
+    let refund = reserved.refund;
+    // Never hold database locks across a remote payment call. Retrying the API
+    // returns the reservation instead of blindly calling the provider again.
+    if (reserved.isNew && refund.status === "PENDING") {
+      try {
+        const paymentId = refund.gatewayPaymentId
+          ? (await this.prisma.gatewayPayment.findUnique({ where: { id: refund.gatewayPaymentId } }))?.paymentId ?? undefined
+          : undefined;
+        const res = await this.gateway.refund({ amount: input.amount, orderRef: reserved.orderRef, reason: input.reason, idempotencyKey: refund.id, paymentId });
+        refund = await this.prisma.refund.update({
+          where: { id: refund.id },
+          data: { gatewayRef: res.ref, status: refundStatusOf(res.status) },
+        });
+      } catch {
+        // Do not release the reservation: provider success followed by a network
+        // failure must be reconciled before another refund can spend this balance.
+        refund = await this.prisma.refund.update({ where: { id: refund.id }, data: { status: "UNKNOWN" } });
+      }
     }
-    return { id: refund.id, gatewayRef };
+    return { id: refund.id, gatewayRef: refund.gatewayRef, status: refund.status };
   }
 
   // ---------- mappers ----------

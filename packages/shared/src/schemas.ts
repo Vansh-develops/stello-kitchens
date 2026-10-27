@@ -3,10 +3,11 @@ import { z } from "zod";
 export const OrderType = z.enum(["DINE_IN", "TAKEAWAY", "DELIVERY"]);
 export type OrderType = z.infer<typeof OrderType>;
 
-export const OrderStatus = z.enum(["OPEN", "BILLED", "SETTLED", "CANCELLED"]);
+// SPLIT = parent bill closed once all its split checks settled; MERGED = folded into another order.
+export const OrderStatus = z.enum(["OPEN", "BILLED", "SETTLED", "CANCELLED", "SPLIT", "MERGED"]);
 export type OrderStatus = z.infer<typeof OrderStatus>;
 
-export const PaymentMode = z.enum(["CASH", "CARD", "UPI", "WALLET", "OTHER"]);
+export const PaymentMode = z.enum(["CASH", "CARD", "UPI", "WALLET", "OTHER", "GIFT_CARD"]);
 export type PaymentMode = z.infer<typeof PaymentMode>;
 
 export const LoginSchema = z.object({
@@ -103,6 +104,8 @@ export const CreateItemSchema = z.object({
   variations: z.array(VariationInputSchema).default([]),
   addonGroupIds: z.array(z.string()).default([]),
   channels: z.array(ItemChannelConfigSchema).default([]),
+  // Optional per-language display names shown to diners, e.g. { hi: "पनीर टिक्का" }.
+  nameTranslations: z.record(z.string().regex(/^[a-z]{2}$/), z.string().max(120)).nullable().optional(),
 });
 export type CreateItemInput = z.infer<typeof CreateItemSchema>;
 
@@ -284,9 +287,11 @@ export const CashMovementSchema = z.object({
 export type CashMovementInput = z.infer<typeof CashMovementSchema>;
 
 export const RefundSchema = z.object({
-  amount: z.number().positive(),
+  amount: z.number().positive().multipleOf(0.01),
   mode: PaymentMode,
   reason: z.string().max(120).optional(),
+  // Reuse for retries of one operation; omit only for legacy clients.
+  requestKey: z.string().min(1).max(100).optional(),
 });
 export type RefundInput = z.infer<typeof RefundSchema>;
 
@@ -298,9 +303,13 @@ export const SyncedOrderSchema = z.object({
   tableId: z.string().nullable().optional(),
   customerName: z.string().nullable().optional(),
   customerPhone: z.string().nullable().optional(),
-  items: z.array(OrderItemInputSchema).min(1),
+  items: z.array(OrderItemInputSchema.extend({
+    offlineUnitPrice: z.number().nonnegative().optional(),
+    offlineTaxRate: z.number().nonnegative().optional(),
+  })).min(1),
   payments: z
-    .array(z.object({ mode: PaymentMode, amount: z.number().positive() }))
+    // Gift cards are redeemed online only (the balance lives on the server).
+    .array(z.object({ mode: PaymentMode.exclude(["GIFT_CARD"]), amount: z.number().positive().multipleOf(0.01) }))
     .default([]),
   status: z.enum(["OPEN", "SETTLED", "CANCELLED"]),
   // Provisional device reference. The authoritative GST bill/invoice number is
@@ -353,8 +362,9 @@ export const SettleOrderSchema = z.object({
     .array(
       z.object({
         mode: PaymentMode,
-        amount: z.number().positive(),
-      }),
+        amount: z.number().positive().multipleOf(0.01),
+        giftCardCode: z.string().min(4).max(40).optional(), // required for GIFT_CARD
+      }).refine((p) => p.mode !== "GIFT_CARD" || !!p.giftCardCode, { message: "Gift card code required", path: ["giftCardCode"] }),
     )
     .min(1),
   discountAmount: z.number().min(0).optional(),
@@ -454,7 +464,8 @@ export type CustomReportInput = z.infer<typeof CustomReportSchema>;
 
 // ---------- Device fleet management ----------
 
-export const DeviceTypeEnum = z.enum(["POS", "KDS", "PRINTER", "KIOSK", "DISPLAY"]);
+// Printers are not fleet devices: they are configured under outlets/:id/printers.
+export const DeviceTypeEnum = z.enum(["POS", "KDS", "KIOSK", "DISPLAY"]);
 export const CreateDeviceSchema = z.object({
   name: z.string().min(1).max(60),
   type: DeviceTypeEnum,

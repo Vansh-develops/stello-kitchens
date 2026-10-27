@@ -3,6 +3,7 @@
 import { useState } from "react";
 import type { CustomReportDto, ReportDimension, ReportMetric } from "@stello/shared";
 import { api } from "@/lib/api";
+import { CustomReportExport } from "./platform/ReportExport";
 
 const DIMENSIONS: { key: ReportDimension; label: string }[] = [
   { key: "item", label: "Item" },
@@ -64,6 +65,7 @@ export function CustomReport({ outletId, from, to }: { outletId: string; from: s
         <button className="btn-primary sm" onClick={run} disabled={busy}>
           {busy ? "Running…" : "Run report"}
         </button>
+        {report && <CustomReportExport outletId={outletId} input={{ from, to, dimension, metric }} />}
       </div>
       {error && <p className="cr-error">{error}</p>}
       {report && (

@@ -16,6 +16,7 @@ export default defineConfig({
     fileParallelism: false, // shared test DB — run files serially
     hookTimeout: 60000,
     testTimeout: 30000,
+    globalSetup: ["test/global-setup.ts"],
     setupFiles: ["test/db.ts"],
   },
 });

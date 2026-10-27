@@ -8,14 +8,18 @@ import { api } from "../lib/api";
 export function AppearanceTab({ outlet }: { outlet: OutletDto }) {
   const [selected, setSelected] = useState(outlet.themeId);
   const [saving, setSaving] = useState(false);
-  const [saved, setSaved] = useState<string | null>(null);
+  const [saved, setSaved] = useState<string | null>(outlet.themeId);
+  const [error, setError] = useState<string | null>(null);
   const current = THEMES.find((t) => t.id === selected) ?? THEMES[0];
 
   const save = async () => {
     setSaving(true);
+    setError(null);
     try {
       await api.setBrandTheme(outlet.brandId, selected);
       setSaved(selected);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not save the theme");
     } finally {
       setSaving(false);
     }
@@ -28,6 +32,7 @@ export function AppearanceTab({ outlet }: { outlet: OutletDto }) {
         Choose the theme for <b>{outlet.brandName}</b>. Applies brand-wide across POS, KDS,
         Console, Scan &amp; Order, and Edge.
       </p>
+      {error && <div className="banner-error" role="alert">{error}</div>}
       <div className="theme-grid">
         {THEMES.map((t) => (
           <button

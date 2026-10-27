@@ -1,14 +1,86 @@
 import { PrismaClient } from "@prisma/client";
 import * as bcrypt from "bcryptjs";
 import { randomBytes } from "node:crypto";
+import { STARTER_TEMPLATE } from "../src/menu/starter-template";
+import { hashPin } from "../src/edge/pin";
+import { PLAN_CATALOGUE } from "@stello/shared";
 
 const prisma = new PrismaClient();
 const publicToken = () => randomBytes(9).toString("base64url");
 
+async function repairDemoTenant(tenantId: string) {
+  const outlet = await prisma.outlet.findFirst({
+    where: { tenantId, name: "Stello Kitchens - Indiranagar" },
+  });
+  if (!outlet) throw new Error("Demo tenant is missing the Indiranagar outlet; recreate the development database.");
+
+  const terminalCount = await prisma.terminal.count({ where: { outletId: outlet.id } });
+  if (terminalCount === 0) {
+    await prisma.terminal.createMany({
+      data: [
+        { tenantId, outletId: outlet.id, name: "Indiranagar Counter", type: "POS", config: {} },
+        {
+          tenantId,
+          outletId: outlet.id,
+          name: "Indiranagar Kitchen Screen",
+          type: "KDS",
+          config: { theme: "dark", density: "comfortable", sound: true, columns: 3 },
+        },
+      ],
+    });
+  }
+
+  if ((await prisma.area.count({ where: { outletId: outlet.id } })) === 0) {
+    const area = await prisma.area.create({ data: { tenantId, outletId: outlet.id, name: "Dining Room" } });
+    await prisma.diningTable.createMany({
+      data: Array.from({ length: 6 }, (_, index) => ({
+        tenantId,
+        outletId: outlet.id,
+        areaId: area.id,
+        name: `I${index + 1}`,
+        seats: index < 4 ? 4 : 6,
+        publicToken: publicToken(),
+      })),
+    });
+  }
+
+  if ((await prisma.menuCategory.count({ where: { outletId: outlet.id } })) === 0) {
+    let sortOrder = 0;
+    for (const block of STARTER_TEMPLATE) {
+      const category = await prisma.menuCategory.create({
+        data: { tenantId, outletId: outlet.id, name: block.category, sortOrder: sortOrder++ },
+      });
+      await prisma.item.createMany({
+        data: block.items.map((item) => ({
+          tenantId,
+          outletId: outlet.id,
+          categoryId: category.id,
+          name: item.name,
+          price: item.price,
+          isVeg: item.isVeg,
+          taxRate: 5,
+        })),
+      });
+    }
+  }
+}
+
 async function main() {
   const existing = await prisma.tenant.findFirst({ where: { name: "Demo Restaurants" } });
   if (existing) {
-    console.log("Seed already applied, skipping.");
+    const [roles, categories, areas, terminals] = await Promise.all([
+      prisma.role.count({ where: { tenantId: existing.id } }),
+      prisma.menuCategory.count({ where: { tenantId: existing.id } }),
+      prisma.area.count({ where: { tenantId: existing.id } }),
+      prisma.terminal.count({ where: { tenantId: existing.id } }),
+    ]);
+    if (roles >= 3 && categories >= 9 && areas >= 3 && terminals >= 5) {
+      console.log("Complete demo seed already present, skipping.");
+      return;
+    }
+    console.warn("Incomplete demo seed detected; repairing the demo tenant.");
+    await repairDemoTenant(existing.id);
+    console.log("Demo seed repaired.");
     return;
   }
 
@@ -48,7 +120,7 @@ async function main() {
     data: {
       tenantId: tenant.id,
       name: "Cashier",
-      permissions: ["orders.create", "orders.settle", "menu.stock"],
+      permissions: ["orders.create", "orders.settle", "menu.stock", "printing.print"],
     },
   });
   const kitchenRole = await prisma.role.create({
@@ -56,7 +128,7 @@ async function main() {
       tenantId: tenant.id,
       name: "Kitchen",
       // Can operate the KDS and 86 items, but not edit the menu (menu.manage).
-      permissions: ["kds.operate", "menu.stock"],
+      permissions: ["kds.operate", "menu.stock", "printing.print"],
     },
   });
 
@@ -97,10 +169,13 @@ async function main() {
     data: { tenantId: tenant.id, outletId: outlet1.id, name: "Counter 1", type: "POS", config: {} },
   });
   await prisma.terminal.create({
+    data: { tenantId: tenant.id, outletId: outlet2.id, name: "Indiranagar Counter", type: "POS", config: {} },
+  });
+  await prisma.terminal.create({
     data: {
       tenantId: tenant.id,
-      outletId: outlet1.id,
-      name: "Kitchen Screen",
+      outletId: outlet2.id,
+      name: "Indiranagar Kitchen Screen",
       type: "KDS",
       config: { theme: "dark", density: "comfortable", sound: true, columns: 3 },
     },
@@ -109,9 +184,23 @@ async function main() {
     data: {
       tenantId: tenant.id,
       outletId: outlet1.id,
+      name: "Kitchen Screen",
+      type: "KDS",
+      config: { theme: "dark", density: "comfortable", sound: true, columns: 3 },
+    },
+  });
+  // Receipt printer: browser-printed out of the box (no agent needed); switch it
+  // to NETWORK with the printer's IP once an edge print agent runs at the counter.
+  await prisma.printer.create({
+    data: {
+      tenantId: tenant.id,
+      outletId: outlet1.id,
       name: "Counter Printer",
-      type: "PRINTER",
-      config: { paperWidth: "80mm", autoPrintKot: true, autoPrintBill: true, copies: 1 },
+      connection: "BROWSER",
+      paperWidth: 80,
+      printKots: true,
+      printBills: true,
+      drawerKick: true,
     },
   });
 
@@ -142,6 +231,21 @@ async function main() {
         areaId: rooftop.id,
         name: `R${i}`,
         seats: 4,
+        publicToken: publicToken(),
+      },
+    });
+  }
+  const indiranagarFloor = await prisma.area.create({
+    data: { tenantId: tenant.id, outletId: outlet2.id, name: "Dining Room" },
+  });
+  for (let i = 1; i <= 6; i++) {
+    await prisma.diningTable.create({
+      data: {
+        tenantId: tenant.id,
+        outletId: outlet2.id,
+        areaId: indiranagarFloor.id,
+        name: `I${i}`,
+        seats: i <= 4 ? 4 : 6,
         publicToken: publicToken(),
       },
     });
@@ -338,6 +442,32 @@ async function main() {
       });
       itemByName.set(item.name, created.id);
     }
+  }
+
+  // Keep the second demo outlet useful as well. The full operational dataset
+  // lives in Koramangala; Indiranagar gets a compact starter menu so selecting
+  // the first alphabetic outlet never lands the user in an empty POS.
+  let outlet2Sort = 0;
+  for (const block of STARTER_TEMPLATE) {
+    const category = await prisma.menuCategory.create({
+      data: {
+        tenantId: tenant.id,
+        outletId: outlet2.id,
+        name: block.category,
+        sortOrder: outlet2Sort++,
+      },
+    });
+    await prisma.item.createMany({
+      data: block.items.map((item) => ({
+        tenantId: tenant.id,
+        outletId: outlet2.id,
+        categoryId: category.id,
+        name: item.name,
+        price: item.price,
+        isVeg: item.isVeg,
+        taxRate: 5,
+      })),
+    });
   }
 
   // ---------- Combos (bundled meals) ----------
@@ -543,8 +673,183 @@ async function main() {
     });
   }
 
+  await seedHrAccounting(tenant.id, outlet1.id);
+  // ── Front of house: hosts can take reservations; a Waiter role runs /captain ──
+  await prisma.role.update({
+    where: { id: cashierRole.id },
+    data: { permissions: { push: ["reservations.manage"] } },
+  });
+  const waiterRole = await prisma.role.create({
+    data: { tenantId: tenant.id, name: "Waiter", permissions: ["orders.create", "captain.operate", "reservations.manage"] },
+  });
+  const waiter = await prisma.user.create({
+    data: {
+      tenantId: tenant.id,
+      email: "waiter@demo.com",
+      passwordHash,
+      name: "Meena Captain",
+      roleId: waiterRole.id,
+      userOutlets: { create: [{ outletId: outlet1.id }] },
+    },
+  });
+  await prisma.waiterAssignment.create({
+    data: { tenantId: tenant.id, outletId: outlet1.id, userId: waiter.id, areaId: groundFloor.id },
+  });
+  // Visual floor plans: ground floor in two rows, rooftop with round tables.
+  const groundTables = await prisma.diningTable.findMany({ where: { areaId: groundFloor.id }, orderBy: { name: "asc" } });
+  const groundPlan = await prisma.floorPlan.create({
+    data: { tenantId: tenant.id, outletId: outlet1.id, areaId: groundFloor.id, width: 1000, height: 600 },
+  });
+  for (const [i, t] of groundTables.entries()) {
+    const big = t.seats > 4;
+    await prisma.tablePlacement.create({
+      data: {
+        tenantId: tenant.id,
+        outletId: outlet1.id,
+        floorPlanId: groundPlan.id,
+        tableId: t.id,
+        x: 60 + (i % 4) * 230,
+        y: i < 4 ? 80 : 340,
+        width: big ? 160 : 100,
+        height: 100,
+        shape: big ? "RECT" : "SQUARE",
+      },
+    });
+  }
+  const roofTables = await prisma.diningTable.findMany({ where: { areaId: rooftop.id }, orderBy: { name: "asc" } });
+  const roofPlan = await prisma.floorPlan.create({
+    data: { tenantId: tenant.id, outletId: outlet1.id, areaId: rooftop.id, width: 800, height: 500 },
+  });
+  for (const [i, t] of roofTables.entries()) {
+    await prisma.tablePlacement.create({
+      data: {
+        tenantId: tenant.id,
+        outletId: outlet1.id,
+        floorPlanId: roofPlan.id,
+        tableId: t.id,
+        x: 80 + (i % 2) * 380,
+        y: i < 2 ? 70 : 290,
+        width: 110,
+        height: 110,
+        shape: "ROUND",
+      },
+    });
+  }
+  const tonight = new Date();
+  tonight.setHours(20, 0, 0, 0);
+  await prisma.reservation.create({
+    data: {
+      tenantId: tenant.id,
+      outletId: outlet1.id,
+      guestName: "Ishan Mehta",
+      phone: "9810011111",
+      partySize: 4,
+      startAt: tonight,
+      source: "PHONE",
+      notes: "Anniversary — window side",
+      customerId: (await prisma.customer.findFirst({ where: { outletId: outlet1.id, phone: "9810011111" } }))?.id,
+      tables: { create: [{ tableId: groundTables[0].id }] },
+    },
+  });
+  console.log("  front of house: floor plans, 1 reservation, waiter@demo.com (Waiter) — password123");
+  // ---------- Procurement, stock control & insights ----------
+  // purchase.manage: POs, receiving, vendors, reorder planning, forecasts.
+  // purchase.approve: approve POs / procurement settings. payables.manage: supplier bills & payments.
+  // stocktake.count: run counts. stocktake.approve: post count variances to stock.
+  await prisma.role.create({
+    data: {
+      tenantId: tenant.id,
+      name: "Purchase Manager",
+      permissions: [
+        "inventory.manage", "purchase.manage", "purchase.approve", "payables.manage",
+        "stocktake.count", "stocktake.approve", "reports.view",
+      ],
+    },
+  });
+  await prisma.role.create({
+    data: {
+      tenantId: tenant.id,
+      name: "Storekeeper",
+      permissions: ["inventory.manage", "purchase.manage", "stocktake.count"],
+    },
+  });
+  const freshFarms = await prisma.vendor.create({
+    data: { tenantId: tenant.id, outletId: outlet1.id, name: "Fresh Farms Poultry", phone: "9845012345", paymentTermsDays: 15 },
+  });
+  const dairy = await prisma.vendor.create({
+    data: { tenantId: tenant.id, outletId: outlet1.id, name: "Nandini Dairy Depot", phone: "9845098765", paymentTermsDays: 7 },
+  });
+  const grocer = await prisma.vendor.create({
+    data: { tenantId: tenant.id, outletId: outlet1.id, name: "KR Market Wholesale", phone: "9900011223", paymentTermsDays: 30 },
+  });
+  const planningDefs: [string, string, string, number | null][] = [
+    ["chicken", "Meat & Dairy", freshFarms.id, 25],
+    ["paneer", "Meat & Dairy", dairy.id, 12],
+    ["butter", "Meat & Dairy", dairy.id, 10],
+    ["cream", "Meat & Dairy", dairy.id, 6],
+    ["onion", "Produce", grocer.id, 40],
+    ["tomato", "Produce", grocer.id, 35],
+    ["rice", "Dry store", grocer.id, null],
+    ["oil", "Dry store", grocer.id, null],
+    ["flour", "Dry store", grocer.id, null],
+    ["dal", "Dry store", grocer.id, null],
+    ["spice", "Dry store", grocer.id, null],
+  ];
+  for (const [key, category, vendorId, par] of planningDefs) {
+    await prisma.materialPlanning.create({
+      data: { tenantId: tenant.id, outletId: outlet1.id, rawMaterialId: materials[key], category, preferredVendorId: vendorId, parLevel: par },
+    });
+  }
+
+  await seedPlatformRoles(tenant.id);
+  // ── Track 8: chain roles + SaaS subscription ─────
+  // Brand admin edits/publishes the brand master menu; outlet manager runs one
+  // outlet's menu (incl. overrides of brand items) and devices.
+  await prisma.role.createMany({
+    data: [
+      {
+        tenantId: tenant.id, name: "Brand Admin",
+        permissions: ["chain.manage", "menu.manage", "menu.stock", "reports.view"],
+      },
+      {
+        tenantId: tenant.id, name: "Outlet Manager",
+        permissions: ["menu.manage", "menu.stock", "orders.create", "orders.settle", "orders.cancel", "devices.manage", "reports.view"],
+      },
+    ],
+  });
+  for (const p of PLAN_CATALOGUE) {
+    await prisma.plan.upsert({
+      where: { code: p.code },
+      update: {},
+      create: {
+        code: p.code, name: p.name, priceMonthly: p.priceMonthly, priceYearly: p.priceYearly,
+        limits: p.limits, features: p.features, sortOrder: p.sortOrder,
+      },
+    });
+  }
+  // The demo runs on the Chain plan so every module (incl. the brand menu) is visible.
+  const chainPlan = await prisma.plan.findUniqueOrThrow({ where: { code: "chain" } });
+  const periodStart = new Date();
+  await prisma.tenantSubscription.create({
+    data: {
+      tenantId: tenant.id, planId: chainPlan.id, status: "ACTIVE",
+      currentPeriodStart: periodStart, currentPeriodEnd: new Date(periodStart.getTime() + 365 * 86_400_000),
+    },
+  });
+  await prisma.tenant.update({ where: { id: tenant.id }, data: { status: "ACTIVE" } });
+
   console.log(`  materials: ${materialDefs.length} raw materials, ${Object.keys(recipes).length} recipes`);
   console.log(`  crm: ${couponDefs.length} coupons, ${customerDefs.length} customers`);
+  // Offline edge POS: demo PINs for PIN login on an edge terminal (owner 1234, cashier 1111).
+  const cashierUser = await prisma.user.findUniqueOrThrow({ where: { email: "cashier@demo.com" } });
+  await prisma.edgeStaffPin.createMany({
+    data: [
+      { tenantId: tenant.id, userId: admin.id, pinHash: hashPin("1234") },
+      { tenantId: tenant.id, userId: cashierUser.id, pinHash: hashPin("1111") },
+    ],
+  });
+  console.log("  edge PINs: admin 1234, cashier 1111");
+
   console.log("Seeded demo tenant:");
   console.log(`  tenant: ${tenant.name}`);
   console.log(`  outlets: ${outlet1.name}, ${outlet2.name}`);
@@ -552,6 +857,102 @@ async function main() {
   console.log(`  channels: ${channelDefs.map((c) => c.name).join(", ")}`);
   console.log(`  users: admin@demo.com (Owner), cashier@demo.com (Cashier), kitchen@demo.com (Kitchen) — all password123`);
   console.log(`  admin id: ${admin.id}`);
+
+  // ── Billing ─────
+  // Cashiers can hold/resume, move and split bills; removing a service charge
+  // stays with the Owner (*) — grant "orders.service_charge.remove" to managers.
+  await prisma.role.update({
+    where: { id: cashierRole.id },
+    data: { permissions: { push: ["orders.park", "orders.transfer", "orders.split"] } },
+  });
+  await prisma.outletBillingSettings.create({
+    data: {
+      tenantId: tenant.id,
+      outletId: outlet1.id,
+      serviceChargeEnabled: true,
+      serviceChargePercent: 5,
+      serviceChargeTaxable: true,
+      serviceChargeOrderTypes: ["DINE_IN"],
+      roundOffEnabled: true,
+    },
+  });
+  console.log("  billing: 5% dine-in service charge + round-off on outlet 1");
+}
+
+// ── Staff/HR, accounting, gift cards ─────
+// Idempotent: new permissions on the standard roles, a Manager role, shift
+// templates, staff profiles (one without a login) and expense categories.
+async function seedHrAccounting(tenantId: string, outletId: string) {
+  const addPerms = async (name: string, perms: string[]) => {
+    const role = await prisma.role.findFirst({ where: { tenantId, name } });
+    if (!role) return;
+    const current = role.permissions as string[];
+    await prisma.role.update({ where: { id: role.id }, data: { permissions: [...new Set([...current, ...perms])] } });
+  };
+  await addPerms("Cashier", ["attendance.clock", "giftcards.issue"]);
+  await addPerms("Kitchen", ["attendance.clock"]);
+  await prisma.role.upsert({
+    where: { tenantId_name: { tenantId, name: "Manager" } },
+    create: {
+      tenantId,
+      name: "Manager",
+      permissions: [
+        "orders.create", "orders.settle", "orders.cancel", "menu.stock", "reports.view", "attendance.clock",
+        "attendance.correct", "staff.manage", "expenses.manage", "giftcards.issue", "giftcards.manage",
+      ],
+    },
+    update: {},
+  });
+
+  for (const name of ["Rent", "Utilities", "Repairs & maintenance", "Cleaning supplies", "Marketing", "General"]) {
+    await prisma.expenseCategory.upsert({ where: { tenantId_name: { tenantId, name } }, create: { tenantId, name }, update: {} });
+  }
+  if ((await prisma.shiftTemplate.count({ where: { tenantId, outletId } })) === 0) {
+    await prisma.shiftTemplate.createMany({
+      data: [
+        { tenantId, outletId, name: "Morning", startTime: "08:00", endTime: "16:00", breakMinutes: 30, graceMinutes: 10 },
+        { tenantId, outletId, name: "Evening", startTime: "15:00", endTime: "23:00", breakMinutes: 30, graceMinutes: 10 },
+      ],
+    });
+  }
+  const cashier = await prisma.user.findFirst({ where: { tenantId, email: "cashier@demo.com" } });
+  const kitchen = await prisma.user.findFirst({ where: { tenantId, email: "kitchen@demo.com" } });
+  const staffDefs = [
+    { code: "SK001", name: "Ravi Kumar", designation: "Cashier", userId: cashier?.id ?? null, payType: "MONTHLY", payRate: 18000, pin: "1111", pf: true, esi: true },
+    { code: "SK002", name: "Meena Das", designation: "Head cook", userId: kitchen?.id ?? null, payType: "MONTHLY", payRate: 26000, pin: "2222", pf: true, esi: false },
+    { code: "SK003", name: "Suresh", designation: "Kitchen helper", userId: null, payType: "DAILY", payRate: 650, pin: "3333", pf: false, esi: false },
+  ];
+  for (const s of staffDefs) {
+    const exists = await prisma.staffMember.findFirst({ where: { tenantId, employeeCode: s.code } });
+    if (exists) continue;
+    await prisma.staffMember.create({
+      data: {
+        tenantId, outletId, employeeCode: s.code, name: s.name, designation: s.designation, userId: s.userId,
+        joiningDate: new Date("2026-01-01T00:00:00Z"), payType: s.payType, payRate: s.payRate,
+        pinHash: await bcrypt.hash(s.pin, 10), pfApplicable: s.pf, esiApplicable: s.esi, ptApplicable: s.payType === "MONTHLY",
+        allowances: s.payType === "MONTHLY" ? [{ name: "Food allowance", amount: 1000 }] : [],
+      },
+    });
+  }
+  console.log("  hr: Manager role, 2 shift templates, 3 staff (clock-in PINs 1111/2222/3333), 6 expense categories");
+}
+
+// ── Platform & security ─────
+// A demo custom role exercising the role editor's catalogue (owner "*" already covers everything).
+async function seedPlatformRoles(tenantId: string) {
+  await prisma.role.upsert({
+    where: { tenantId_name: { tenantId, name: "Manager" } },
+    update: {},
+    create: {
+      tenantId,
+      name: "Manager",
+      permissions: [
+        "orders.view", "orders.create", "orders.settle", "orders.cancel", "menu.stock", "menu.manage",
+        "inventory.manage", "reports.view", "reports.export", "reports.schedule", "audit.view",
+      ],
+    },
+  });
+  console.log("  roles: + Manager (custom role demo)");
 }
 
 main()

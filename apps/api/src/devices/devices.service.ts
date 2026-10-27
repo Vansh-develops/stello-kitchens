@@ -129,8 +129,6 @@ export class DevicesService {
 
   private defaultConfig(type: DeviceType): Prisma.InputJsonValue {
     switch (type) {
-      case "PRINTER":
-        return { paperWidth: "80mm", autoPrintKot: true, autoPrintBill: true, copies: 1 };
       case "KDS":
         return { theme: "dark", density: "comfortable", sound: true, columns: 3 };
       default:
