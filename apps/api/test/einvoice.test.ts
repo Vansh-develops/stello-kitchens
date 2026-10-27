@@ -14,7 +14,9 @@ const BUYER = "27AAPFU0939F1ZV"; // Maharashtra → inter-state from Karnataka (
 const ok = (message: unknown) => ({ results: { message, errorMessage: "", InfoDtls: "", status: "Success", code: 200 } });
 const fail = (errorMessage: string) => ({ results: { message: "", errorMessage, InfoDtls: "", status: "Failed", code: 204 } });
 const IRN = "a".repeat(64);
-const irnMessage = { Irn: IRN, AckNo: 112410000000001, AckDt: "2026-10-26 13:20:56", SignedQRCode: "eyJhbGciOi.qr", SignedInvoice: "eyJhbGciOi.inv", Status: "ACT" };
+// IRP timestamps are IST "YYYY-MM-DD HH:mm:ss"; keep the ack recent so the 24h cancel window is open.
+const istNow = new Date(Date.now() + 5.5 * 3600_000).toISOString().slice(0, 19).replace("T", " ");
+const irnMessage = { Irn: IRN, AckNo: 112410000000001, AckDt: istNow, SignedQRCode: "eyJhbGciOi.qr", SignedInvoice: "eyJhbGciOi.inv", Status: "ACT" };
 
 let http: ReturnType<typeof mockHttp>;
 beforeEach(() => {
@@ -60,7 +62,7 @@ describe("Masters India GSP adapter", () => {
       item_list: [{ is_service: "Y", hsn_code: "996331", gst_rate: 5, igst_amount: 10 }],
     });
     expect(res).toMatchObject({ irn: IRN, ackNo: "112410000000001", signedQr: "eyJhbGciOi.qr" });
-    expect(res.ackDate).toBe("2026-10-26T07:50:56.000Z");
+    expect(Math.abs(new Date(res.ackDate).getTime() - Date.now())).toBeLessThan(5_000); // IST → UTC
   });
 
   it("re-authenticates once on a 401 and recovers an existing IRN on duplicate (2150)", async () => {
