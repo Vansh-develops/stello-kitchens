@@ -1,9 +1,10 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import QRCode from "qrcode";
 import type { InvoiceDto, InvoiceRowDto } from "@stello/shared";
 import { api } from "@/lib/api";
+import { DayBookView, ExpensesView, PnlView, type FinanceView } from "./hr/FinanceViews";
 
 const money = (n: number) => `₹${n.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 const date = (iso: string) => new Date(iso).toLocaleDateString("en-IN", { day: "numeric", month: "short" });
@@ -13,7 +14,38 @@ function dstr(d: Date) {
 }
 const statusTone: Record<string, string> = { GENERATED: "good", PENDING: "muted", CANCELLED: "bad" };
 
+const VIEWS: { id: FinanceView | "invoices"; label: string }[] = [
+  { id: "invoices", label: "GST invoices" },
+  { id: "expenses", label: "Expenses" },
+  { id: "pnl", label: "Profit & loss" },
+  { id: "daybook", label: "Day book" },
+];
+
+/** Accounting: GST invoices plus expenses, P&L and the day book. */
 export function AccountingTab({ outletId }: { outletId: string }) {
+  const [view, setView] = useState<FinanceView | "invoices">("invoices");
+  const switcher = (
+    <div className="seg" style={{ marginBottom: 14 }}>
+      {VIEWS.map((v) => (
+        <button key={v.id} className={view === v.id ? "on" : ""} onClick={() => setView(v.id)}>{v.label}</button>
+      ))}
+    </div>
+  );
+  if (view === "invoices") return <InvoicesPane outletId={outletId} switcher={switcher} />;
+  return (
+    <div className="tab-pane">
+      <div className="pane-head">
+        <h1>Accounting</h1>
+      </div>
+      {switcher}
+      {view === "expenses" && <ExpensesView outletId={outletId} />}
+      {view === "pnl" && <PnlView outletId={outletId} />}
+      {view === "daybook" && <DayBookView outletId={outletId} />}
+    </div>
+  );
+}
+
+function InvoicesPane({ outletId, switcher }: { outletId: string; switcher: ReactNode }) {
   const [invoices, setInvoices] = useState<InvoiceRowDto[]>([]);
   const [detail, setDetail] = useState<InvoiceDto | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -78,6 +110,7 @@ export function AccountingTab({ outletId }: { outletId: string }) {
           <button className="btn-primary sm" onClick={downloadTally}>Export to Tally (XML)</button>
         </div>
       </div>
+      {switcher}
       <p className="hint wide">
         GST invoices for settled orders. Generate an IRN + signed QR through the GSP (e-invoicing), and export
         ledger-mapped sales vouchers to Tally. E-invoices are immutable once generated.

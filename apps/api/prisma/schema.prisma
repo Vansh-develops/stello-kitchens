@@ -955,3 +955,328 @@ model AuthToken {
   @@index([tokenHash])
   @@map("auth_tokens")
 }
+
+// ── Staff/HR, accounting, gift cards ─────
+
+// An employee. Linked to a User when they log in; kitchen helpers etc. may have
+// no login and clock in with a PIN on the POS terminal.
+model StaffMember {
+  id               String    @id @default(cuid())
+  tenantId         String
+  outletId         String // home outlet
+  userId           String?
+  employeeCode     String
+  name             String
+  phone            String?
+  designation      String?
+  joiningDate      DateTime  @db.Date
+  exitDate         DateTime? @db.Date
+  pinHash          String? // bcrypt of a 4-6 digit clock-in PIN
+  pinFailedCount   Int       @default(0)
+  pinLockedUntil   DateTime?
+  payType          String    @default("MONTHLY") // MONTHLY | DAILY | HOURLY
+  payRate          Decimal   @default(0) @db.Decimal(12, 2)
+  allowances       Json? // [{ name, amount }] monthly
+  deductions       Json? // [{ name, amount }] monthly
+  pfApplicable     Boolean   @default(false)
+  esiApplicable    Boolean   @default(false)
+  ptApplicable     Boolean   @default(false)
+  overtimeEligible Boolean   @default(true)
+  isActive         Boolean   @default(true)
+  createdAt        DateTime  @default(now())
+
+  attendance AttendanceRecord[]
+  shifts     RosterShift[]
+  leaves     LeaveRequest[]
+
+  @@unique([tenantId, employeeCode])
+  @@unique([tenantId, userId])
+  @@index([tenantId, outletId])
+  @@map("staff_members")
+}
+
+// One clock-in to clock-out span. Several per day are allowed (split shifts).
+model AttendanceRecord {
+  id               String    @id @default(cuid())
+  tenantId         String
+  outletId         String
+  staffId          String
+  date             DateTime  @db.Date // IST business date of the clock-in
+  clockIn          DateTime
+  clockOut         DateTime?
+  breakMinutes     Int       @default(0) // completed breaks
+  breakStartedAt   DateTime?
+  source           String    @default("PIN") // PIN | MANUAL | CORRECTED
+  correctionReason String?
+  correctedById    String?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  staff StaffMember @relation(fields: [staffId], references: [id])
+
+  @@index([tenantId, outletId, date])
+  @@index([staffId, date])
+  @@map("attendance_records")
+}
+
+model ShiftTemplate {
+  id           String  @id @default(cuid())
+  tenantId     String
+  outletId     String
+  name         String
+  startTime    String // "HH:MM" IST
+  endTime      String // earlier than start = overnight
+  breakMinutes Int     @default(30)
+  graceMinutes Int     @default(10)
+  isActive     Boolean @default(true)
+
+  @@index([tenantId, outletId])
+  @@map("shift_templates")
+}
+
+// A rostered shift (one per staff per day). Times are snapshotted from the template.
+model RosterShift {
+  id           String   @id @default(cuid())
+  tenantId     String
+  outletId     String
+  staffId      String
+  date         DateTime @db.Date
+  templateId   String?
+  startTime    String
+  endTime      String
+  breakMinutes Int      @default(30)
+  graceMinutes Int      @default(10)
+
+  staff StaffMember @relation(fields: [staffId], references: [id])
+
+  @@unique([staffId, date])
+  @@index([tenantId, outletId, date])
+  @@map("roster_shifts")
+}
+
+model ShiftSwapRequest {
+  id            String    @id @default(cuid())
+  tenantId      String
+  outletId      String
+  fromShiftId   String
+  toStaffId     String
+  toShiftId     String? // null = cover (toStaff takes the shift outright)
+  reason        String?
+  status        String    @default("PENDING") // PENDING | APPROVED | REJECTED | CANCELLED
+  requestedById String?
+  decidedById   String?
+  decidedAt     DateTime?
+  decisionNote  String?
+  createdAt     DateTime  @default(now())
+
+  @@index([tenantId, outletId, status])
+  @@map("shift_swap_requests")
+}
+
+model LeaveRequest {
+  id            String    @id @default(cuid())
+  tenantId      String
+  outletId      String
+  staffId       String
+  type          String // CASUAL | SICK | EARNED | UNPAID
+  fromDate      DateTime  @db.Date
+  toDate        DateTime  @db.Date
+  halfDay       Boolean   @default(false)
+  days          Decimal   @db.Decimal(5, 1)
+  reason        String?
+  status        String    @default("PENDING") // PENDING | APPROVED | REJECTED | CANCELLED
+  requestedById String?
+  decidedById   String?
+  decidedAt     DateTime?
+  decisionNote  String?
+  createdAt     DateTime  @default(now())
+
+  staff StaffMember @relation(fields: [staffId], references: [id])
+
+  @@index([tenantId, outletId, status])
+  @@index([staffId, fromDate])
+  @@map("leave_requests")
+}
+
+model LeaveBalance {
+  id       String  @id @default(cuid())
+  tenantId String
+  staffId  String
+  year     Int
+  type     String // CASUAL | SICK | EARNED
+  allotted Decimal @default(0) @db.Decimal(5, 1)
+  used     Decimal @default(0) @db.Decimal(5, 1)
+
+  @@unique([staffId, year, type])
+  @@index([tenantId])
+  @@map("leave_balances")
+}
+
+// Tenant-wide payroll settings (statutory components are configurable).
+model PayrollSetting {
+  id       String @id @default(cuid())
+  tenantId String @unique
+  config   Json
+
+  @@map("payroll_settings")
+}
+
+model SalaryAdvance {
+  id              String   @id @default(cuid())
+  tenantId        String
+  outletId        String
+  staffId         String
+  amount          Decimal  @db.Decimal(12, 2)
+  monthlyRecovery Decimal  @db.Decimal(12, 2)
+  recovered       Decimal  @default(0) @db.Decimal(12, 2)
+  givenOn         DateTime @db.Date
+  paidFrom        String   @default("BANK") // CASH_DRAWER | BANK
+  status          String   @default("OPEN") // OPEN | CLOSED
+  note            String?
+  createdById     String?
+  createdAt       DateTime @default(now())
+
+  @@index([tenantId, outletId])
+  @@index([staffId, status])
+  @@map("salary_advances")
+}
+
+model PayrollRun {
+  id            String    @id @default(cuid())
+  tenantId      String
+  outletId      String
+  month         String // "YYYY-MM"
+  status        String    @default("DRAFT") // DRAFT | FINALISED (locked)
+  config        Json // settings snapshot used for this run
+  createdById   String?
+  finalisedById String?
+  finalisedAt   DateTime?
+  createdAt     DateTime  @default(now())
+
+  payslips Payslip[]
+
+  @@unique([outletId, month])
+  @@index([tenantId, outletId])
+  @@map("payroll_runs")
+}
+
+model Payslip {
+  id              String  @id @default(cuid())
+  tenantId        String
+  runId           String
+  staffId         String
+  staffName       String
+  employeeCode    String
+  designation     String?
+  payType         String
+  payRate         Decimal @db.Decimal(12, 2)
+  inputs          Json // pay profile snapshot + attendance summary
+  lopDays         Decimal @db.Decimal(5, 1)
+  overtimeMinutes Int     @default(0)
+  adjustments     Json? // [{ name, amount, kind }]
+  calc            Json // PayslipCalc
+  gross           Decimal @db.Decimal(12, 2)
+  totalDeductions Decimal @db.Decimal(12, 2)
+  net             Decimal @db.Decimal(12, 2)
+  employerCost    Decimal @db.Decimal(12, 2) // gross + employer PF/ESI
+  advanceRecovery Decimal @default(0) @db.Decimal(12, 2)
+  note            String?
+
+  run PayrollRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+
+  @@unique([runId, staffId])
+  @@index([tenantId])
+  @@map("payslips")
+}
+
+model ExpenseCategory {
+  id         String  @id @default(cuid())
+  tenantId   String
+  name       String
+  ledgerName String?
+  isActive   Boolean @default(true)
+
+  expenses Expense[]
+
+  @@unique([tenantId, name])
+  @@map("expense_categories")
+}
+
+model Expense {
+  id             String    @id @default(cuid())
+  tenantId       String
+  outletId       String
+  categoryId     String
+  date           DateTime  @db.Date
+  taxableAmount  Decimal   @db.Decimal(12, 2)
+  cgst           Decimal   @default(0) @db.Decimal(12, 2)
+  sgst           Decimal   @default(0) @db.Decimal(12, 2)
+  igst           Decimal   @default(0) @db.Decimal(12, 2)
+  total          Decimal   @db.Decimal(12, 2)
+  itcEligible    Boolean   @default(true)
+  vendorName     String?
+  vendorGstin    String?
+  invoiceNumber  String?
+  paidFrom       String // CASH_DRAWER | BANK | UPI | CARD | PAYABLE
+  reference      String?
+  note           String?
+  attachmentUrl  String?
+  cashMovementId String?   @unique // the drawer movement when paid from the cash drawer
+  createdById    String?
+  voidedAt       DateTime?
+  voidReason     String?
+  createdAt      DateTime  @default(now())
+
+  category ExpenseCategory @relation(fields: [categoryId], references: [id])
+
+  @@index([tenantId, outletId, date])
+  @@map("expenses")
+}
+
+// Prepaid gift cards and refund store credit. Tenant-wide: redeemable at any outlet.
+model GiftCard {
+  id             String    @id @default(cuid())
+  tenantId       String
+  issuedOutletId String
+  code           String
+  kind           String    @default("GIFT_CARD") // GIFT_CARD | STORE_CREDIT
+  initialValue   Decimal   @db.Decimal(12, 2)
+  balance        Decimal   @db.Decimal(12, 2)
+  expiresOn      DateTime? @db.Date // usable through the end of this IST date
+  status         String    @default("ACTIVE") // ACTIVE | VOID
+  customerName   String?
+  customerPhone  String?
+  note           String?
+  issuedById     String?
+  voidedAt       DateTime?
+  voidReason     String?
+  createdAt      DateTime  @default(now())
+
+  txns GiftCardTxn[]
+
+  @@unique([tenantId, code])
+  @@index([tenantId, createdAt])
+  @@map("gift_cards")
+}
+
+// Append-only ledger; GiftCard.balance is the running balance.
+model GiftCardTxn {
+  id           String   @id @default(cuid())
+  tenantId     String
+  giftCardId   String
+  outletId     String
+  type         String // ISSUE | REDEEM | VOID | STORE_CREDIT
+  amount       Decimal  @db.Decimal(12, 2) // signed
+  balanceAfter Decimal  @db.Decimal(12, 2)
+  orderId      String?
+  paymentMode  String? // how a sale was paid (ISSUE)
+  userId       String?
+  note         String?
+  createdAt    DateTime @default(now())
+
+  giftCard GiftCard @relation(fields: [giftCardId], references: [id])
+
+  @@index([giftCardId, createdAt])
+  @@index([tenantId, outletId, createdAt])
+  @@map("gift_card_txns")
+}

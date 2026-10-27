@@ -2,8 +2,10 @@
 
 import { useEffect, useMemo, useState } from "react";
 import QRCode from "qrcode";
-import type { CustomerLookupDto, OrderDto, PaymentMode } from "@stello/shared";
+import type { CustomerLookupDto, GiftCardBalanceDto, OrderDto, PaymentMode } from "@stello/shared";
 import { posApi as api } from "@/lib/pos-api";
+import { hrApi } from "@/lib/hr-api";
+import "../hr/hr.css";
 
 const rupee = (n: number) => `₹${n.toFixed(2)}`;
 const MODES: PaymentMode[] = ["CASH", "CARD", "UPI", "WALLET"];
@@ -26,7 +28,12 @@ export function SettleDialog({
     UPI: 0,
     WALLET: 0,
     OTHER: 0,
+    GIFT_CARD: 0,
   });
+  // Gift card tender (balance is checked here and enforced under a lock at settle).
+  const [gcCode, setGcCode] = useState("");
+  const [gcInfo, setGcInfo] = useState<GiftCardBalanceDto | null>(null);
+  const [gcMsg, setGcMsg] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -76,7 +83,29 @@ export function SettleDialog({
   const setMode = (mode: PaymentMode, amount: number) =>
     setSplit((prev) => ({ ...prev, [mode]: Math.max(0, amount) }));
   const payFull = (mode: PaymentMode) =>
-    setSplit({ CASH: 0, CARD: 0, UPI: 0, WALLET: 0, OTHER: 0, [mode]: payable });
+    setSplit({ CASH: 0, CARD: 0, UPI: 0, WALLET: 0, OTHER: 0, GIFT_CARD: split.GIFT_CARD, [mode]: Math.max(0, Math.round((payable - split.GIFT_CARD) * 100) / 100) });
+
+  const checkGiftCard = async () => {
+    const code = gcCode.trim();
+    if (!code) return;
+    setGcMsg(null);
+    try {
+      const info = await hrApi.giftCardBalance(outletId, code);
+      setGcInfo(info);
+      if (!info.usable) {
+        setGcMsg(info.reason ?? "Card cannot be used");
+        setMode("GIFT_CARD", 0);
+        return;
+      }
+      const others = MODES.reduce((s, m) => s + split[m], 0);
+      const use = Math.min(info.balance, Math.max(0, Math.round((payable - others) * 100) / 100));
+      setMode("GIFT_CARD", use);
+      setGcMsg(`Balance ₹${info.balance.toFixed(2)}${info.expiresOn ? ` · valid till ${info.expiresOn}` : ""}`);
+    } catch (err) {
+      setGcInfo(null);
+      setGcMsg(err instanceof Error ? err.message : "Could not check card");
+    }
+  };
 
   const applyCoupon = async () => {
     const code = couponCode.trim();
@@ -130,7 +159,15 @@ export function SettleDialog({
     setBusy(true);
     setError(null);
     try {
-      const payments = MODES.filter((m) => split[m] > 0).map((m) => ({ mode: m, amount: split[m] }));
+      const payments: { mode: PaymentMode; amount: number; giftCardCode?: string }[] = MODES.filter((m) => split[m] > 0).map((m) => ({ mode: m, amount: split[m] }));
+      if (split.GIFT_CARD > 0) {
+        if (!gcInfo?.usable) {
+          setError("Check the gift card before using it.");
+          setBusy(false);
+          return;
+        }
+        payments.push({ mode: "GIFT_CARD", amount: split.GIFT_CARD, giftCardCode: gcCode.trim() });
+      }
       if (payments.length === 0) {
         setError("Add at least one payment.");
         setBusy(false);
@@ -293,6 +330,23 @@ export function SettleDialog({
                 />
               </div>
             ))}
+          </div>
+
+          <div>
+            <div className="gc-tender">
+              <input placeholder="Gift card / store credit code" value={gcCode} onChange={(e) => { setGcCode(e.target.value.toUpperCase()); setGcInfo(null); setMode("GIFT_CARD", 0); }} />
+              <input
+                type="number"
+                min={0}
+                max={gcInfo?.balance ?? 0}
+                value={split.GIFT_CARD || ""}
+                placeholder="₹ 0"
+                disabled={!gcInfo?.usable}
+                onChange={(e) => setMode("GIFT_CARD", Math.min(Number(e.target.value) || 0, gcInfo?.balance ?? 0))}
+              />
+              <button className="co-apply" type="button" onClick={checkGiftCard} disabled={!gcCode.trim()}>Check</button>
+            </div>
+            {gcMsg && <p className={`gc-msg co-msg ${gcInfo?.usable ? "ok" : "bad"}`}>{gcMsg}</p>}
           </div>
 
           <div className="upi-qr-row">

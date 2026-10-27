@@ -30,6 +30,9 @@ import { OnboardingModule } from "./onboarding/onboarding.module";
 import { TenantModule } from "./tenant/tenant.module";
 import { EmailModule } from "./email/email.module";
 import { AccountModule } from "./account/account.module";
+import { StaffModule } from "./staff/staff.module";
+import { FinanceModule } from "./finance/finance.module";
+import { GiftCardsModule } from "./gift-cards/gift-cards.module";
 
 @Module({
   imports: [
@@ -64,6 +67,9 @@ import { AccountModule } from "./account/account.module";
     TenantModule,
     EmailModule,
     AccountModule,
+    StaffModule,
+    FinanceModule,
+    GiftCardsModule,
   ],
   providers: [
     // ThrottlerGuard first so rate limiting applies even to unauthenticated

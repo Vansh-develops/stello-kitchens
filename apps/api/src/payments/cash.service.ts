@@ -12,6 +12,8 @@ import { toPaise } from "@stello/shared";
 import { Prisma } from "@prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
 import { PAYMENT_GATEWAY, type PaymentGateway } from "./payment.gateway";
+import { issueStoreCreditTx } from "../gift-cards/gift-cards.service";
+import { recordDrawerExpenseTx } from "../finance/finance.service";
 
 const N = (d: Prisma.Decimal | number) => (typeof d === "number" ? d : Number(d));
 const round2 = (n: number) => Math.round(n * 100) / 100;
@@ -68,14 +70,23 @@ export class CashService {
     if (!session) throw new BadRequestException("Open a cash drawer before recording cash movements");
     // PAY_IN adds cash; PAY_OUT / EXPENSE remove it.
     const signed = input.type === "PAY_IN" ? input.amount : -input.amount;
-    await this.prisma.cashMovement.create({
-      data: {
-        sessionId: session.id,
-        type: input.type,
-        amount: signed,
-        category: input.type === "EXPENSE" ? (input.category ?? "General") : null,
-        note: input.note ?? null,
-      },
+    await this.prisma.$transaction(async (tx) => {
+      const movement = await tx.cashMovement.create({
+        data: {
+          sessionId: session.id,
+          type: input.type,
+          amount: signed,
+          category: input.type === "EXPENSE" ? (input.category ?? "General") : null,
+          note: input.note ?? null,
+        },
+      });
+      // Drawer expenses also land in the expense book (and so the P&L).
+      if (input.type === "EXPENSE") {
+        await recordDrawerExpenseTx(tx, {
+          tenantId: user.tenantId, outletId, userId: user.id, cashMovementId: movement.id,
+          category: input.category ?? "General", amount: input.amount, note: input.note ?? null,
+        });
+      }
     });
     return { ok: true };
   }
@@ -162,13 +173,22 @@ export class CashService {
       if (toPaise(N(previous._sum.amount ?? 0)) + toPaise(input.amount) > limit) {
         throw new BadRequestException("Refund exceeds the remaining refundable balance");
       }
-      const refund = await tx.refund.create({
+      let refund = await tx.refund.create({
         data: {
           tenantId: user.tenantId, outletId, orderId, amount: input.amount, mode: input.mode,
           reason: input.reason ?? null, requestKey: input.requestKey ?? null,
-          status: input.mode === "CASH" ? "PROCESSED" : "PENDING",
+          status: input.mode === "CASH" || input.mode === "GIFT_CARD" ? "PROCESSED" : "PENDING",
         },
       });
+      // GIFT_CARD refunds are issued as store credit — no money leaves the business.
+      if (input.mode === "GIFT_CARD") {
+        const code = await issueStoreCreditTx(tx, {
+          tenantId: user.tenantId, outletId, amount: input.amount, orderId, userId: user.id,
+          note: input.reason ?? `Refund for ${order.billNumber ?? orderId}`,
+          customerPhone: order.customerPhone, customerName: order.customerName,
+        });
+        refund = await tx.refund.update({ where: { id: refund.id }, data: { gatewayRef: code } });
+      }
       if (input.mode === "CASH") {
         const session = await tx.cashSession.findFirst({ where: { tenantId: user.tenantId, outletId, status: "OPEN" } });
         if (session) await tx.cashMovement.create({
@@ -184,7 +204,7 @@ export class CashService {
     let refund = reserved.refund;
     // Never hold database locks across a remote payment call. Retrying the API
     // returns the reservation instead of blindly calling the provider again.
-    if (reserved.isNew && input.mode !== "CASH") {
+    if (reserved.isNew && input.mode !== "CASH" && input.mode !== "GIFT_CARD") {
       try {
         const res = await this.gateway.refund({ amount: input.amount, orderRef: reserved.orderRef, reason: input.reason, idempotencyKey: refund.id });
         refund = await this.prisma.refund.update({

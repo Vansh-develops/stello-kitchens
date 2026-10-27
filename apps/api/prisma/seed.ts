@@ -666,6 +666,7 @@ async function main() {
     });
   }
 
+  await seedHrAccounting(tenant.id, outlet1.id);
   console.log(`  materials: ${materialDefs.length} raw materials, ${Object.keys(recipes).length} recipes`);
   console.log(`  crm: ${couponDefs.length} coupons, ${customerDefs.length} customers`);
   console.log("Seeded demo tenant:");
@@ -675,6 +676,64 @@ async function main() {
   console.log(`  channels: ${channelDefs.map((c) => c.name).join(", ")}`);
   console.log(`  users: admin@demo.com (Owner), cashier@demo.com (Cashier), kitchen@demo.com (Kitchen) — all password123`);
   console.log(`  admin id: ${admin.id}`);
+}
+
+// ── Staff/HR, accounting, gift cards ─────
+// Idempotent: new permissions on the standard roles, a Manager role, shift
+// templates, staff profiles (one without a login) and expense categories.
+async function seedHrAccounting(tenantId: string, outletId: string) {
+  const addPerms = async (name: string, perms: string[]) => {
+    const role = await prisma.role.findFirst({ where: { tenantId, name } });
+    if (!role) return;
+    const current = role.permissions as string[];
+    await prisma.role.update({ where: { id: role.id }, data: { permissions: [...new Set([...current, ...perms])] } });
+  };
+  await addPerms("Cashier", ["attendance.clock", "giftcards.issue"]);
+  await addPerms("Kitchen", ["attendance.clock"]);
+  await prisma.role.upsert({
+    where: { tenantId_name: { tenantId, name: "Manager" } },
+    create: {
+      tenantId,
+      name: "Manager",
+      permissions: [
+        "orders.create", "orders.settle", "orders.cancel", "menu.stock", "reports.view", "attendance.clock",
+        "attendance.correct", "staff.manage", "expenses.manage", "giftcards.issue", "giftcards.manage",
+      ],
+    },
+    update: {},
+  });
+
+  for (const name of ["Rent", "Utilities", "Repairs & maintenance", "Cleaning supplies", "Marketing", "General"]) {
+    await prisma.expenseCategory.upsert({ where: { tenantId_name: { tenantId, name } }, create: { tenantId, name }, update: {} });
+  }
+  if ((await prisma.shiftTemplate.count({ where: { tenantId, outletId } })) === 0) {
+    await prisma.shiftTemplate.createMany({
+      data: [
+        { tenantId, outletId, name: "Morning", startTime: "08:00", endTime: "16:00", breakMinutes: 30, graceMinutes: 10 },
+        { tenantId, outletId, name: "Evening", startTime: "15:00", endTime: "23:00", breakMinutes: 30, graceMinutes: 10 },
+      ],
+    });
+  }
+  const cashier = await prisma.user.findFirst({ where: { tenantId, email: "cashier@demo.com" } });
+  const kitchen = await prisma.user.findFirst({ where: { tenantId, email: "kitchen@demo.com" } });
+  const staffDefs = [
+    { code: "SK001", name: "Ravi Kumar", designation: "Cashier", userId: cashier?.id ?? null, payType: "MONTHLY", payRate: 18000, pin: "1111", pf: true, esi: true },
+    { code: "SK002", name: "Meena Das", designation: "Head cook", userId: kitchen?.id ?? null, payType: "MONTHLY", payRate: 26000, pin: "2222", pf: true, esi: false },
+    { code: "SK003", name: "Suresh", designation: "Kitchen helper", userId: null, payType: "DAILY", payRate: 650, pin: "3333", pf: false, esi: false },
+  ];
+  for (const s of staffDefs) {
+    const exists = await prisma.staffMember.findFirst({ where: { tenantId, employeeCode: s.code } });
+    if (exists) continue;
+    await prisma.staffMember.create({
+      data: {
+        tenantId, outletId, employeeCode: s.code, name: s.name, designation: s.designation, userId: s.userId,
+        joiningDate: new Date("2026-01-01T00:00:00Z"), payType: s.payType, payRate: s.payRate,
+        pinHash: await bcrypt.hash(s.pin, 10), pfApplicable: s.pf, esiApplicable: s.esi, ptApplicable: s.payType === "MONTHLY",
+        allowances: s.payType === "MONTHLY" ? [{ name: "Food allowance", amount: 1000 }] : [],
+      },
+    });
+  }
+  console.log("  hr: Manager role, 2 shift templates, 3 staff (clock-in PINs 1111/2222/3333), 6 expense categories");
 }
 
 main()
