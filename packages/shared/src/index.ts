@@ -5,3 +5,4 @@ export * from "./money";
 export * from "./theme";
 export * from "./access";
 export * from "./hr-accounting";
+export * from "./edge";

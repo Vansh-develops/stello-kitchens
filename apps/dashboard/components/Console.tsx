@@ -27,6 +27,7 @@ import { AppearanceTab } from "./AppearanceTab";
 import { InviteStaffTab } from "./InviteStaffTab";
 import { StaffTab } from "./hr/StaffTab";
 import { GiftCardsTab } from "./hr/GiftCardsTab";
+import { EdgeTab } from "./EdgeTab";
 
 const rupee = (n: number) => `₹${n.toFixed(0)}`;
 type Tab =
@@ -48,7 +49,8 @@ type Tab =
   | "invite"
   | "settings"
   | "staff"
-  | "giftcards";
+  | "giftcards"
+  | "edge";
 
 export function Console({
   user,
@@ -139,6 +141,7 @@ export function Console({
               "settings",
               "staff",
               "giftcards",
+              "edge",
             ] as const
           ).map((t) => {
             const labels: Record<string, string> = {
@@ -161,6 +164,7 @@ export function Console({
               settings: "Settings",
               staff: "Staff",
               giftcards: "Gift cards",
+              edge: "Offline POS",
             };
             return (
               <button key={t} className={`top-tab ${tab === t ? "active" : ""}`} onClick={() => setTab(t)}>
@@ -461,6 +465,7 @@ export function Console({
       {tab === "settings" && <AppearanceTab outlet={outlet} />}
       {tab === "staff" && <StaffTab outletId={outlet.id} />}
       {tab === "giftcards" && <GiftCardsTab outletId={outlet.id} />}
+      {tab === "edge" && <EdgeTab outletId={outlet.id} />}
 
       {itemDialog && (
         <ItemDialog

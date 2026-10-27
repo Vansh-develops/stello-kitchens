@@ -1,0 +1,235 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Kitchen Display · LAN</title>
+<style>
+  /* Self-contained: this page is served by the edge sidecar on the shop LAN and
+     must work with the internet down — no external fonts, scripts or styles. */
+  :root {
+    --bg:#111315; --panel:#1b1e21; --panel-2:#24282c; --line:#30353a; --ink:#f2f4f5; --muted:#9aa3ab;
+    --accent:#f0a33a; --new:#4ea1ff; --prep:#f0a33a; --ready:#3fbf6f; --late:#ef5350;
+    --radius:12px; --mono: ui-monospace, "SFMono-Regular", Consolas, monospace;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--ink); font-family: system-ui, "Segoe UI", Roboto, sans-serif; }
+  button { font: inherit; color: inherit; border: 0; cursor: pointer; }
+  .hidden { display: none !important; }
+
+  .pair { min-height: 100%; display: grid; place-items: center; padding: 16px; }
+  .pair-card { width: min(420px, 100%); background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 28px; display: grid; gap: 14px; }
+  .pair-card h1 { margin: 0; font-size: 20px; }
+  .pair-card p { margin: 0; color: var(--muted); font-size: 14px; line-height: 1.45; }
+  .pair-card label { display: grid; gap: 6px; font-size: 13px; color: var(--muted); }
+  .pair-card input { background: var(--panel-2); border: 1px solid var(--line); border-radius: 9px; color: var(--ink); padding: 12px; font-size: 16px; }
+  .pair-card input.code { font-family: var(--mono); font-size: 28px; letter-spacing: .4em; text-align: center; }
+  .btn { background: var(--accent); color: #1a1205; font-weight: 700; padding: 13px 16px; border-radius: 9px; }
+  .btn:disabled { opacity: .5; cursor: default; }
+  .err { color: var(--late); font-size: 14px; min-height: 1em; }
+
+  header { display: flex; align-items: center; gap: 14px; padding: 10px 16px; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+  .brand { font-weight: 800; letter-spacing: .12em; color: var(--accent); font-size: 14px; }
+  .outlet { color: var(--muted); font-size: 13px; }
+  .grow { flex: 1; }
+  .chips { display: flex; gap: 6px; flex-wrap: wrap; }
+  .chip { background: var(--panel-2); border: 1px solid var(--line); padding: 6px 12px; border-radius: 999px; font-size: 13px; color: var(--muted); }
+  .chip.on { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+  .conn { font-family: var(--mono); font-size: 12px; display: flex; align-items: center; gap: 6px; }
+  .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--ready); }
+  .conn.down .dot { background: var(--late); animation: blink 1s infinite; }
+  .conn.down { color: var(--late); }
+  @keyframes blink { 50% { opacity: .3; } }
+  .link { background: none; color: var(--muted); font-size: 12px; text-decoration: underline; }
+
+  .board { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; padding: 12px; height: calc(100% - 56px); }
+  .lane { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); display: flex; flex-direction: column; min-height: 0; }
+  .lane h2 { margin: 0; padding: 10px 14px; font-size: 13px; letter-spacing: .12em; text-transform: uppercase; display: flex; justify-content: space-between; border-bottom: 1px solid var(--line); }
+  .lane[data-s="PENDING"] h2 { color: var(--new); }
+  .lane[data-s="PREPARING"] h2 { color: var(--prep); }
+  .lane[data-s="READY"] h2 { color: var(--ready); }
+  .cards { padding: 10px; display: grid; gap: 10px; overflow-y: auto; align-content: start; }
+  .empty { color: var(--muted); font-size: 13px; padding: 6px 4px; }
+  .ticket { background: var(--panel-2); border: 1px solid var(--line); border-left: 4px solid var(--new); border-radius: 10px; padding: 10px 12px; display: grid; gap: 8px; }
+  .ticket.PREPARING { border-left-color: var(--prep); }
+  .ticket.READY { border-left-color: var(--ready); opacity: .8; }
+  .ticket.late { box-shadow: 0 0 0 2px var(--late) inset; }
+  .t-head { display: flex; justify-content: space-between; gap: 8px; align-items: baseline; }
+  .t-label { font-weight: 700; font-size: 16px; }
+  .t-meta { font-family: var(--mono); font-size: 12px; color: var(--muted); }
+  .t-age { font-family: var(--mono); font-size: 13px; }
+  .ticket.late .t-age { color: var(--late); font-weight: 700; }
+  ul { margin: 0; padding: 0; list-style: none; display: grid; gap: 4px; }
+  li { font-size: 15px; }
+  li b { font-family: var(--mono); margin-right: 6px; }
+  li small { display: block; color: var(--muted); font-size: 12px; margin-left: 26px; }
+  li .note { color: var(--accent); }
+  .t-actions { display: flex; gap: 8px; }
+  .t-actions button { flex: 1; padding: 10px; border-radius: 8px; font-weight: 700; background: var(--ink); color: var(--bg); }
+  .t-actions button.ghost { background: transparent; border: 1px solid var(--line); color: var(--muted); flex: 0 0 auto; }
+
+  @media (max-width: 900px) {
+    .board { grid-template-columns: 1fr; height: auto; }
+    .lane { max-height: none; }
+  }
+</style>
+</head>
+<body>
+<section id="pair" class="pair hidden">
+  <form class="pair-card" id="pair-form">
+    <h1>Pair this kitchen screen</h1>
+    <p>On the POS terminal open <b>Sync › Kitchen screens</b> and tap <b>Pair a screen</b>. Enter the 6-digit code shown there. The screen then works over the shop network, even with the internet down.</p>
+    <label>Screen name <input id="pair-name" maxlength="40" placeholder="e.g. Hot line" required /></label>
+    <label>Pairing code <input id="pair-code" class="code" inputmode="numeric" maxlength="6" pattern="\d{6}" autocomplete="one-time-code" required /></label>
+    <div class="err" id="pair-err"></div>
+    <button class="btn" id="pair-btn" type="submit">Pair screen</button>
+  </form>
+</section>
+
+<section id="app" class="hidden" style="height:100%">
+  <header>
+    <span class="brand">KITCHEN</span>
+    <span class="outlet" id="outlet"></span>
+    <div class="chips" id="stations"></div>
+    <span class="grow"></span>
+    <span class="conn" id="conn"><span class="dot"></span><span id="conn-text">LIVE</span></span>
+    <button class="link" id="unpair" type="button">Unpair</button>
+  </header>
+  <main class="board">
+    <section class="lane" data-s="PENDING"><h2>New <span id="n-PENDING">0</span></h2><div class="cards" id="l-PENDING"></div></section>
+    <section class="lane" data-s="PREPARING"><h2>Preparing <span id="n-PREPARING">0</span></h2><div class="cards" id="l-PREPARING"></div></section>
+    <section class="lane" data-s="READY"><h2>Ready <span id="n-READY">0</span></h2><div class="cards" id="l-READY"></div></section>
+  </main>
+</section>
+
+<script>
+(() => {
+  const KEY = "stello-lan-kds";
+  const STATION_KEY = "stello-lan-kds-station";
+  const PREP_MINUTES = 12; // tickets older than this are flagged late
+  const $ = (id) => document.getElementById(id);
+  let token = null;
+  try { token = localStorage.getItem(KEY); } catch {}
+  let station = null;
+  try { station = localStorage.getItem(STATION_KEY); } catch {}
+  let tickets = [];
+  let source = null;
+
+  const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
+  const age = (iso) => {
+    const s = Math.max(0, Math.floor((Date.now() - Date.parse(iso)) / 1000));
+    return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+  };
+
+  function showPair(msg) {
+    $("app").classList.add("hidden");
+    $("pair").classList.remove("hidden");
+    $("pair-err").textContent = msg || "";
+    if (source) { source.close(); source = null; }
+  }
+
+  $("pair-form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    $("pair-btn").disabled = true;
+    $("pair-err").textContent = "";
+    try {
+      const res = await fetch("/api/pair", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ code: $("pair-code").value.trim(), name: $("pair-name").value.trim() }) });
+      const body = await res.json();
+      if (!res.ok) throw new Error(body.message || "Pairing failed");
+      token = body.token;
+      try { localStorage.setItem(KEY, token); } catch {}
+      start();
+    } catch (err) {
+      $("pair-err").textContent = err.message;
+    } finally {
+      $("pair-btn").disabled = false;
+    }
+  });
+  $("unpair").addEventListener("click", () => {
+    try { localStorage.removeItem(KEY); } catch {}
+    token = null;
+    showPair();
+  });
+
+  function setConn(up) {
+    $("conn").classList.toggle("down", !up);
+    $("conn-text").textContent = up ? "LIVE" : "RECONNECTING";
+  }
+
+  function render() {
+    const stations = [...new Map(tickets.map((t) => [t.stationName, t.stationName])).keys()].sort();
+    $("stations").innerHTML = ["All", ...stations].map((s) => `<button type="button" class="chip ${((s === "All" && !station) || s === station) ? "on" : ""}" data-st="${esc(s)}">${esc(s)}</button>`).join("");
+    const shown = tickets.filter((t) => !station || t.stationName === station);
+    for (const s of ["PENDING", "PREPARING", "READY"]) {
+      const list = shown.filter((t) => t.status === s);
+      $("n-" + s).textContent = list.length;
+      $("l-" + s).innerHTML = list.length ? list.map(card).join("") : `<div class="empty">Nothing here</div>`;
+    }
+  }
+  function card(t) {
+    const late = t.status !== "READY" && (Date.now() - Date.parse(t.createdAt)) / 60000 > PREP_MINUTES;
+    const items = t.items.map((i) => `<li><b>${i.quantity}×</b>${esc(i.name)}${i.variationName ? ` (${esc(i.variationName)})` : ""}${i.addonNames && i.addonNames.length ? `<small>+ ${esc(i.addonNames.join(", "))}</small>` : ""}${i.note ? `<small class="note">“${esc(i.note)}”</small>` : ""}</li>`).join("");
+    const next = t.status === "PENDING" ? ["PREPARING", "Start"] : t.status === "PREPARING" ? ["READY", "Ready"] : null;
+    const back = t.status === "READY" ? ["PREPARING", "Recall"] : t.status === "PREPARING" ? ["PENDING", "Back"] : null;
+    return `<article class="ticket ${t.status} ${late ? "late" : ""}">
+      <div class="t-head"><span class="t-label">${esc(t.label)}</span><span class="t-age" data-at="${esc(t.createdAt)}">${age(t.createdAt)}</span></div>
+      <div class="t-meta">KOT ${t.kotNo} · ${esc(t.stationName)}</div>
+      <ul>${items}</ul>
+      <div class="t-actions">
+        ${back ? `<button type="button" class="ghost" data-id="${esc(t.id)}" data-to="${back[0]}">${back[1]}</button>` : ""}
+        ${next ? `<button type="button" data-id="${esc(t.id)}" data-to="${next[0]}">${next[1]}</button>` : ""}
+      </div>
+    </article>`;
+  }
+
+  document.addEventListener("click", async (e) => {
+    const chip = e.target.closest("[data-st]");
+    if (chip) {
+      station = chip.dataset.st === "All" ? null : chip.dataset.st;
+      try { station ? localStorage.setItem(STATION_KEY, station) : localStorage.removeItem(STATION_KEY); } catch {}
+      return render();
+    }
+    const btn = e.target.closest("button[data-to]");
+    if (!btn) return;
+    btn.disabled = true;
+    try {
+      const res = await fetch(`/api/tickets/${encodeURIComponent(btn.dataset.id)}/status`, { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` }, body: JSON.stringify({ status: btn.dataset.to }) });
+      if (res.status === 401) return showPair("This screen was unpaired. Pair it again.");
+    } finally {
+      btn.disabled = false;
+    }
+  });
+
+  function connect() {
+    if (source) source.close();
+    source = new EventSource(`/api/stream?token=${encodeURIComponent(token)}`);
+    source.addEventListener("tickets", (ev) => {
+      const data = JSON.parse(ev.data);
+      tickets = data.tickets;
+      $("outlet").textContent = data.outlet || "";
+      setConn(true);
+      render();
+    });
+    source.onerror = async () => {
+      setConn(false);
+      // A revoked token shows up as a 401 on a plain request; otherwise EventSource retries itself.
+      try {
+        const res = await fetch("/api/tickets", { headers: { Authorization: `Bearer ${token}` } });
+        if (res.status === 401) showPair("This screen was unpaired. Pair it again.");
+      } catch {}
+    };
+  }
+
+  function start() {
+    $("pair").classList.add("hidden");
+    $("app").classList.remove("hidden");
+    connect();
+  }
+
+  setInterval(() => document.querySelectorAll(".t-age").forEach((el) => (el.textContent = age(el.dataset.at))), 1000);
+  setInterval(render, 30000); // re-evaluate "late" flags
+  token ? start() : showPair();
+})();
+</script>
+</body>
+</html>

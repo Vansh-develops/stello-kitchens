@@ -9,7 +9,8 @@
     "dev": "vite",
     "build": "vite build",
     "electron": "electron .",
-    "typecheck": "tsc -p tsconfig.json --noEmit --incremental false"
+    "typecheck": "tsc -p tsconfig.json --noEmit --incremental false",
+    "test": "node --test \"test/*.test.js\""
   },
   "dependencies": {
     "@stello/shared": "workspace:*",
