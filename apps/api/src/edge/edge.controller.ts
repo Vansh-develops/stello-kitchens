@@ -1,11 +1,15 @@
 import { Body, Controller, Delete, Get, Param, Post, Put, Query, UseGuards } from "@nestjs/common";
 import { Throttle } from "@nestjs/throttler";
 import {
+  ClaimPrintJobsSchema,
+  CompletePrintJobSchema,
   EdgeActivateSchema,
   EdgePushSchema,
   EdgeResolveConflictSchema,
   EdgeStaffPinSchema,
   type AuthUser,
+  type ClaimPrintJobsInput,
+  type CompletePrintJobInput,
   type EdgeActivateInput,
   type EdgePushInput,
   type EdgeResolveConflictInput,
@@ -17,6 +21,7 @@ import { CurrentEdgeDevice, EdgeDeviceGuard, type EdgeDeviceContext } from "./ed
 import { EdgeFeedService } from "./edge-feed.service";
 import { EdgeIngestService } from "./edge-ingest.service";
 import { EdgeAdminService } from "./edge-admin.service";
+import { PrintingService } from "../printing/printing.service";
 
 // Device-authenticated sync surface (no user session; see EdgeDeviceGuard).
 @Public()
@@ -26,6 +31,7 @@ export class EdgeDeviceController {
   constructor(
     private readonly feed: EdgeFeedService,
     private readonly ingest: EdgeIngestService,
+    private readonly printing: PrintingService,
   ) {}
 
   @Get("feed")
@@ -37,6 +43,22 @@ export class EdgeDeviceController {
   @Post("push")
   push(@CurrentEdgeDevice() device: EdgeDeviceContext, @Body(new ZodValidationPipe(EdgePushSchema)) body: EdgePushInput) {
     return this.ingest.push(device, body);
+  }
+
+  // The sidecar's print agent drains this outlet's LAN/USB print queue with the
+  // device token (it holds no user session).
+  @Post("print-jobs/claim")
+  claimPrintJobs(@CurrentEdgeDevice() device: EdgeDeviceContext, @Body(new ZodValidationPipe(ClaimPrintJobsSchema)) body: ClaimPrintJobsInput) {
+    return this.printing.claimForDevice(device.tenantId, device.outletId, device.edgeDeviceId, body);
+  }
+
+  @Post("print-jobs/:id/complete")
+  completePrintJob(
+    @CurrentEdgeDevice() device: EdgeDeviceContext,
+    @Param("id") id: string,
+    @Body(new ZodValidationPipe(CompletePrintJobSchema)) body: CompletePrintJobInput,
+  ) {
+    return this.printing.completeForDevice(device.tenantId, device.outletId, device.edgeDeviceId, id, body);
   }
 }
 

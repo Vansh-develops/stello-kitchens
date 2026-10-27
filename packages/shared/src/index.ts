@@ -7,3 +7,4 @@ export * from "./access";
 export * from "./hr-accounting";
 export * from "./edge";
 export * from "./billing";
+export * from "./printing";

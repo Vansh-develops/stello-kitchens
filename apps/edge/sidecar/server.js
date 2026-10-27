@@ -12,6 +12,7 @@ const path = require("node:path");
 const os = require("node:os");
 const express = require("express");
 const { EdgeEngine, EdgeError } = require("./engine");
+const { createPrintRouter, startPullLoop } = require("./print-agent");
 
 const PORT = Number(process.env.EDGE_PORT || 4010);
 const HOST = process.env.EDGE_HOST || "127.0.0.1";
@@ -36,11 +37,29 @@ const ALLOWED_ORIGINS = new Set(
     .filter(Boolean),
 );
 
+// Print agent: the cloud dashboard (POS/KDS in a browser) sends jobs to /print on
+// this machine. It is a different caller from the renderer, so it has its own key
+// and origin allow-list. The key is shared with the POS via its "Printing on this
+// device" setting.
+const PRINT_KEY = process.env.EDGE_PRINT_KEY ||
+  (process.env.NODE_ENV === "production" ? "" : "dev-print-key");
+const PRINT_ORIGINS = new Set(
+  (process.env.EDGE_PRINT_ORIGINS || "https://kitchens.stellotechs.com,http://localhost:3002,http://127.0.0.1:3002")
+    .split(",")
+    .map((origin) => origin.trim())
+    .filter(Boolean),
+);
+// Pull loop: claim this outlet's queued NETWORK/USB jobs from the cloud.
+const PRINT_POLL = process.env.EDGE_PRINT_POLL !== "0";
+const PRINT_PRINTERS = (process.env.EDGE_PRINT_PRINTERS || "").split(",").map((s) => s.trim()).filter(Boolean);
+
 function createServers(engine, { sidecarToken = SIDECAR_TOKEN, allowedOrigins = ALLOWED_ORIGINS, outletId = OUTLET_ID, loopOptions } = {}) {
   // ------------------------------------------------------------------ POS API
   const app = express();
   app.disable("x-powered-by");
   app.use(express.json({ limit: "256kb" }));
+  // Mounted before the renderer CORS/token gate: it carries its own key + origins.
+  if (PRINT_KEY) app.use("/print", createPrintRouter({ key: PRINT_KEY, allowedOrigins: PRINT_ORIGINS, agentId: engine.deviceId }));
   app.use((req, res, next) => {
     const origin = req.headers.origin;
     if (origin && !allowedOrigins.has(origin)) return res.status(403).json({ message: "Origin not allowed" });
@@ -290,8 +309,17 @@ if (require.main === module) {
     console.error("Retention purge failed:", err);
   }
   servers.loop.start();
+  const printLoop = PRINT_POLL
+    ? startPullLoop({
+        api: (pathname, options) => engine._deviceApi(pathname, options),
+        outletId: () => engine.outletId,
+        agentId: engine.deviceId,
+        printerIds: PRINT_PRINTERS.length ? PRINT_PRINTERS : null,
+      })
+    : null;
   const shutdown = () => {
     servers.loop.stop();
+    if (printLoop) printLoop.stop();
     servers.closeStreams();
     engine.close();
     process.exit(0);

@@ -119,7 +119,7 @@ async function main() {
     data: {
       tenantId: tenant.id,
       name: "Cashier",
-      permissions: ["orders.create", "orders.settle", "menu.stock"],
+      permissions: ["orders.create", "orders.settle", "menu.stock", "printing.print"],
     },
   });
   const kitchenRole = await prisma.role.create({
@@ -127,7 +127,7 @@ async function main() {
       tenantId: tenant.id,
       name: "Kitchen",
       // Can operate the KDS and 86 items, but not edit the menu (menu.manage).
-      permissions: ["kds.operate", "menu.stock"],
+      permissions: ["kds.operate", "menu.stock", "printing.print"],
     },
   });
 
@@ -188,13 +188,18 @@ async function main() {
       config: { theme: "dark", density: "comfortable", sound: true, columns: 3 },
     },
   });
-  await prisma.terminal.create({
+  // Receipt printer: browser-printed out of the box (no agent needed); switch it
+  // to NETWORK with the printer's IP once an edge print agent runs at the counter.
+  await prisma.printer.create({
     data: {
       tenantId: tenant.id,
       outletId: outlet1.id,
       name: "Counter Printer",
-      type: "PRINTER",
-      config: { paperWidth: "80mm", autoPrintKot: true, autoPrintBill: true, copies: 1 },
+      connection: "BROWSER",
+      paperWidth: 80,
+      printKots: true,
+      printBills: true,
+      drawerKick: true,
     },
   });
 

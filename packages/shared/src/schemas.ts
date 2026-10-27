@@ -462,7 +462,8 @@ export type CustomReportInput = z.infer<typeof CustomReportSchema>;
 
 // ---------- Device fleet management ----------
 
-export const DeviceTypeEnum = z.enum(["POS", "KDS", "PRINTER", "KIOSK", "DISPLAY"]);
+// Printers are not fleet devices: they are configured under outlets/:id/printers.
+export const DeviceTypeEnum = z.enum(["POS", "KDS", "KIOSK", "DISPLAY"]);
 export const CreateDeviceSchema = z.object({
   name: z.string().min(1).max(60),
   type: DeviceTypeEnum,

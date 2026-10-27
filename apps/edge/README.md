@@ -149,3 +149,61 @@ never the POS API. Traffic is plain HTTP on the shop network.
   session when they sync.
 - Card/UPI are recorded, not charged — there is no payment-gateway path offline.
 - Stock is not decremented locally; it reconciles when sales sync (it can go briefly negative).
+### 3. No cross-device sharing of open orders
+
+An `OPEN` order started on device A cannot be continued or seen on device B — open
+orders are never shared. Only terminal orders sync, and only one-way (device → cloud).
+A table's bill must be finished on the terminal that started it (until it is settled
+and synced).
+
+### 4. Provisional receipt before the tax invoice
+
+A customer paying during an outage gets a receipt showing the provisional `offlineRef`.
+The legal GST invoice number is assigned at sync, so it appears in the cloud (and on a
+reprinted invoice) only after the device reconnects.
+
+### 5. Reference data lag
+
+Menu, price, and availability changes made in the cloud reach a device only on its
+**next snapshot pull**. An offline device bills at its last-synced prices and menu.
+
+## Print agent
+
+Stello runs in the cloud, so the API can never open a socket to a printer on the
+restaurant's LAN. The sidecar is the last hop (`sidecar/print-agent.js`):
+
+```
+ POS/KDS browser ──HTTP──▶ sidecar /print/* ──TCP 9100 / device──▶ thermal printer
+ Cloud print-job queue ◀──claim/complete── sidecar pull loop
+```
+
+- **Rendering** uses the shared ESC/POS encoder and KOT/bill renderers
+  (`@stello/shared` → `printing/`), the same code the browser path uses for HTML.
+- **NETWORK** printers get raw bytes over TCP (port 9100 by default).
+- **USB** printers are written as a device path, no native module: `/dev/usb/lp0`
+  on Linux, or on Windows share the printer with the *Generic / Text Only* driver
+  and set the path to `\localhost\<ShareName>`.
+- **Pull loop.** When the sidecar is bootstrapped to an outlet it claims queued
+  jobs for that outlet's NETWORK/USB printers every 3 s (atomic server-side claim,
+  so several agents/terminals never double print) and reports PRINTED/FAILED.
+  This is how KOTs from Scan & Order, aggregators and other terminals reach a LAN
+  printer with nobody touching the counter.
+- **HTTP.** The dashboard POS probes `GET /print/health` and posts jobs to
+  `POST /print/job` (`{ printer, job }`) or raw bytes to `POST /print/raw`. It
+  falls back to browser printing when the agent is unreachable.
+
+| Env | Default | Meaning |
+| --- | --- | --- |
+| `EDGE_PRINT_KEY` | `dev-print-key` (dev only; required in production) | Shared key the POS sends as `X-Print-Key` |
+| `EDGE_PRINT_ORIGINS` | `https://kitchens.stellotechs.com,http://localhost:3002` | Dashboard origins allowed to call `/print` |
+| `EDGE_PRINT_POLL` | on | `0` disables the cloud pull loop |
+| `EDGE_PRINT_PRINTERS` | all NETWORK/USB | Comma-separated printer ids this agent serves |
+| `EDGE_PRINT_TZ` | `Asia/Kolkata` | Time zone printed on tickets |
+
+The `/print` routes answer Chrome's Private Network Access preflight
+(`Access-Control-Allow-Private-Network`), needed when `https://` dashboard pages
+call `http://127.0.0.1`. Newer Chrome versions additionally show a one-time
+"local network access" permission prompt for the site — allow it on each POS.
+
+`node apps/edge/print-agent-smoke.mjs` exercises TCP delivery, the device path,
+the HTTP endpoint and the pull loop against a fake printer.

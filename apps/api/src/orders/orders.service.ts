@@ -40,6 +40,7 @@ type SplitContext = {
   childrenByParent: Map<string, { id: string; splitIndex: number | null; status: string; total: Prisma.Decimal; billNumber: string | null }[]>;
 };
 type PunchOptions = { source: PriceSource; offline?: boolean; at?: Date };
+import { orderEvents } from "../common/order-events";
 
 const orderInclude = {
   table: true,
@@ -102,6 +103,7 @@ export class OrdersService {
       return order.id;
     });
     this.realtime.notifyOutlet(input.outletId);
+    await orderEvents.emit({ type: "kot.created", tenantId: user.tenantId, outletId: input.outletId, orderId, userId: user.id });
     return this.getOne(user, orderId);
   }
 
@@ -119,6 +121,7 @@ export class OrdersService {
   }): Promise<{ orderId: string; kotNumber: number; total: number }> {
     const result = await this.prisma.$transaction((tx) => this.ingestAggregatorOrderTx(tx, params));
     this.realtime.notifyOutlet(params.outletId);
+    await orderEvents.emit({ type: "kot.created", tenantId: params.tenantId, outletId: params.outletId, orderId: result.orderId, userId: null });
     return result;
   }
 
@@ -213,6 +216,7 @@ export class OrdersService {
       return order.id;
     });
     this.realtime.notifyOutlet(params.outletId);
+    await orderEvents.emit({ type: "kot.created", tenantId: params.tenantId, outletId: params.outletId, orderId, userId: null });
     const order = await this.prisma.order.findUniqueOrThrow({
       where: { id: orderId },
       include: { kots: { orderBy: { kotNumber: "desc" }, take: 1 } },
@@ -347,11 +351,12 @@ export class OrdersService {
       await this.recomputeTotals(tx, order.id);
     });
     this.realtime.notifyOutlet(order.outletId);
+    await orderEvents.emit({ type: "kot.created", tenantId: user.tenantId, outletId: order.outletId, orderId, userId: user.id });
     return this.getOne(user, orderId);
   }
 
   async settle(user: AuthUser, orderId: string, input: SettleOrderInput): Promise<OrderDto> {
-    await this.prisma.$transaction(async (tx) => {
+    const settledOutletId = await this.prisma.$transaction(async (tx) => {
       const order = await this.lockOpenOrder(tx, user, orderId);
       if (order.splitCount) throw new BadRequestException("This bill is split into checks — settle each check");
 
@@ -495,7 +500,9 @@ export class OrdersService {
       // A split check settling may complete its parent bill.
       if (order.parentOrderId) await this.closeSplitParentIfDone(tx, user, order.parentOrderId);
       return order.outletId;
-    }).then((outletId) => this.realtime.notifyOutlet(outletId));
+    });
+    this.realtime.notifyOutlet(settledOutletId);
+    await orderEvents.emit({ type: "order.settled", tenantId: user.tenantId, outletId: settledOutletId, orderId, userId: user.id });
     return this.getOne(user, orderId);
   }
 
@@ -627,6 +634,7 @@ export class OrdersService {
       return order;
     });
     this.realtime.notifyOutlet(order.outletId);
+    await orderEvents.emit({ type: "order.cancelled", tenantId: user.tenantId, outletId: order.outletId, orderId, userId: user.id });
     return this.getOne(user, orderId);
   }
 

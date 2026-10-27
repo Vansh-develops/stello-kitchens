@@ -7,7 +7,6 @@ import { api } from "@/lib/api";
 const TYPES: { key: DeviceType; label: string }[] = [
   { key: "POS", label: "POS" },
   { key: "KDS", label: "KDS" },
-  { key: "PRINTER", label: "Printer" },
   { key: "KIOSK", label: "Kiosk" },
   { key: "DISPLAY", label: "Display" },
 ];
@@ -81,9 +80,9 @@ export function FleetTab({ outletId }: { outletId: string }) {
       {error && <div className="banner-error" onClick={() => setError(null)}>{error} — dismiss</div>}
       {message && <div className="banner-ok" onClick={() => setMessage(null)}>{message}</div>}
       <p className="hint wide">
-        Register and configure every device in the outlet — POS counters, KDS screens, and receipt
-        printers. Printer and KDS settings push to the device; the backup exports the outlet&apos;s
-        menu, tables, and fleet config as a JSON file.
+        Register and configure every device in the outlet — POS counters, KDS screens, kiosks and
+        displays. KDS settings push to the device; receipt and KOT printers are set up in the
+        Printers tab. The backup exports the outlet&apos;s menu, tables, and fleet config as a JSON file.
       </p>
 
       <div className="fleet-new">
@@ -143,28 +142,6 @@ function DeviceCard({
         </span>
       </div>
 
-      {device.type === "PRINTER" && (
-        <div className="dc-config">
-          <label>
-            Paper
-            <select value={String(cfg.paperWidth ?? "80mm")} onChange={(e) => set("paperWidth", e.target.value)}>
-              <option value="58mm">58mm</option>
-              <option value="80mm">80mm</option>
-            </select>
-          </label>
-          <label className="chk">
-            <input type="checkbox" checked={!!cfg.autoPrintKot} onChange={(e) => set("autoPrintKot", e.target.checked)} /> Auto-print KOT
-          </label>
-          <label className="chk">
-            <input type="checkbox" checked={!!cfg.autoPrintBill} onChange={(e) => set("autoPrintBill", e.target.checked)} /> Auto-print bill
-          </label>
-          <label>
-            Copies
-            <input type="number" min={1} max={5} value={Number(cfg.copies ?? 1)} onChange={(e) => set("copies", Number(e.target.value))} />
-          </label>
-        </div>
-      )}
-
       {device.type === "KDS" && (
         <div className="dc-config">
           <label>
@@ -192,7 +169,7 @@ function DeviceCard({
         </div>
       )}
 
-      {device.type !== "PRINTER" && device.type !== "KDS" && (
+      {device.type !== "KDS" && (
         <p className="dc-noconfig">No device-specific settings.</p>
       )}
 
@@ -202,7 +179,7 @@ function DeviceCard({
         </button>
         <div className="dc-actions">
           <button className="text-btn" onClick={onPing}>Ping</button>
-          {(device.type === "PRINTER" || device.type === "KDS") && (
+          {device.type === "KDS" && (
             <button className="btn-primary sm" onClick={() => onSaveConfig(cfg)}>Save config</button>
           )}
           <button className="text-btn danger" onClick={onDelete}>Remove</button>

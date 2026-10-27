@@ -1445,3 +1445,80 @@ model ParkedCart {
   @@index([tenantId, outletId])
   @@map("parked_carts")
 }
+
+// ── Printing ─────
+// LAN receipt/KOT printers. The cloud API never talks to a printer: it records
+// print jobs, and an on-premise edge print agent (NETWORK/USB) or a POS browser
+// (BROWSER) claims and delivers them.
+model Printer {
+  id            String   @id @default(cuid())
+  tenantId      String
+  outletId      String
+  name          String
+  connection    String   @default("BROWSER") // NETWORK | USB | BROWSER
+  host          String?
+  port          Int      @default(9100)
+  usbPath       String?
+  paperWidth    Int      @default(80) // 58 | 80
+  codepage      String   @default("CP437")
+  printKots     Boolean  @default(false)
+  printBills    Boolean  @default(false)
+  stationIds    Json? // string[]; empty/null = every station
+  copies        Int      @default(1)
+  autoPrintKot  Boolean  @default(true)
+  autoPrintBill Boolean  @default(true)
+  drawerKick    Boolean  @default(false)
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  jobs PrintJob[]
+
+  @@index([tenantId, outletId])
+  @@map("printers")
+}
+
+// Bill header/footer details for an outlet's printed bills.
+model OutletPrintSettings {
+  id          String   @id @default(cuid())
+  tenantId    String
+  outletId    String   @unique
+  fssaiNumber String?
+  headerLines Json? // string[]
+  footerLines Json? // string[]
+  upiQrOnBill Boolean  @default(true)
+  updatedAt   DateTime @updatedAt
+
+  @@index([tenantId])
+  @@map("outlet_print_settings")
+}
+
+model PrintJob {
+  id          String    @id @default(cuid())
+  tenantId    String
+  outletId    String
+  printerId   String?
+  kind        String // KOT | BILL | TEST | DRAWER
+  status      String    @default("QUEUED") // QUEUED | PRINTING | PRINTED | FAILED | CANCELLED
+  payload     Json // PrintPayload snapshot — reprints print exactly what was sent
+  copies      Int       @default(1)
+  reprint     Boolean   @default(false)
+  openDrawer  Boolean   @default(false)
+  orderId     String?
+  kotId       String?
+  // Idempotency key for automatic jobs (one auto KOT per kot+printer).
+  sourceKey   String?   @unique
+  attempts    Int       @default(0)
+  error       String?
+  claimedBy   String?
+  claimedAt   DateTime?
+  printedAt   DateTime?
+  createdById String?
+  createdAt   DateTime  @default(now())
+
+  printer Printer? @relation(fields: [printerId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId, outletId, status, createdAt])
+  @@index([orderId])
+  @@map("print_jobs")
+}

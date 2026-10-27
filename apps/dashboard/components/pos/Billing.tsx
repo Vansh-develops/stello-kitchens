@@ -26,6 +26,9 @@ import { ClockDialog } from "./ClockDialog";
 import { TransferDialog } from "./TransferDialog";
 import { SplitDialog } from "./SplitDialog";
 import { ParkedPanel } from "./ParkedPanel";
+import { usePrintStation } from "@/lib/print/station";
+import { afterSettlePrint, printBillNow, reprintKotNow } from "@/lib/print/actions";
+import { PrintPanel } from "../printing/PrintPanel";
 
 type ItemCartLine = {
   kind: "item";
@@ -85,6 +88,11 @@ export function Billing({
   const [drawer, setDrawer] = useState<CashSessionDto | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const station = usePrintStation(outlet.id);
+  const [printOpen, setPrintOpen] = useState(false);
+  const printAction = (fn: () => Promise<void>) => {
+    fn().catch((err) => setError(err instanceof Error ? err.message : "Could not print"));
+  };
 
   // Billing controls
   const [settings, setSettings] = useState<BillingSettingsDto | null>(null);
@@ -266,6 +274,7 @@ export function Billing({
         setActiveOrder(created);
       }
       setCart([]);
+      station.kick(); // the API queued this KOT for its station printers
       await refreshOrders();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not send KOT");
@@ -281,6 +290,7 @@ export function Billing({
     await refreshOrders();
     loadDrawer();
     setLastBill(order);
+    printAction(() => afterSettlePrint(outlet.id, order.id, station));
   };
   const [lastBill, setLastBill] = useState<OrderDto | null>(null);
 
@@ -365,6 +375,7 @@ export function Billing({
     setBusy(true);
     try {
       await api.cancel(activeOrder.id);
+      station.kick(); // cancellation KOTs tell the kitchen to stop
       startNew();
       await refreshOrders();
     } finally {
@@ -428,6 +439,14 @@ export function Billing({
         <div className="rail-bottom">
           <span className="rail-user">{user.name}</span>
           <span className="rail-role">{user.roleName}</span>
+          <button
+            className={`drawer-chip ${station.lastError ? "closed" : "open"}`}
+            onClick={() => setPrintOpen(true)}
+            title={station.lastError ?? "Printing"}
+          >
+            <span className="drawer-dot" />
+            {station.lastError ? "Printer issue" : "Printing"}
+          </button>
           <button className={`drawer-chip ${drawer ? "open" : "closed"}`} onClick={() => setDrawerOpen(true)}>
             <span className="drawer-dot" />
             {drawer ? `Drawer ₹${drawer.expectedCash.toFixed(0)}` : "Drawer closed"}
@@ -560,6 +579,21 @@ export function Billing({
                   )}
                 </div>
               )}
+              <span className="ctx-print">
+                <button className="prn-mini" onClick={() => printAction(() => printBillNow(outlet.id, activeOrder.id, station))}>
+                  Print bill
+                </button>
+                {activeOrder.kots.map((k) => (
+                  <button
+                    key={k.id}
+                    className="prn-mini"
+                    title={`Reprint KOT ${k.kotNumber}`}
+                    onClick={() => printAction(() => reprintKotNow(outlet.id, k.id, station))}
+                  >
+                    ⎙ KOT {k.kotNumber}
+                  </button>
+                ))}
+              </span>
             </div>
           ) : orderType === "DINE_IN" ? (
             <TablePicker areas={areas} tableId={tableId} onPick={setTableId} />
@@ -813,6 +847,8 @@ export function Billing({
       )}
 
       {clockOpen && <ClockDialog outletId={outlet.id} onClose={() => setClockOpen(false)} />}
+      {printOpen && <PrintPanel outletId={outlet.id} station={station} onClose={() => setPrintOpen(false)} />}
+
       {drawerOpen && (
         <CashDrawer outletId={outlet.id} onClose={() => setDrawerOpen(false)} onChanged={loadDrawer} />
       )}
