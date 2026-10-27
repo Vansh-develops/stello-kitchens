@@ -666,6 +666,7 @@ async function main() {
     });
   }
 
+  await seedPlatformRoles(tenant.id);
   console.log(`  materials: ${materialDefs.length} raw materials, ${Object.keys(recipes).length} recipes`);
   console.log(`  crm: ${couponDefs.length} coupons, ${customerDefs.length} customers`);
   console.log("Seeded demo tenant:");
@@ -675,6 +676,24 @@ async function main() {
   console.log(`  channels: ${channelDefs.map((c) => c.name).join(", ")}`);
   console.log(`  users: admin@demo.com (Owner), cashier@demo.com (Cashier), kitchen@demo.com (Kitchen) — all password123`);
   console.log(`  admin id: ${admin.id}`);
+}
+
+// ── Platform & security ─────
+// A demo custom role exercising the role editor's catalogue (owner "*" already covers everything).
+async function seedPlatformRoles(tenantId: string) {
+  await prisma.role.upsert({
+    where: { tenantId_name: { tenantId, name: "Manager" } },
+    update: {},
+    create: {
+      tenantId,
+      name: "Manager",
+      permissions: [
+        "orders.view", "orders.create", "orders.settle", "orders.cancel", "menu.stock", "menu.manage",
+        "inventory.manage", "reports.view", "reports.export", "reports.schedule", "audit.view",
+      ],
+    },
+  });
+  console.log("  roles: + Manager (custom role demo)");
 }
 
 main()

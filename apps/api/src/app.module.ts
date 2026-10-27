@@ -35,6 +35,7 @@ import { RolesModule } from "./roles/roles.module";
 import { AuditModule } from "./audit/audit.module";
 import { WebhooksModule } from "./webhooks/webhooks.module";
 import { McpModule } from "./mcp/mcp.module";
+import { ReportExportModule } from "./report-export/report-export.module";
 
 @Module({
   imports: [
@@ -74,6 +75,7 @@ import { McpModule } from "./mcp/mcp.module";
     AuditModule,
     WebhooksModule,
     McpModule,
+    ReportExportModule,
   ],
   providers: [
     // ThrottlerGuard first so rate limiting applies even to unauthenticated
