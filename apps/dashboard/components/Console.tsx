@@ -25,6 +25,11 @@ import { PrepTab } from "./PrepTab";
 import { FleetTab } from "./FleetTab";
 import { AppearanceTab } from "./AppearanceTab";
 import { InviteStaffTab } from "./InviteStaffTab";
+import { RolesTab } from "./platform/RolesTab";
+import { AuditTab } from "./platform/AuditTab";
+import { IntegrationsTab } from "./platform/IntegrationsTab";
+import { SecurityTab } from "./platform/SecurityTab";
+import { useSession } from "./SessionProvider";
 
 const rupee = (n: number) => `₹${n.toFixed(0)}`;
 type Tab =
@@ -44,7 +49,11 @@ type Tab =
   | "prep"
   | "fleet"
   | "invite"
-  | "settings";
+  | "settings"
+  | "roles"
+  | "audit"
+  | "integrations"
+  | "security";
 
 export function Console({
   user,
@@ -53,6 +62,7 @@ export function Console({
   user: AuthUser;
   outlet: OutletDto;
 }) {
+  const { outlets } = useSession();
   const [menu, setMenu] = useState<AdminMenuDto | null>(null);
   const [tab, setTab] = useState<Tab>("menu");
   const [selectedCat, setSelectedCat] = useState<string | null>(null);
@@ -133,6 +143,10 @@ export function Console({
               "fleet",
               "invite",
               "settings",
+              "roles",
+              "audit",
+              "integrations",
+              "security",
             ] as const
           ).map((t) => {
             const labels: Record<string, string> = {
@@ -153,6 +167,10 @@ export function Console({
               fleet: "Fleet",
               invite: "Invite staff",
               settings: "Settings",
+              roles: "Roles & staff",
+              audit: "Audit log",
+              integrations: "API & webhooks",
+              security: "Security",
             };
             return (
               <button key={t} className={`top-tab ${tab === t ? "active" : ""}`} onClick={() => setTab(t)}>
@@ -451,6 +469,10 @@ export function Console({
       {tab === "fleet" && <FleetTab outletId={outlet.id} />}
       {tab === "invite" && <InviteStaffTab />}
       {tab === "settings" && <AppearanceTab outlet={outlet} />}
+      {tab === "roles" && <RolesTab user={user} />}
+      {tab === "audit" && <AuditTab user={user} />}
+      {tab === "integrations" && <IntegrationsTab user={user} outlets={outlets} />}
+      {tab === "security" && <SecurityTab user={user} />}
 
       {itemDialog && (
         <ItemDialog

@@ -61,8 +61,6 @@ export function Board({ outlet, onExit }: { outlet: OutletDto; onExit: () => voi
 
   // Real-time: join the outlet room, refetch on signal; poll as a fallback.
   useEffect(() => {
-    const authToken =
-      typeof window !== "undefined" ? localStorage.getItem("stello.token") : null;
     const socketOrigin = process.env.NEXT_PUBLIC_SOCKET_ORIGIN ??
       (typeof window !== "undefined" && ["localhost", "127.0.0.1"].includes(window.location.hostname)
         ? `${window.location.protocol}//${window.location.hostname}:3001`
@@ -70,7 +68,8 @@ export function Board({ outlet, onExit }: { outlet: OutletDto; onExit: () => voi
     const socket: Socket = io(socketOrigin, {
       path: "/socket.io",
       transports: ["websocket", "polling"],
-      auth: { token: authToken },
+      // Authenticated by the httpOnly session cookie (same-site with the API).
+      withCredentials: true,
     });
     const onChange = (msg: { outletId: string }) => {
       if (msg.outletId === outlet.id) void refresh();

@@ -1,8 +1,8 @@
 "use client";
 
 import { createContext, useCallback, useContext, useEffect, useState } from "react";
-import type { AuthUser, OutletDto, TenantSummaryDto } from "@stello/shared";
-import { api, hasToken, setToken } from "@/lib/api";
+import type { AuthUser, MfaChallengeResponse, OutletDto, TenantSummaryDto } from "@stello/shared";
+import { api, hasToken } from "@/lib/api";
 
 interface Session {
   user: AuthUser | null;
@@ -11,7 +11,8 @@ interface Session {
   tenant: TenantSummaryDto | null;
   loading: boolean;
   setOutlet: (o: OutletDto | null) => void;
-  login: (email: string, password: string) => Promise<void>;
+  /** Resolves to a challenge when a second factor is needed, else null (signed in). */
+  login: (email: string, password: string) => Promise<MfaChallengeResponse | null>;
   logout: () => void;
   refresh: () => Promise<void>;
 }
@@ -39,7 +40,6 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       setOutlet((prev) => prev ?? (list.length === 1 ? list[0] : null));
       setTenant(tenantSummary);
     } catch {
-      setToken(null);
       setUser(null);
       setOutlets([]);
       setOutlet(null);
@@ -57,15 +57,16 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   const login = useCallback(
     async (email: string, password: string) => {
       const res = await api.login(email, password);
-      setToken(res.accessToken);
+      if ("mfa" in res) return res;
       setLoading(true);
       await refresh();
+      return null;
     },
     [refresh],
   );
 
   const logout = useCallback(() => {
-    setToken(null);
+    void api.logout().catch(() => undefined); // clears the httpOnly session cookie
     setUser(null);
     setOutlets([]);
     setOutlet(null);

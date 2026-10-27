@@ -12,6 +12,7 @@ import type {
 } from "@stello/shared";
 import { api } from "@/lib/api";
 import { CustomReport } from "./CustomReport";
+import { ReportExportBar, ReportSchedules } from "./platform/ReportExport";
 
 const money = (n: number) => `₹${n.toLocaleString("en-IN", { maximumFractionDigits: 0 })}`;
 const money2 = (n: number) => `₹${n.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -89,6 +90,8 @@ export function ReportsTab({ outletId }: { outletId: string }) {
         </div>
       </div>
       {error && <div className="banner-error" onClick={() => setError(null)}>{error} — dismiss</div>}
+
+      <ReportExportBar outletId={outletId} from={from} to={to} />
 
       {outlets.length > 1 && (
         <div className="outlet-kpis">
@@ -240,6 +243,8 @@ export function ReportsTab({ outletId }: { outletId: string }) {
           </div>
         )}
       </div>
+
+      <ReportSchedules outletId={outletId} />
     </div>
   );
 }
