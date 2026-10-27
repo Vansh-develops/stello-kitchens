@@ -109,6 +109,8 @@ export function ReportsTab({ outletId }: { outletId: string }) {
           <Kpi label="Avg order value" value={money2(overview.avgOrderValue)} />
           <Kpi label="Tax collected" value={money2(overview.taxCollected)} />
           <Kpi label="Discounts" value={money2(overview.discountsGiven)} tone="warn" />
+          <Kpi label="Service charge" value={money2(overview.serviceCharge ?? 0)} />
+          <Kpi label="Round-off" value={money2(overview.roundOff ?? 0)} />
           <Kpi label="New customers" value={String(overview.newCustomers)} />
         </div>
       )}
@@ -163,7 +165,10 @@ export function ReportsTab({ outletId }: { outletId: string }) {
                 <div><span>Taxable value</span><span className="mono">{money2(breakdown.tax.taxableValue)}</span></div>
                 <div><span>CGST</span><span className="mono">{money2(breakdown.tax.cgst)}</span></div>
                 <div><span>SGST</span><span className="mono">{money2(breakdown.tax.sgst)}</span></div>
+                <div><span>IGST</span><span className="mono">{money2(breakdown.tax.igst ?? 0)}</span></div>
                 <div className="tax-total"><span>Total tax</span><span className="mono">{money2(breakdown.tax.totalTax)}</span></div>
+                <div><span>Service charge</span><span className="mono">{money2(breakdown.tax.serviceCharge ?? 0)}</span></div>
+                <div><span>Round-off</span><span className="mono">{money2(breakdown.tax.roundOff ?? 0)}</span></div>
               </div>
             </div>
           )}
@@ -179,6 +184,9 @@ export function ReportsTab({ outletId }: { outletId: string }) {
               <div><span className="ze-label">Bills</span><strong className="mono">{dayEnd.firstBill ?? "—"} → {dayEnd.lastBill ?? "—"}</strong></div>
               <div><span className="ze-label">Gross</span><strong className="mono">{money(dayEnd.gross)}</strong></div>
               <div><span className="ze-label">CGST+SGST</span><strong className="mono">{money2(dayEnd.cgst + dayEnd.sgst)}</strong></div>
+              {!!dayEnd.igst && <div><span className="ze-label">IGST</span><strong className="mono">{money2(dayEnd.igst)}</strong></div>}
+              <div><span className="ze-label">Service charge</span><strong className="mono">{money2(dayEnd.serviceCharge ?? 0)}</strong></div>
+              <div><span className="ze-label">Round-off</span><strong className="mono">{money2(dayEnd.roundOff ?? 0)}</strong></div>
               <div><span className="ze-label">Discounts</span><strong className="mono">{money(dayEnd.discounts)}</strong></div>
               <div><span className="ze-label">Cancelled</span><strong className={dayEnd.cancelledOrders ? "neg" : ""}>{dayEnd.cancelledOrders}</strong></div>
             </div>

@@ -34,6 +34,7 @@ import { StaffModule } from "./staff/staff.module";
 import { FinanceModule } from "./finance/finance.module";
 import { GiftCardsModule } from "./gift-cards/gift-cards.module";
 import { EdgeModule } from "./edge/edge.module";
+import { BillingModule } from "./billing/billing.module";
 
 @Module({
   imports: [
@@ -72,6 +73,7 @@ import { EdgeModule } from "./edge/edge.module";
     FinanceModule,
     GiftCardsModule,
     EdgeModule,
+    BillingModule,
   ],
   providers: [
     // ThrottlerGuard first so rate limiting applies even to unauthenticated

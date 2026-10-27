@@ -15,6 +15,10 @@ import type {
 } from "@stello/shared";
 import { Prisma } from "@prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
+import { splitTax, stateOf } from "../invoices/invoices.service";
+
+// Item quantity a line contributes: an equal-split check line is a 1/N share.
+const lineQty = (i: { quantity: number; splitParts?: number | null }) => i.quantity / (i.splitParts || 1);
 
 const N = (d: Prisma.Decimal | number) => (typeof d === "number" ? d : Number(d));
 const round2 = (n: number) => Math.round(n * 100) / 100;
@@ -47,6 +51,32 @@ export class ReportsService {
     if (!user.outletIds.includes(outletId)) throw new ForbiddenException("No access to outlet");
   }
 
+  /**
+   * CGST/SGST/IGST totals using the tax-invoice place-of-supply rule: a bill to
+   * a buyer GSTIN in another state is IGST; everything else splits evenly.
+   */
+  private async gstSplit(tenantId: string, outletId: string, orders: { id: string; taxAmount: Prisma.Decimal }[]) {
+    const outlet = await this.prisma.outlet.findFirst({ where: { id: outletId, tenantId }, select: { placeOfSupply: true, gstin: true } });
+    const sellerState = outlet?.placeOfSupply ?? stateOf(outlet?.gstin);
+    const invoices = orders.length
+      ? await this.prisma.invoice.findMany({
+          where: { tenantId, orderId: { in: orders.map((o) => o.id) } },
+          select: { orderId: true, buyerGstin: true },
+        })
+      : [];
+    const buyer = new Map(invoices.map((i) => [i.orderId, i.buyerGstin]));
+    let cgst = 0;
+    let sgst = 0;
+    let igst = 0;
+    for (const o of orders) {
+      const s = splitTax(N(o.taxAmount), sellerState, buyer.get(o.id));
+      cgst += Math.round(s.cgst * 100);
+      sgst += Math.round(s.sgst * 100);
+      igst += Math.round(s.igst * 100);
+    }
+    return { cgst: cgst / 100, sgst: sgst / 100, igst: igst / 100 };
+  }
+
   private range(from: string, to: string) {
     return { gte: new Date(`${from}T00:00:00`), lte: new Date(`${to}T23:59:59.999`) };
   }
@@ -69,7 +99,7 @@ export class ReportsService {
     const range = this.range(from, to);
     const orders = await this.prisma.order.findMany({
       where: { tenantId: user.tenantId, outletId, status: "SETTLED", createdAt: range },
-      select: { total: true, taxAmount: true, discountAmount: true, createdAt: true },
+      select: { total: true, taxAmount: true, discountAmount: true, serviceChargeAmount: true, roundOff: true, createdAt: true },
     });
     const gross = orders.reduce((s, o) => s + N(o.total), 0);
     const tax = orders.reduce((s, o) => s + N(o.taxAmount), 0);
@@ -104,6 +134,8 @@ export class ReportsService {
       avgOrderValue: orders.length ? round2(gross / orders.length) : 0,
       taxCollected: round2(tax),
       discountsGiven: round2(discounts),
+      serviceCharge: round2(orders.reduce((s, o) => s + N(o.serviceChargeAmount), 0)),
+      roundOff: round2(orders.reduce((s, o) => s + N(o.roundOff), 0)),
       newCustomers,
       series,
     };
@@ -116,7 +148,7 @@ export class ReportsService {
 
     const orders = await this.prisma.order.findMany({
       where: orderWhere,
-      select: { id: true, orderType: true, total: true, subtotal: true, discountAmount: true, taxAmount: true },
+      select: { id: true, orderType: true, total: true, subtotal: true, discountAmount: true, taxAmount: true, serviceChargeAmount: true, serviceChargeTaxable: true, roundOff: true },
     });
     const orderIds = orders.map((o) => o.id);
 
@@ -145,7 +177,7 @@ export class ReportsService {
     // Items + categories
     const items = await this.prisma.orderItem.findMany({
       where: { orderId: { in: orderIds } },
-      select: { itemId: true, itemName: true, quantity: true, lineTotal: true },
+      select: { itemId: true, itemName: true, quantity: true, lineTotal: true, splitParts: true },
     });
     const itemIds = [...new Set(items.map((i) => i.itemId))];
     const itemRows = await this.prisma.item.findMany({
@@ -160,22 +192,30 @@ export class ReportsService {
       const category = categoryByItem.get(it.itemId) ?? "Uncategorised";
       const cat = catMap.get(category) ?? { amount: 0, count: 0 };
       cat.amount += N(it.lineTotal);
-      cat.count += it.quantity;
+      cat.count += lineQty(it);
       catMap.set(category, cat);
 
       const row = itemAgg.get(it.itemName) ?? { itemName: it.itemName, category, qty: 0, revenue: 0 };
-      row.qty += it.quantity;
+      row.qty += lineQty(it);
       row.revenue += N(it.lineTotal);
       itemAgg.set(it.itemName, row);
     }
 
-    const taxable = orders.reduce((s, o) => s + (N(o.subtotal) - N(o.discountAmount)), 0);
+    // A taxable service charge is part of the taxable value of supply.
+    const taxable = orders.reduce(
+      (s, o) => s + (N(o.subtotal) - N(o.discountAmount) + (o.serviceChargeTaxable ? N(o.serviceChargeAmount) : 0)),
+      0,
+    );
     const totalTax = orders.reduce((s, o) => s + N(o.taxAmount), 0);
+    const gst = await this.gstSplit(user.tenantId, outletId, orders);
     const tax: TaxSummaryDto = {
       taxableValue: round2(taxable),
-      cgst: round2(totalTax / 2),
-      sgst: round2(totalTax / 2),
+      cgst: gst.cgst,
+      sgst: gst.sgst,
+      igst: gst.igst,
       totalTax: round2(totalTax),
+      serviceCharge: round2(orders.reduce((s, o) => s + N(o.serviceChargeAmount), 0)),
+      roundOff: round2(orders.reduce((s, o) => s + N(o.roundOff), 0)),
     };
 
     return {
@@ -205,7 +245,7 @@ export class ReportsService {
         total: true,
         createdAt: true,
         payments: { select: { mode: true, amount: true } },
-        items: { select: { itemId: true, itemName: true, quantity: true, lineTotal: true } },
+        items: { select: { itemId: true, itemName: true, quantity: true, lineTotal: true, splitParts: true } },
       },
     });
 
@@ -233,13 +273,13 @@ export class ReportsService {
 
     const itemLevel = input.dimension === "item" || input.dimension === "category";
     for (const o of orders) {
-      const orderQty = o.items.reduce((s, i) => s + i.quantity, 0);
+      const orderQty = o.items.reduce((s, i) => s + lineQty(i), 0);
       if (itemLevel) {
         for (const it of o.items) {
           const key = input.dimension === "item" ? it.itemName : (categoryByItem.get(it.itemId) ?? "Uncategorised");
           const g = bucket(key, key);
           g.revenue += N(it.lineTotal);
-          g.quantity += it.quantity;
+          g.quantity += lineQty(it);
           g.orders.add(o.id);
         }
       } else {
@@ -291,7 +331,7 @@ export class ReportsService {
     const range = this.range(date, date);
     const orders = await this.prisma.order.findMany({
       where: { tenantId: user.tenantId, outletId, status: "SETTLED", createdAt: range },
-      select: { id: true, orderType: true, total: true, taxAmount: true, discountAmount: true, billNumber: true, createdAt: true },
+      select: { id: true, orderType: true, total: true, taxAmount: true, discountAmount: true, serviceChargeAmount: true, roundOff: true, billNumber: true, createdAt: true },
       orderBy: { createdAt: "asc" },
     });
     const cancelledOrders = await this.prisma.order.count({
@@ -327,8 +367,9 @@ export class ReportsService {
       gross: round2(gross),
       net: round2(gross - tax),
       discounts: round2(discounts),
-      cgst: round2(tax / 2),
-      sgst: round2(tax / 2),
+      ...(await this.gstSplit(user.tenantId, outletId, orders)),
+      serviceCharge: round2(orders.reduce((s, o) => s + N(o.serviceChargeAmount), 0)),
+      roundOff: round2(orders.reduce((s, o) => s + N(o.roundOff), 0)),
       firstBill: orders[0]?.billNumber ?? null,
       lastBill: orders[orders.length - 1]?.billNumber ?? null,
       payments: this.toRows(payMap, PAYMENT_LABELS),

@@ -434,6 +434,18 @@ model Order {
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
   deletedAt      DateTime?
+  // Billing controls: service charge (snapshot of outlet config), round-off, split/merge.
+  serviceChargeAmount       Decimal @default(0) @db.Decimal(10, 2)
+  serviceChargeRate         Decimal @default(0) @db.Decimal(5, 2)
+  serviceChargeTaxable      Boolean @default(false)
+  serviceChargeWaived       Boolean @default(false)
+  serviceChargeWaivedReason String?
+  roundOff                  Decimal @default(0) @db.Decimal(10, 2)
+  allocatedDiscount         Decimal @default(0) @db.Decimal(10, 2) // split check's share of a parent discount
+  parentOrderId             String? // split check → its parent bill
+  splitIndex                Int?
+  splitCount                Int? // set on the parent once split
+  mergedIntoOrderId         String?
 
   outlet   Outlet         @relation(fields: [outletId], references: [id])
   table    DiningTable?   @relation(fields: [tableId], references: [id])
@@ -445,6 +457,7 @@ model Order {
   @@unique([deviceId, clientId])
   @@index([tenantId, outletId, status])
   @@index([outletId, updatedAt])
+  @@index([parentOrderId])
   @@map("orders")
 }
 
@@ -469,6 +482,8 @@ model OrderItem {
   comboId          String? // the combo this line belongs to (parent + components)
   comboGroupId     String? // groups one combo instance's parent + components in an order
   isComboComponent Boolean @default(false)
+  splitFromItemId  String? // split check copy → the parent line it bills
+  splitParts       Int? // equal split: this line is a 1/N share (reports count qty / N)
 
   order  Order            @relation(fields: [orderId], references: [id])
   kot    Kot?             @relation(fields: [kotId], references: [id])
@@ -1388,4 +1403,45 @@ model EdgeSyncConflict {
 
   @@index([tenantId, outletId, status])
   @@map("edge_sync_conflicts")
+}
+
+// ── Billing ─────────────────────────────────────────────────────────────────
+
+// Per-outlet billing rules. One row per outlet, created on first save; absent =
+// defaults (no service charge, no round-off, IST).
+model OutletBillingSettings {
+  id                      String   @id @default(cuid())
+  tenantId                String
+  outletId                String   @unique
+  serviceChargeEnabled    Boolean  @default(false)
+  serviceChargePercent    Decimal  @default(0) @db.Decimal(5, 2)
+  serviceChargeTaxable    Boolean  @default(true)
+  serviceChargeOrderTypes String[] @default(["DINE_IN"])
+  roundOffEnabled         Boolean  @default(false)
+  timezone                String   @default("Asia/Kolkata") // drives item availability windows
+  updatedAt               DateTime @updatedAt
+
+  @@index([tenantId])
+  @@map("outlet_billing_settings")
+}
+
+// A cart parked server-side (held order) so any terminal can resume it.
+model ParkedCart {
+  id            String   @id @default(cuid())
+  tenantId      String
+  outletId      String
+  label         String
+  orderType     String
+  tableId       String?
+  orderId       String? // pending additions to this running order
+  customerName  String?
+  customerPhone String?
+  lines         Json
+  itemCount     Int      @default(0)
+  amount        Decimal  @default(0) @db.Decimal(10, 2)
+  parkedById    String?
+  createdAt     DateTime @default(now())
+
+  @@index([tenantId, outletId])
+  @@map("parked_carts")
 }

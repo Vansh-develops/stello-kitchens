@@ -7,9 +7,12 @@ import { EINVOICE_PROVIDER, type EInvoiceProvider } from "./einvoice.provider";
 
 const N = (d: Prisma.Decimal | number) => (typeof d === "number" ? d : Number(d));
 const r2 = (n: number) => Math.round(n * 100) / 100;
+/** Taxable value of a bill: food after discount, plus a taxable service charge. */
+const taxableOf = (o: { subtotal: Prisma.Decimal; discountAmount: Prisma.Decimal; serviceChargeAmount: Prisma.Decimal; serviceChargeTaxable: boolean }) =>
+  r2(N(o.subtotal) - N(o.discountAmount) + (o.serviceChargeTaxable ? N(o.serviceChargeAmount) : 0));
 
 /** First two digits of a GSTIN are the state code (e.g. "29" = Karnataka). */
-const stateOf = (gstin?: string | null) => (gstin && gstin.length >= 2 ? gstin.slice(0, 2) : null);
+export const stateOf = (gstin?: string | null) => (gstin && gstin.length >= 2 ? gstin.slice(0, 2) : null);
 
 /**
  * Split a tax amount into CGST/SGST (intra-state) or IGST (inter-state). A supply
@@ -17,7 +20,7 @@ const stateOf = (gstin?: string | null) => (gstin && gstin.length >= 2 ? gstin.s
  * supply; then the full rate is IGST and CGST/SGST are zero. B2C sales (no buyer
  * GSTIN) are treated as intra-state at the point of supply.
  */
-function splitTax(taxAmount: number, sellerState: string | null, buyerGstin?: string | null) {
+export function splitTax(taxAmount: number, sellerState: string | null, buyerGstin?: string | null) {
   const buyerState = stateOf(buyerGstin);
   const interState = !!buyerState && !!sellerState && buyerState !== sellerState;
   if (interState) return { cgst: 0, sgst: 0, igst: r2(taxAmount), interState };
@@ -61,7 +64,7 @@ export class InvoicesService {
         invoiceNumber: o.billNumber ?? "",
         invoiceDate: o.createdAt.toISOString(),
         customerName: o.customerName,
-        taxableValue: r2(N(o.subtotal) - N(o.discountAmount)),
+        taxableValue: taxableOf(o),
         cgst: split.cgst,
         sgst: split.sgst,
         igst: split.igst,
@@ -99,7 +102,7 @@ export class InvoicesService {
       sellerGstin: outlet.gstin,
       buyerGstin: stored?.buyerGstin ?? null,
       placeOfSupply: outlet.placeOfSupply,
-      taxableValue: r2(N(order.subtotal) - N(order.discountAmount)),
+      taxableValue: taxableOf(order),
       cgst: split.cgst,
       sgst: split.sgst,
       igst: split.igst,
@@ -118,6 +121,8 @@ export class InvoicesService {
     order: {
       subtotal: Prisma.Decimal;
       discountAmount: Prisma.Decimal;
+      serviceChargeAmount: Prisma.Decimal;
+      serviceChargeTaxable: boolean;
       taxAmount: Prisma.Decimal;
       items: { itemId: string; lineTotal: Prisma.Decimal; taxRate: Prisma.Decimal }[];
     },
@@ -130,7 +135,7 @@ export class InvoicesService {
     // Allocate the order's taxable value and tax across HSN groups in integer
     // paise, so the rows are exact and never drift against the order total.
     const subtotalPaise = toPaise(N(order.subtotal));
-    const taxablePaise = subtotalPaise - toPaise(N(order.discountAmount));
+    const taxablePaise = toPaise(taxableOf(order));
 
     const groups = new Map<string, { hsn: string; rate: number; subtotalPaise: number }>();
     for (const line of order.items) {
@@ -236,6 +241,10 @@ export class InvoicesService {
       include: { payments: true },
       orderBy: { createdAt: "asc" },
     });
+    const outlet = await this.prisma.outlet.findUniqueOrThrow({ where: { id: outletId } });
+    const sellerState = outlet.placeOfSupply ?? stateOf(outlet.gstin);
+    const buyers = await this.prisma.invoice.findMany({ where: { orderId: { in: orders.map((o) => o.id) } }, select: { orderId: true, buyerGstin: true } });
+    const buyerOf = new Map(buyers.map((b) => [b.orderId, b.buyerGstin]));
     const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
     const fmtDate = (d: Date) => `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, "0")}${String(d.getDate()).padStart(2, "0")}`;
     const amt = (n: number) => n.toFixed(2);
@@ -243,7 +252,12 @@ export class InvoicesService {
     const vouchers = orders
       .map((o) => {
         const taxable = N(o.subtotal) - N(o.discountAmount);
-        const tax = N(o.taxAmount);
+        const gst = splitTax(N(o.taxAmount), sellerState, buyerOf.get(o.id));
+        const sc = N(o.serviceChargeAmount);
+        const roundOff = N(o.roundOff);
+        const credit = (ledger: string, n: number) =>
+          `
+     <ALLLEDGERENTRIES.LIST><LEDGERNAME>${ledger}</LEDGERNAME><ISDEEMEDPOSITIVE>${n >= 0 ? "No" : "Yes"}</ISDEEMEDPOSITIVE><AMOUNT>${amt(-n)}</AMOUNT></ALLLEDGERENTRIES.LIST>`;
         const total = N(o.total);
         // Party ledger from the dominant payment mode.
         const dominant = [...o.payments].sort((a, b) => N(b.amount) - N(a.amount))[0]?.mode ?? "CASH";
@@ -256,8 +270,7 @@ export class InvoicesService {
      <PARTYLEDGERNAME>${esc(party)}</PARTYLEDGERNAME>
      <ALLLEDGERENTRIES.LIST><LEDGERNAME>${esc(party)}</LEDGERNAME><ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE><AMOUNT>${amt(total)}</AMOUNT></ALLLEDGERENTRIES.LIST>
      <ALLLEDGERENTRIES.LIST><LEDGERNAME>Sales</LEDGERNAME><ISDEEMEDPOSITIVE>No</ISDEEMEDPOSITIVE><AMOUNT>-${amt(taxable)}</AMOUNT></ALLLEDGERENTRIES.LIST>
-     <ALLLEDGERENTRIES.LIST><LEDGERNAME>Output CGST</LEDGERNAME><ISDEEMEDPOSITIVE>No</ISDEEMEDPOSITIVE><AMOUNT>-${amt(tax / 2)}</AMOUNT></ALLLEDGERENTRIES.LIST>
-     <ALLLEDGERENTRIES.LIST><LEDGERNAME>Output SGST</LEDGERNAME><ISDEEMEDPOSITIVE>No</ISDEEMEDPOSITIVE><AMOUNT>-${amt(tax / 2)}</AMOUNT></ALLLEDGERENTRIES.LIST>
+${sc ? credit("Service Charge", sc) : ""}${gst.igst ? credit("Output IGST", gst.igst) : credit("Output CGST", gst.cgst) + credit("Output SGST", gst.sgst)}${roundOff ? credit("Round Off", roundOff) : ""}
     </VOUCHER>
    </TALLYMESSAGE>`;
       })

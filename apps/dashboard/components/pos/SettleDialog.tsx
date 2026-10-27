@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import QRCode from "qrcode";
-import type { CustomerLookupDto, GiftCardBalanceDto, OrderDto, PaymentMode } from "@stello/shared";
+import type { BillPreviewDto, CustomerLookupDto, GiftCardBalanceDto, OrderDto, PaymentMode } from "@stello/shared";
 import { posApi as api } from "@/lib/pos-api";
 import { hrApi } from "@/lib/hr-api";
 import "../hr/hr.css";
@@ -11,16 +11,21 @@ const rupee = (n: number) => `₹${n.toFixed(2)}`;
 const MODES: PaymentMode[] = ["CASH", "CARD", "UPI", "WALLET"];
 
 export function SettleDialog({
-  order,
+  order: initialOrder,
   outletId,
+  canRemoveServiceCharge = false,
   onClose,
   onSettled,
+  onOrderChanged,
 }: {
   order: OrderDto;
   outletId: string;
+  canRemoveServiceCharge?: boolean;
   onClose: () => void;
   onSettled: (order: OrderDto) => void;
+  onOrderChanged?: (order: OrderDto) => void;
 }) {
+  const [order, setOrder] = useState(initialOrder);
   const [discount, setDiscount] = useState(0);
   const [split, setSplit] = useState<Record<PaymentMode, number>>({
     CASH: 0,
@@ -69,13 +74,53 @@ export function SettleDialog({
   }, [phone, outletId]);
 
   const redeemDiscount = customer ? redeemPoints * customer.pointValue : 0;
-  const totalDiscount = Math.min(discount + couponDiscount + redeemDiscount, order.subtotal);
 
-  const payable = useMemo(() => {
-    const taxable = order.subtotal - totalDiscount;
-    const tax = order.subtotal > 0 ? order.taxAmount * (taxable / order.subtotal) : 0;
-    return Math.round((taxable + tax) * 100) / 100;
-  }, [totalDiscount, order]);
+  // The server computes the exact bill (service charge, tax split, round-off) —
+  // the same code path settlement uses — so "Payable" always matches.
+  const [preview, setPreview] = useState<BillPreviewDto | null>(null);
+  const [previewError, setPreviewError] = useState<string | null>(null);
+  const appliedCoupon = couponDiscount > 0 ? couponCode.trim() : "";
+  useEffect(() => {
+    let cancelled = false;
+    const t = setTimeout(() => {
+      api
+        .preview(order.id, {
+          discountAmount: discount > 0 ? discount : undefined,
+          couponCode: appliedCoupon || undefined,
+          redeemPoints: redeemPoints > 0 ? redeemPoints : undefined,
+          customerPhone: phone.trim() || undefined,
+        })
+        .then((p) => {
+          if (cancelled) return;
+          setPreview(p);
+          setPreviewError(null);
+        })
+        .catch((err) => !cancelled && setPreviewError(err instanceof Error ? err.message : "Could not price the bill"));
+    }, 250);
+    return () => {
+      cancelled = true;
+      clearTimeout(t);
+    };
+  }, [order.id, order.total, order.serviceChargeRemoved, discount, appliedCoupon, redeemPoints, phone]);
+
+  const payable = preview?.total ?? order.total;
+
+  // Per-bill service-charge removal (permissioned, needs a reason).
+  const [scReason, setScReason] = useState<string | null>(null);
+  const changeServiceCharge = async (remove: boolean) => {
+    setError(null);
+    try {
+      const updated = remove
+        ? await api.removeServiceCharge(order.id, (scReason ?? "").trim())
+        : await api.restoreServiceCharge(order.id);
+      setOrder(updated);
+      setScReason(null);
+      setSplit({ CASH: 0, CARD: 0, UPI: 0, WALLET: 0, OTHER: 0, GIFT_CARD: 0 });
+      onOrderChanged?.(updated);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not change the service charge");
+    }
+  };
 
   const paid = useMemo(() => Object.values(split).reduce((s, n) => s + n, 0), [split]);
   const remaining = Math.round((payable - paid) * 100) / 100;
@@ -198,7 +243,7 @@ export function SettleDialog({
       <div className="modal settle-modal" onClick={(e) => e.stopPropagation()}>
         <header className="modal-head">
           <div>
-            <h2>Settle bill</h2>
+            <h2>{order.splitIndex ? `Settle check ${order.splitIndex} of ${order.splitCount ?? "?"}` : "Settle bill"}</h2>
             <span className="settle-sub">
               {order.tableName ?? order.orderType.replace("_", " ")} · {order.items.length} items
             </span>
@@ -305,10 +350,66 @@ export function SettleDialog({
                 <span>−{rupee(redeemDiscount)}</span>
               </div>
             )}
-            <div className="ss-row">
-              <span>Tax (CGST + SGST)</span>
-              <span>{rupee(Math.round((payable - (order.subtotal - totalDiscount)) * 100) / 100)}</span>
-            </div>
+            {preview && (preview.serviceChargeAmount > 0 || preview.serviceChargeRemoved) && (
+              <div className="ss-row sc-row">
+                <span>
+                  {preview.serviceChargeRemoved ? (
+                    <>Service charge removed <small className="ss-note">{order.serviceChargeRemovedReason}</small></>
+                  ) : (
+                    <>
+                      Service charge {preview.serviceChargePercent}%
+                      {!preview.serviceChargeTaxable && <small className="ss-note">not taxed</small>}
+                    </>
+                  )}
+                  {canRemoveServiceCharge && !preview.serviceChargeRemoved && scReason === null && (
+                    <button className="ss-link" onClick={() => setScReason("")}>Remove</button>
+                  )}
+                  {canRemoveServiceCharge && preview.serviceChargeRemoved && (
+                    <button className="ss-link" onClick={() => void changeServiceCharge(false)}>Restore</button>
+                  )}
+                </span>
+                <span>{preview.serviceChargeRemoved ? "—" : rupee(preview.serviceChargeAmount)}</span>
+              </div>
+            )}
+            {scReason !== null && (
+              <div className="sc-reason">
+                <input
+                  autoFocus
+                  placeholder="Reason for removing service charge"
+                  value={scReason}
+                  maxLength={200}
+                  onChange={(e) => setScReason(e.target.value)}
+                />
+                <button className="co-apply" disabled={scReason.trim().length < 3} onClick={() => void changeServiceCharge(true)}>
+                  Remove
+                </button>
+                <button className="co-apply" onClick={() => setScReason(null)}>Keep</button>
+              </div>
+            )}
+            {preview && preview.igst > 0 ? (
+              <div className="ss-row">
+                <span>IGST</span>
+                <span>{rupee(preview.igst)}</span>
+              </div>
+            ) : (
+              <>
+                <div className="ss-row">
+                  <span>CGST</span>
+                  <span>{rupee(preview?.cgst ?? order.cgst)}</span>
+                </div>
+                <div className="ss-row">
+                  <span>SGST</span>
+                  <span>{rupee(preview?.sgst ?? order.sgst)}</span>
+                </div>
+              </>
+            )}
+            {preview && preview.roundOff !== 0 && (
+              <div className="ss-row">
+                <span>Round off</span>
+                <span>{preview.roundOff > 0 ? "+" : "−"}{rupee(Math.abs(preview.roundOff))}</span>
+              </div>
+            )}
+            {previewError && <p className="co-msg bad">{previewError}</p>}
             <div className="ss-row grand">
               <span>Payable</span>
               <span>{rupee(payable)}</span>
@@ -377,7 +478,7 @@ export function SettleDialog({
           <button className="btn-ghost" onClick={onClose} disabled={busy}>
             Back
           </button>
-          <button className="btn-primary grow" onClick={submit} disabled={busy || Math.abs(remaining) > 0.01}>
+          <button className="btn-primary grow" onClick={submit} disabled={busy || !preview || Math.abs(remaining) > 0.01}>
             {busy ? "Settling…" : `Settle & print · ${rupee(payable)}`}
           </button>
         </footer>

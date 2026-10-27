@@ -6,3 +6,4 @@ export * from "./theme";
 export * from "./access";
 export * from "./hr-accounting";
 export * from "./edge";
+export * from "./billing";

@@ -3,7 +3,8 @@ import { z } from "zod";
 export const OrderType = z.enum(["DINE_IN", "TAKEAWAY", "DELIVERY"]);
 export type OrderType = z.infer<typeof OrderType>;
 
-export const OrderStatus = z.enum(["OPEN", "BILLED", "SETTLED", "CANCELLED"]);
+// SPLIT = parent bill closed once all its split checks settled; MERGED = folded into another order.
+export const OrderStatus = z.enum(["OPEN", "BILLED", "SETTLED", "CANCELLED", "SPLIT", "MERGED"]);
 export type OrderStatus = z.infer<typeof OrderStatus>;
 
 export const PaymentMode = z.enum(["CASH", "CARD", "UPI", "WALLET", "OTHER", "GIFT_CARD"]);
