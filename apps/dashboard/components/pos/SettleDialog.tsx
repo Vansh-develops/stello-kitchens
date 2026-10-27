@@ -7,8 +7,8 @@ import { posApi as api } from "@/lib/pos-api";
 import { hrApi } from "@/lib/hr-api";
 import "../hr/hr.css";
 import { publishCfdPayment } from "@/lib/cfd-mirror";
+import { useT } from "@/lib/i18n";
 
-const rupee = (n: number) => `₹${n.toFixed(2)}`;
 const MODES: PaymentMode[] = ["CASH", "CARD", "UPI", "WALLET"];
 
 export function SettleDialog({
@@ -44,6 +44,7 @@ export function SettleDialog({
   // Leaving the settle dialog takes the QR off the customer display.
   useEffect(() => () => publishCfdPayment(null), []);
   const [busy, setBusy] = useState(false);
+  const { t, money: rupee } = useT();
 
   // Customer / offers
   const [phone, setPhone] = useState(order.customerPhone ?? "");
@@ -165,7 +166,7 @@ export function SettleDialog({
       setCouponMsg(res.message);
     } catch {
       setCouponDiscount(0);
-      setCouponMsg("Could not check coupon");
+      setCouponMsg(t("settle.couponFailed"));
     }
   };
 
@@ -189,7 +190,7 @@ export function SettleDialog({
       setQrVpa(qr.payeeVpa);
       publishCfdPayment({ upiString: qr.upiString, amount: qr.amount, payeeVpa: qr.payeeVpa });
     } catch {
-      setError("Could not generate UPI QR");
+      setError(t("settle.qrFailed"));
     }
   };
 
@@ -198,10 +199,10 @@ export function SettleDialog({
     try {
       const res = await api.requestLoyaltyOtp(outletId, phone.trim());
       setOtpSent(true);
-      setOtpMsg(`OTP sent to ${phone.trim()} — read it to the customer to confirm.`);
+      setOtpMsg(t("settle.otpSent", { phone: phone.trim() }));
       void res;
     } catch (err) {
-      setOtpMsg(err instanceof Error ? err.message : "Could not send OTP");
+      setOtpMsg(err instanceof Error ? err.message : t("settle.otpFailed"));
     }
   };
 
@@ -219,12 +220,12 @@ export function SettleDialog({
         payments.push({ mode: "GIFT_CARD", amount: split.GIFT_CARD, giftCardCode: gcCode.trim() });
       }
       if (payments.length === 0) {
-        setError("Add at least one payment.");
+        setError(t("settle.needPayment"));
         setBusy(false);
         return;
       }
       if (redeemPoints > 0 && !otp.trim()) {
-        setError("Enter the redemption OTP to redeem points.");
+        setError(t("settle.needOtp"));
         setBusy(false);
         return;
       }
@@ -238,7 +239,7 @@ export function SettleDialog({
       });
       onSettled(settled);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not settle");
+      setError(err instanceof Error ? err.message : t("settle.failed"));
       setBusy(false);
     }
   };
@@ -248,9 +249,9 @@ export function SettleDialog({
       <div className="modal settle-modal" onClick={(e) => e.stopPropagation()}>
         <header className="modal-head">
           <div>
-            <h2>{order.splitIndex ? `Settle check ${order.splitIndex} of ${order.splitCount ?? "?"}` : "Settle bill"}</h2>
+            <h2>{order.splitIndex ? `Settle check ${order.splitIndex} of ${order.splitCount ?? "?"}` : t("settle.title")}</h2>
             <span className="settle-sub">
-              {order.tableName ?? order.orderType.replace("_", " ")} · {order.items.length} items
+              {t("settle.sub", { where: order.tableName ?? t(`orderType.${order.orderType}` as const), count: order.items.length })}
             </span>
           </div>
           <button className="modal-x" onClick={onClose}>
@@ -262,21 +263,21 @@ export function SettleDialog({
           <div className="cust-offers">
             <div className="co-phone">
               <input
-                placeholder="Customer phone (for loyalty)"
+                placeholder={t("settle.phonePlaceholder")}
                 value={phone}
                 onChange={(e) => setPhone(e.target.value)}
                 inputMode="numeric"
               />
               {customer?.found && (
                 <span className="co-balance">
-                  {customer.name ?? "Member"} · {customer.loyaltyPoints} pts
+                  {customer.name ?? t("settle.member")} · {t("settle.points", { count: customer.loyaltyPoints })}
                 </span>
               )}
             </div>
 
             {customer?.found && customer.loyaltyPoints > 0 && (
               <div className="co-redeem">
-                <span>Redeem points</span>
+                <span>{t("settle.redeemPoints")}</span>
                 <div className="co-redeem-ctl">
                   <input
                     type="number"
@@ -287,7 +288,7 @@ export function SettleDialog({
                     onChange={(e) => setRedeemPoints(Math.min(Number(e.target.value) || 0, maxRedeemable))}
                   />
                   <button className="co-max" onClick={() => setRedeemPoints(maxRedeemable)}>
-                    Max {maxRedeemable}
+                    {t("settle.max", { count: maxRedeemable })}
                   </button>
                 </div>
               </div>
@@ -296,10 +297,10 @@ export function SettleDialog({
             {redeemPoints > 0 && (
               <div className="co-otp">
                 <button className="co-apply" onClick={sendOtp}>
-                  {otpSent ? "Resend OTP" : "Send OTP"}
+                  {otpSent ? t("settle.resendOtp") : t("settle.sendOtp")}
                 </button>
                 <input
-                  placeholder="Redemption OTP"
+                  placeholder={t("settle.otpPlaceholder")}
                   value={otp}
                   onChange={(e) => setOtp(e.target.value)}
                   inputMode="numeric"
@@ -311,12 +312,12 @@ export function SettleDialog({
 
             <div className="co-coupon">
               <input
-                placeholder="Coupon code"
+                placeholder={t("settle.couponPlaceholder")}
                 value={couponCode}
                 onChange={(e) => setCouponCode(e.target.value.toUpperCase())}
               />
               <button className="co-apply" onClick={applyCoupon}>
-                Apply
+                {t("common.apply")}
               </button>
             </div>
             {couponMsg && (
@@ -329,11 +330,11 @@ export function SettleDialog({
 
           <div className="settle-summary">
             <div className="ss-row">
-              <span>Subtotal</span>
+              <span>{t("settle.subtotal")}</span>
               <span>{rupee(order.subtotal)}</span>
             </div>
             <div className="ss-row discount-row">
-              <span>Manual discount</span>
+              <span>{t("settle.manualDiscount")}</span>
               <input
                 type="number"
                 min={0}
@@ -345,13 +346,13 @@ export function SettleDialog({
             </div>
             {couponDiscount > 0 && (
               <div className="ss-row">
-                <span>Coupon {couponCode.trim()}</span>
+                <span>{t("settle.coupon", { code: couponCode.trim() })}</span>
                 <span>−{rupee(couponDiscount)}</span>
               </div>
             )}
             {redeemDiscount > 0 && (
               <div className="ss-row">
-                <span>Points redeemed ({redeemPoints})</span>
+                <span>{t("settle.pointsRedeemed", { count: redeemPoints })}</span>
                 <span>−{rupee(redeemDiscount)}</span>
               </div>
             )}
@@ -416,7 +417,7 @@ export function SettleDialog({
             )}
             {previewError && <p className="co-msg bad">{previewError}</p>}
             <div className="ss-row grand">
-              <span>Payable</span>
+              <span>{t("settle.payable")}</span>
               <span>{rupee(payable)}</span>
             </div>
           </div>
@@ -425,7 +426,7 @@ export function SettleDialog({
             {MODES.map((m) => (
               <div key={m} className="pay-row">
                 <button className="pay-full" onClick={() => payFull(m)}>
-                  {m}
+                  {t(`payMode.${m}` as const)}
                 </button>
                 <input
                   type="number"
@@ -457,23 +458,23 @@ export function SettleDialog({
 
           <div className="upi-qr-row">
             <button className="co-apply" onClick={showUpiQr} type="button">
-              {qrDataUrl ? "Hide UPI QR" : "Show UPI QR"}
+              {qrDataUrl ? t("settle.hideQr") : t("settle.showQr")}
             </button>
             {qrDataUrl && (
               <div className="upi-qr">
-                <img src={qrDataUrl} alt="UPI payment QR" width={140} height={140} />
-                <span className="upi-qr-vpa">Scan to pay {rupee(payable)}<br />{qrVpa}</span>
+                <img src={qrDataUrl} alt={t("settle.qrAlt")} width={140} height={140} />
+                <span className="upi-qr-vpa">{t("settle.scanToPay", { amount: rupee(payable) })}<br />{qrVpa}</span>
               </div>
             )}
           </div>
 
           <div className={`remaining ${Math.abs(remaining) < 0.01 ? "settled" : ""}`}>
             {remaining > 0.01 ? (
-              <span>Remaining {rupee(remaining)}</span>
+              <span>{t("settle.remaining", { amount: rupee(remaining) })}</span>
             ) : remaining < -0.01 ? (
-              <span>Change to return {rupee(-remaining)}</span>
+              <span>{t("settle.change", { amount: rupee(-remaining) })}</span>
             ) : (
-              <span>Balanced ✓</span>
+              <span>{t("settle.balanced")}</span>
             )}
           </div>
           {error && <p className="form-error">{error}</p>}
@@ -481,10 +482,10 @@ export function SettleDialog({
 
         <footer className="modal-foot">
           <button className="btn-ghost" onClick={onClose} disabled={busy}>
-            Back
+            {t("common.back")}
           </button>
           <button className="btn-primary grow" onClick={submit} disabled={busy || !preview || Math.abs(remaining) > 0.01}>
-            {busy ? "Settling…" : `Settle & print · ${rupee(payable)}`}
+            {busy ? t("settle.settling") : t("settle.submit", { amount: rupee(payable) })}
           </button>
         </footer>
       </div>

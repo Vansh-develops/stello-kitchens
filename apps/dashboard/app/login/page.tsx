@@ -13,6 +13,7 @@ type Step =
   | { kind: "verify"; mfaToken: string; useRecovery: boolean }
   | { kind: "enroll"; mfaToken: string; setup: MfaSetupDto | null; qr: string | null }
   | { kind: "codes"; codes: string[] };
+import { LanguageSwitcher, useT } from "@/lib/i18n";
 
 export default function LoginPage() {
   const { user, loading, login, refresh } = useSession();
@@ -23,6 +24,7 @@ export default function LoginPage() {
   const [step, setStep] = useState<Step>({ kind: "password" });
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const { t } = useT();
 
   useEffect(() => {
     if (!loading && user && step.kind !== "codes") router.replace("/");
@@ -55,7 +57,7 @@ export default function LoginPage() {
       else await startEnroll(challenge);
       setBusy(false);
     } catch (err) {
-      fail(err, "Login failed");
+      fail(err, t("login.failed"));
     }
   };
 
@@ -99,13 +101,14 @@ export default function LoginPage() {
       {step.kind === "password" && (
         <form className="login-card" onSubmit={submitPassword}>
           <span className="wordmark">STELLO KITCHENS</span>
-          <h1>Sign in</h1>
-          <label>Email<input type="email" autoComplete="username" value={email} onChange={(e) => setEmail(e.target.value)} required /></label>
-          <label>Password<input type="password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} required /></label>
+          <h1>{t("login.title")}</h1>
+          <label>{t("login.email")}<input type="email" autoComplete="username" value={email} onChange={(e) => setEmail(e.target.value)} required /></label>
+          <label>{t("login.password")}<input type="password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} required /></label>
           {error && <p className="form-error">{error}</p>}
-          <button className="btn-primary" type="submit" disabled={busy}>{busy ? "Signing in…" : "Sign in"}</button>
-          <a className="text-btn login-forgot" href="/forgot-password">Forgot password?</a>
-          <p className="login-hint">Demo: admin@demo.com / password123</p>
+          <button className="btn-primary" type="submit" disabled={busy}>{busy ? t("login.submitting") : t("login.title")}</button>
+          <a className="text-btn login-forgot" href="/forgot-password">{t("login.forgot")}</a>
+          <p className="login-hint">{t("login.demo", { email: "admin@demo.com", password: "password123" })}</p>
+          <LanguageSwitcher />
         </form>
       )}
 

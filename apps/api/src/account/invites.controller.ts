@@ -7,6 +7,7 @@ import { ZodValidationPipe } from "../common/zod.pipe";
 import { CurrentUser, Public, RequirePermission } from "../common/decorators";
 import { SessionService } from "../session/session.service";
 import { AuthService } from "../auth/auth.service";
+import { PlanLimit } from "../saas-billing/plan.guard";
 
 @Controller("tenant")
 export class InvitesController {
@@ -15,6 +16,7 @@ export class InvitesController {
   @Get("roles")
   roles(@CurrentUser() user: AuthUser) { return this.svc.roles(user); }
   @RequirePermission("settings.manage")
+  @PlanLimit("users")
   @Post("invites")
   create(@CurrentUser() user: AuthUser, @Body(new ZodValidationPipe(CreateInviteSchema)) body: CreateInviteInput) {
     return this.svc.create(user, body).then((r) => ({ inviteLink: r.inviteLink }));

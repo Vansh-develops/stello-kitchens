@@ -6,12 +6,13 @@ import { surfaceAccess, type Surface } from "@stello/shared";
 import { useAuthGuard, OutletPicker } from "@/components/OutletPicker";
 import { ThemeProvider } from "@/components/ThemeProvider";
 
-const LABEL: Record<Surface, string> = { console: "Console", pos: "POS", kds: "KDS", captain: "Captain" };
+import { LanguageSwitcher, useT } from "@/lib/i18n";
 
 export function Shell({ surface, children }: { surface: Surface; children: React.ReactNode }) {
   const { user, loading, outlets, outlet, setOutlet, logout } = useAuthGuard();
   const router = useRouter();
   const pathname = usePathname();
+  const { t } = useT();
 
   const access = user ? surfaceAccess(user.permissions) : { allowed: [], primary: null };
 
@@ -20,8 +21,8 @@ export function Shell({ surface, children }: { surface: Surface; children: React
     if (!access.allowed.includes(surface)) router.replace("/");
   }, [loading, user, surface, router, access.allowed]);
 
-  if (loading || !user) return <div className="boot">Loading…</div>;
-  if (!access.allowed.includes(surface)) return <div className="boot">Redirecting…</div>;
+  if (loading || !user) return <div className="boot">{t("common.loading")}</div>;
+  if (!access.allowed.includes(surface)) return <div className="boot">{t("common.redirecting")}</div>;
 
   // Outlet selection is shared across surfaces: pick once, all surfaces use it.
   if (!outlet) {
@@ -41,7 +42,7 @@ export function Shell({ surface, children }: { surface: Surface; children: React
                   className={pathname?.startsWith(`/${s}`) ? "active" : ""}
                   onClick={() => router.push(`/${s}`)}
                 >
-                  {LABEL[s]}
+                  {t(`shell.surface.${s}` as const)}
                 </button>
               ))}
             </nav>
@@ -49,10 +50,11 @@ export function Shell({ surface, children }: { surface: Surface; children: React
           <div className="shell-right">
             <span className="shell-outlet">{outlet.name}{outlets.length > 1 ? "" : ""}</span>
             {outlets.length > 1 && (
-              <button className="text-btn" onClick={() => setOutlet(null)}>Switch outlet</button>
+              <button className="text-btn" onClick={() => setOutlet(null)}>{t("shell.switchOutlet")}</button>
             )}
+            <LanguageSwitcher />
             <span className="shell-user">{user.name}</span>
-            <button className="text-btn" onClick={logout}>Sign out</button>
+            <button className="text-btn" onClick={logout}>{t("common.signOut")}</button>
           </div>
         </header>
         <main className="shell-body">{children}</main>

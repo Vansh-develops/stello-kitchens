@@ -38,6 +38,11 @@ import { AuditTab } from "./platform/AuditTab";
 import { IntegrationsTab } from "./platform/IntegrationsTab";
 import { SecurityTab } from "./platform/SecurityTab";
 import { useSession } from "./SessionProvider";
+import { ChainMenuTab } from "./ChainMenuTab";
+import { BillingTab } from "./BillingTab";
+import { PlatformTab } from "./PlatformTab";
+import { useT } from "@/lib/i18n";
+import type { MessageKey } from "@/lib/i18n/en";
 
 const rupee = (n: number) => `₹${n.toFixed(0)}`;
 type Tab =
@@ -68,7 +73,10 @@ type Tab =
   | "roles"
   | "audit"
   | "integrations"
-  | "security";
+  | "security"
+  | "chain"
+  | "subscription"
+  | "platform";
 
 export function Console({
   user,
@@ -126,9 +134,16 @@ export function Console({
     [menu, selectedCat],
   );
   const channelName = (id: string) => menu?.channels.find((c) => c.id === id)?.name ?? "";
+  const { t: tr } = useT();
+  // Translated tab label; tabs without a catalogue key keep their English label.
+  const tabLabel = (id: string, english: string) => {
+    const key = `console.tab.${id}` as MessageKey;
+    const s = tr(key);
+    return s === key ? english : s;
+  };
 
   if (!menu) {
-    return <div className="boot">{error ?? "Loading menu…"}</div>;
+    return <div className="boot">{error ?? tr("console.loadingMenu")}</div>;
   }
 
   return (
@@ -136,7 +151,7 @@ export function Console({
       <header className="top">
         <div className="top-brand">
           <span className="wordmark">STELLO KITCHENS</span>
-          <span className="top-sub">Console · {outlet.name.replace("Stello Kitchens - ", "")}</span>
+          <span className="top-sub">{tr("console.sub", { outlet: outlet.name.replace("Stello Kitchens - ", "") })}</span>
         </div>
         <nav className="top-tabs">
           {(
@@ -169,8 +184,11 @@ export function Console({
               "audit",
               "integrations",
               "security",
+              "chain",
+              "subscription",
+              "platform",
             ] as const
-          ).map((t) => {
+          ).filter((t) => t !== "platform" || user.isPlatformAdmin).map((t) => {
             const labels: Record<string, string> = {
               menu: "Menu",
               addons: "Add-ons",
@@ -200,10 +218,13 @@ export function Console({
               audit: "Audit log",
               integrations: "API & webhooks",
               security: "Security",
+              chain: "Brand menu",
+              subscription: "Subscription",
+              platform: "Platform",
             };
             return (
               <button key={t} className={`top-tab ${tab === t ? "active" : ""}`} onClick={() => setTab(t)}>
-                {labels[t]}
+                {tabLabel(t, labels[t])}
               </button>
             );
           })}
@@ -509,6 +530,9 @@ export function Console({
       {tab === "audit" && <AuditTab user={user} />}
       {tab === "integrations" && <IntegrationsTab user={user} outlets={outlets} />}
       {tab === "security" && <SecurityTab user={user} />}
+      {tab === "chain" && <ChainMenuTab outletId={outlet.id} />}
+      {tab === "subscription" && <BillingTab />}
+      {tab === "platform" && user.isPlatformAdmin && <PlatformTab />}
 
       {itemDialog && (
         <ItemDialog

@@ -3,6 +3,7 @@ import * as bcrypt from "bcryptjs";
 import { randomBytes } from "node:crypto";
 import { STARTER_TEMPLATE } from "../src/menu/starter-template";
 import { hashPin } from "../src/edge/pin";
+import { PLAN_CATALOGUE } from "@stello/shared";
 
 const prisma = new PrismaClient();
 const publicToken = () => randomBytes(9).toString("base64url");
@@ -801,6 +802,42 @@ async function main() {
   }
 
   await seedPlatformRoles(tenant.id);
+  // ── Track 8: chain roles + SaaS subscription ─────
+  // Brand admin edits/publishes the brand master menu; outlet manager runs one
+  // outlet's menu (incl. overrides of brand items) and devices.
+  await prisma.role.createMany({
+    data: [
+      {
+        tenantId: tenant.id, name: "Brand Admin",
+        permissions: ["chain.manage", "menu.manage", "menu.stock", "reports.view"],
+      },
+      {
+        tenantId: tenant.id, name: "Outlet Manager",
+        permissions: ["menu.manage", "menu.stock", "orders.create", "orders.settle", "orders.cancel", "devices.manage", "reports.view"],
+      },
+    ],
+  });
+  for (const p of PLAN_CATALOGUE) {
+    await prisma.plan.upsert({
+      where: { code: p.code },
+      update: {},
+      create: {
+        code: p.code, name: p.name, priceMonthly: p.priceMonthly, priceYearly: p.priceYearly,
+        limits: p.limits, features: p.features, sortOrder: p.sortOrder,
+      },
+    });
+  }
+  // The demo runs on the Chain plan so every module (incl. the brand menu) is visible.
+  const chainPlan = await prisma.plan.findUniqueOrThrow({ where: { code: "chain" } });
+  const periodStart = new Date();
+  await prisma.tenantSubscription.create({
+    data: {
+      tenantId: tenant.id, planId: chainPlan.id, status: "ACTIVE",
+      currentPeriodStart: periodStart, currentPeriodEnd: new Date(periodStart.getTime() + 365 * 86_400_000),
+    },
+  });
+  await prisma.tenant.update({ where: { id: tenant.id }, data: { status: "ACTIVE" } });
+
   console.log(`  materials: ${materialDefs.length} raw materials, ${Object.keys(recipes).length} recipes`);
   console.log(`  crm: ${couponDefs.length} coupons, ${customerDefs.length} customers`);
   // Offline edge POS: demo PINs for PIN login on an edge terminal (owner 1234, cashier 1111).

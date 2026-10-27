@@ -104,6 +104,8 @@ export const CreateItemSchema = z.object({
   variations: z.array(VariationInputSchema).default([]),
   addonGroupIds: z.array(z.string()).default([]),
   channels: z.array(ItemChannelConfigSchema).default([]),
+  // Optional per-language display names shown to diners, e.g. { hi: "पनीर टिक्का" }.
+  nameTranslations: z.record(z.string().regex(/^[a-z]{2}$/), z.string().max(120)).nullable().optional(),
 });
 export type CreateItemInput = z.infer<typeof CreateItemSchema>;
 

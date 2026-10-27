@@ -2,12 +2,15 @@ import { useEffect, useState } from "react";
 import type { TokenBoardDto } from "@stello/shared";
 import { api } from "./api";
 import { ThemeProvider } from "./ThemeProvider";
+import { InstallPrompt } from "./InstallPrompt";
+import { LanguageSwitcher, useT } from "./i18n";
 
 // Customer-facing token-display screen (a TV near the counter). Polls the board
 // and shows which token numbers are cooking vs ready for pickup.
 export function Board({ token }: { token: string }) {
   const [board, setBoard] = useState<TokenBoardDto | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const { t } = useT();
 
   useEffect(() => {
     let alive = true;
@@ -15,12 +18,12 @@ export function Board({ token }: { token: string }) {
       api
         .board(token)
         .then((b) => alive && setBoard(b))
-        .catch((e) => alive && setError(e instanceof Error ? e.message : "Board unavailable"));
+        .catch((e) => alive && setError(e instanceof Error ? e.message : t("board.unavailable")));
     load();
-    const t = setInterval(load, 3000);
+    const timer = setInterval(load, 3000);
     return () => {
       alive = false;
-      clearInterval(t);
+      clearInterval(timer);
     };
   }, [token]);
 
@@ -33,7 +36,7 @@ export function Board({ token }: { token: string }) {
   if (!board)
     return (
       <ThemeProvider>
-        <div className="board">Loading…</div>
+        <div className="board">{t("board.loading")}</div>
       </ThemeProvider>
     );
 
@@ -42,11 +45,12 @@ export function Board({ token }: { token: string }) {
       <div className="board">
         <header className="board-head">
           <span className="mark">{board.outletName}</span>
-          <span className="board-sub">Order status</span>
+          <span className="board-sub">{t("board.status")}</span>
+          <LanguageSwitcher />
         </header>
         <div className="board-cols">
           <section className="col preparing">
-            <h2>Preparing</h2>
+            <h2>{t("board.preparing")}</h2>
             <div className="tokens">
               {board.preparing.length === 0 ? (
                 <span className="none">—</span>
@@ -60,7 +64,7 @@ export function Board({ token }: { token: string }) {
             </div>
           </section>
           <section className="col ready">
-            <h2>Ready to collect</h2>
+            <h2>{t("board.ready")}</h2>
             <div className="tokens">
               {board.ready.length === 0 ? (
                 <span className="none">—</span>
@@ -74,6 +78,7 @@ export function Board({ token }: { token: string }) {
             </div>
           </section>
         </div>
+        <InstallPrompt placement="board" />
       </div>
     </ThemeProvider>
   );

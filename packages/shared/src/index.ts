@@ -11,3 +11,5 @@ export * from "./printing";
 export * from "./foh";
 export * from "./procurement";
 export * from "./platform";
+export * from "./i18n";
+export * from "./growth";

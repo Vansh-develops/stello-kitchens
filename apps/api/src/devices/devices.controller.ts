@@ -9,6 +9,7 @@ import {
 import { DevicesService } from "./devices.service";
 import { ZodValidationPipe } from "../common/zod.pipe";
 import { CurrentUser, Public, RequirePermission } from "../common/decorators";
+import { PlanLimit } from "../saas-billing/plan.guard";
 
 @RequirePermission("devices.manage")
 @Controller("outlets/:outletId/devices")
@@ -25,6 +26,7 @@ export class DevicesController {
     return this.svc.backup(user, outletId);
   }
 
+  @PlanLimit("terminals")
   @Post()
   create(
     @CurrentUser() user: AuthUser,

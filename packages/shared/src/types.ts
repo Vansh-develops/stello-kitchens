@@ -51,6 +51,7 @@ export interface MenuItemDto {
   availableStart?: string | null; // "HH:MM" outlet-local sale window; null = all day
   availableEnd?: string | null;
   imageUrl?: string | null;
+  nameTranslations?: Record<string, string> | null; // locale code → display name
 }
 
 export interface ComboSlotOptionDto {
@@ -251,6 +252,7 @@ export interface AdminItemDto {
   addonGroupIds: string[];
   channels: ItemChannelConfigDto[];
   imageUrl?: string | null;
+  nameTranslations?: Record<string, string> | null;
 }
 
 export interface AdminCategoryDto {

@@ -2,14 +2,13 @@
 
 import { useMemo, useState } from "react";
 import type { MenuItemDto, OrderItemInput } from "@stello/shared";
+import { useT } from "@/lib/i18n";
 
 type Line = OrderItemInput & {
   variationName: string | null;
   addonNames: string[];
   unitPrice: number;
 };
-
-const rupee = (n: number) => `₹${n.toFixed(2)}`;
 
 export function ItemDialog({
   item,
@@ -26,6 +25,7 @@ export function ItemDialog({
   const [addonIds, setAddonIds] = useState<Set<string>>(new Set());
   const [note, setNote] = useState("");
   const [quantity, setQuantity] = useState(1);
+  const { t, locale, money: rupee } = useT();
 
   const toggleAddon = (groupMax: number, groupAddonIds: string[], id: string) => {
     setAddonIds((prev) => {
@@ -78,7 +78,7 @@ export function ItemDialog({
         <header className="modal-head">
           <div>
             <span className={`veg-dot ${item.isVeg ? "veg" : "nonveg"}`} />
-            <h2>{item.name}</h2>
+            <h2>{item.nameTranslations?.[locale] ?? item.name}</h2>
           </div>
           <button className="modal-x" onClick={onClose}>
             ✕
@@ -88,7 +88,7 @@ export function ItemDialog({
         <div className="modal-body">
           {item.variations.length > 0 && (
             <div className="opt-group">
-              <span className="opt-label">Variation</span>
+              <span className="opt-label">{t("pos.item.variation")}</span>
               <div className="opt-chips">
                 {item.variations.map((v) => (
                   <button
@@ -108,7 +108,7 @@ export function ItemDialog({
             <div key={g.id} className="opt-group">
               <span className="opt-label">
                 {g.name}
-                <small>up to {g.maxSelect}</small>
+                <small>{t("pos.item.upTo", { count: g.maxSelect })}</small>
               </span>
               <div className="opt-chips">
                 {g.addons.map((a) => (
@@ -128,10 +128,10 @@ export function ItemDialog({
           ))}
 
           <div className="opt-group">
-            <span className="opt-label">Note</span>
+            <span className="opt-label">{t("common.note")}</span>
             <input
               className="note-input"
-              placeholder="e.g. no onion, less spicy"
+              placeholder={t("common.notePlaceholder")}
               value={note}
               onChange={(e) => setNote(e.target.value)}
             />
@@ -145,7 +145,7 @@ export function ItemDialog({
             <button onClick={() => setQuantity((q) => q + 1)}>+</button>
           </div>
           <button className="btn-primary grow" onClick={submit}>
-            Add · {rupee(unitPrice * quantity)}
+            {t("pos.item.add", { amount: rupee(unitPrice * quantity) })}
           </button>
         </footer>
       </div>

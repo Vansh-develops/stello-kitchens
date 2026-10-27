@@ -84,6 +84,7 @@ export class MenuAdminService {
             sortOrder: i.sortOrder,
             availableStart: i.availableStart,
             availableEnd: i.availableEnd,
+            nameTranslations: (i.nameTranslations as Record<string, string> | null) ?? null,
             variations: i.variations.map((v) => ({ id: v.id, name: v.name, price: Number(v.price) })),
             addonGroupIds: i.addonGroups.map((ag) => ag.addonGroupId),
             imageUrl: i.imageUrl,
@@ -184,6 +185,7 @@ export class MenuAdminService {
         sortOrder: input.sortOrder ?? 0,
         availableStart: input.availableStart ?? null,
         availableEnd: input.availableEnd ?? null,
+        nameTranslations: input.nameTranslations ?? undefined,
         variations: { create: (input.variations ?? []).map((v) => ({ name: v.name, price: v.price })) },
         addonGroups: {
           create: (input.addonGroupIds ?? []).map((agId) => ({ addonGroupId: agId })),
@@ -215,6 +217,7 @@ export class MenuAdminService {
           sortOrder: input.sortOrder,
           availableStart: input.availableStart === undefined ? undefined : input.availableStart,
           availableEnd: input.availableEnd === undefined ? undefined : input.availableEnd,
+          nameTranslations: input.nameTranslations === undefined ? undefined : (input.nameTranslations ?? Prisma.DbNull),
         },
       });
       // Replace variations if provided (order history keeps snapshots).

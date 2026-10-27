@@ -45,6 +45,9 @@ import { AuditModule } from "./audit/audit.module";
 import { WebhooksModule } from "./webhooks/webhooks.module";
 import { McpModule } from "./mcp/mcp.module";
 import { ReportExportModule } from "./report-export/report-export.module";
+import { SaasBillingModule } from "./saas-billing/saas-billing.module";
+import { ChainModule } from "./chain/chain.module";
+import { PreferencesModule } from "./preferences/preferences.module";
 
 @Module({
   imports: [
@@ -94,6 +97,9 @@ import { ReportExportModule } from "./report-export/report-export.module";
     WebhooksModule,
     McpModule,
     ReportExportModule,
+    SaasBillingModule,
+    ChainModule,
+    PreferencesModule,
   ],
   providers: [
     // ThrottlerGuard first so rate limiting applies even to unauthenticated

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import type { OutletDto } from "@stello/shared";
 import { useSession } from "@/components/SessionProvider";
 import { ThemeProvider } from "@/components/ThemeProvider";
+import { useT } from "@/lib/i18n";
 
 /**
  * Shared auth/loading guard: once the session has resolved, redirects to
@@ -40,11 +41,12 @@ export function OutletPicker({
   onPick: (o: OutletDto) => void;
   onSignOut: () => void;
 }) {
+  const { t } = useT();
   return (
     <ThemeProvider>
       <div className="pick-outlet">
         <span className="wordmark">STELLO KITCHENS</span>
-        <h1>Select outlet</h1>
+        <h1>{t("outlet.select")}</h1>
         <div className="outlet-list">
           {outlets.map((o) => (
             <button key={o.id} className="outlet-card" onClick={() => onPick(o)}>
@@ -53,9 +55,9 @@ export function OutletPicker({
               <span className="outlet-addr">{o.address}</span>
             </button>
           ))}
-          {outlets.length === 0 && <p>No outlets assigned.</p>}
+          {outlets.length === 0 && <p>{t("outlet.none")}</p>}
         </div>
-        <button className="text-btn" onClick={onSignOut}>Sign out</button>
+        <button className="text-btn" onClick={onSignOut}>{t("common.signOut")}</button>
       </div>
     </ThemeProvider>
   );
