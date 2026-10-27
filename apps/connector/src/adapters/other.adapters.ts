@@ -1,17 +1,19 @@
 import { BadRequestException } from "@nestjs/common";
-import { verifyHmacSha256, verifyOndcEd25519, type WebhookHeaders } from "./signatures";
+import { verifyHmacSha256, verifyOndcEd25519, verifyStaticToken, type WebhookHeaders } from "./signatures";
 import type { CanonicalOrder, PlatformAdapter } from "./types";
 
 /**
- * Swiggy adapter (stub). Swiggy's 3rd-party Order Management API is partner-gated
- * (API key + secret, token auth) with no public schema; this parses a plausible
- * shape so the interface is exercised end-to-end. Auth/menu-sync land at onboarding.
+ * Swiggy direct adapter — PARTNER-GATED. Swiggy's restaurant order/menu API is
+ * only available to onboarded POS partners and has no public schema, so the
+ * field names below (orderId/outletId/items[].externalItemId/qty/total) and the
+ * X-Swiggy-Signature HMAC are NOT confirmed against Swiggy documentation and
+ * must be replaced with the partner spec at onboarding. Production Swiggy
+ * orders should arrive through UrbanPiper (see UrbanPiperAdapter), which is
+ * fully documented and needs no Swiggy partnership.
  */
 export class SwiggyAdapter implements PlatformAdapter {
   readonly platform = "SWIGGY" as const;
 
-  // Swiggy's partner Order API signs the raw body with HMAC-SHA256 using the
-  // partner secret, delivered in X-Swiggy-Signature.
   verifySignature(rawBody: Buffer, headers: WebhookHeaders): void {
     verifyHmacSha256({ platform: this.platform, rawBody, headers, headerName: "X-Swiggy-Signature", secretEnv: "SWIGGY_WEBHOOK_SECRET" });
   }
@@ -41,27 +43,26 @@ export class SwiggyAdapter implements PlatformAdapter {
 }
 
 /**
- * ONDC/Beckn adapter (stub). Seller-side flow implements /confirm with ed25519
- * signature verification (RET11 domain). This parses the item list from a Beckn
- * `/confirm` order; signing/registry lookups are onboarding concerns.
+ * ONDC/Beckn `/confirm` (seller side, ONDC:RET11). Per the public protocol the
+ * order carries `provider.id` (our outlet as registered in the catalogue),
+ * `items[].id` + `quantity.count`, `billing` and `quote.price.value`; the order id
+ * is BAP-assigned (`order.id`), falling back to the transaction id.
  */
 export class OndcAdapter implements PlatformAdapter {
   readonly platform = "ONDC" as const;
 
-  // ONDC/Beckn signs a blake2b-512 hash of the body with ed25519 (Authorization
-  // signature block). Live registry key resolution is GATED to onboarding; see
-  // verifyOndcEd25519.
   verifySignature(rawBody: Buffer, headers: WebhookHeaders): void {
     verifyOndcEd25519({ rawBody, headers });
   }
 
   parseOrder(payload: unknown): CanonicalOrder {
     const p = payload as {
-      context?: { transaction_id?: string; bpp_id?: string };
+      context?: { transaction_id?: string; action?: string };
       message?: {
         order?: {
+          id?: string;
           provider?: { id?: string };
-          items?: { id?: string; quantity?: { count?: number } }[];
+          items?: { id?: string; quantity?: { count?: number | string } }[];
           quote?: { price?: { value?: string } };
           billing?: { name?: string; phone?: string };
         };
@@ -73,13 +74,13 @@ export class OndcAdapter implements PlatformAdapter {
     }
     return {
       platform: "ONDC",
-      externalOrderId: p.context.transaction_id,
+      externalOrderId: order.id ?? p.context.transaction_id,
       outletId: order.provider.id,
       items: order.items
-        .filter((i) => i.id && i.quantity?.count)
+        .filter((i) => i.id && Number(i.quantity?.count) > 0)
         .map((i) => ({ externalItemId: i.id!, quantity: Number(i.quantity!.count) })),
       customerName: order.billing?.name ?? null,
-      customerPhoneMasked: order.billing?.phone ?? null,
+      customerPhoneMasked: order.billing?.phone ? `******${order.billing.phone.slice(-4)}` : null,
       orderValue: Number(order.quote?.price?.value ?? 0),
       rawPayload: payload,
     };
@@ -87,38 +88,46 @@ export class OndcAdapter implements PlatformAdapter {
 }
 
 /**
- * UrbanPiper/Dyno middleware adapter — the fastest path pre-certification. The
- * middleware fans out to every aggregator and delivers a single canonical shape,
- * so this parser is the simplest of all.
+ * UrbanPiper Order Relay webhook (api-docs.urbanpiper.com → Order Relay). One
+ * canonical shape for every aggregator UrbanPiper fans out to:
+ *   order.details.id · order.details.order_total · order.store.merchant_ref_id
+ *   order.items[].merchant_id / quantity · customer.name / phone
+ * The store's merchant_ref_id is our outlet id (set when the store is created in
+ * Atlas) and items' merchant_id is the ref_id we pushed with the menu.
+ *
+ * UrbanPiper does not sign webhooks; it sends the static headers configured on
+ * the webhook. We register a secret `X-Stello-Webhook-Token` there and compare it
+ * in constant time.
  */
 export class UrbanPiperAdapter implements PlatformAdapter {
   readonly platform = "URBANPIPER" as const;
 
-  // UrbanPiper/Dyno signs webhook bodies with HMAC-SHA256 (per-integration secret)
-  // and sends the hex digest in X-UrbanPiper-Signature.
-  verifySignature(rawBody: Buffer, headers: WebhookHeaders): void {
-    verifyHmacSha256({ platform: this.platform, rawBody, headers, headerName: "X-UrbanPiper-Signature", secretEnv: "URBANPIPER_WEBHOOK_SECRET" });
+  verifySignature(_rawBody: Buffer, headers: WebhookHeaders): void {
+    verifyStaticToken({ platform: this.platform, headers, headerName: "X-Stello-Webhook-Token", secretEnv: "URBANPIPER_WEBHOOK_SECRET" });
   }
 
   parseOrder(payload: unknown): CanonicalOrder {
     const p = payload as {
-      order_ref?: string;
-      location_ref?: string;
-      items?: { ref_id?: string; quantity?: number }[];
       customer?: { name?: string; phone?: string };
-      amount?: number;
+      order?: {
+        details?: { id?: number | string; order_total?: number };
+        store?: { merchant_ref_id?: string };
+        items?: { merchant_id?: string; quantity?: number }[];
+      };
     };
-    if (!p?.order_ref || !p?.location_ref || !Array.isArray(p.items)) {
+    const o = p?.order;
+    if (o?.details?.id == null || !o.store?.merchant_ref_id || !Array.isArray(o.items)) {
       throw new BadRequestException("Malformed UrbanPiper order payload");
     }
+    const phone = p.customer?.phone;
     return {
       platform: "URBANPIPER",
-      externalOrderId: p.order_ref,
-      outletId: p.location_ref,
-      items: p.items.filter((i) => i.ref_id && i.quantity).map((i) => ({ externalItemId: i.ref_id!, quantity: Number(i.quantity) })),
+      externalOrderId: String(o.details.id), // UrbanPiper order id — used for status updates
+      outletId: o.store.merchant_ref_id,
+      items: o.items.filter((i) => i.merchant_id && i.quantity).map((i) => ({ externalItemId: i.merchant_id!, quantity: Number(i.quantity) })),
       customerName: p.customer?.name ?? null,
-      customerPhoneMasked: p.customer?.phone ?? null,
-      orderValue: Number(p.amount ?? 0),
+      customerPhoneMasked: phone ? `******${phone.slice(-4)}` : null,
+      orderValue: Number(o.details.order_total ?? 0),
       rawPayload: payload,
     };
   }
