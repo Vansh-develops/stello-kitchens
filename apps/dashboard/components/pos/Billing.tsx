@@ -18,6 +18,7 @@ import { ItemDialog } from "./ItemDialog";
 import { ComboDialog, type ComboLine } from "./ComboDialog";
 import { SettleDialog } from "./SettleDialog";
 import { CashDrawer } from "./CashDrawer";
+import { useT } from "@/lib/i18n";
 
 type ItemCartLine = {
   kind: "item";
@@ -44,8 +45,6 @@ type ComboCartLine = {
   unitPrice: number;
 };
 type CartLine = ItemCartLine | ComboCartLine;
-
-const rupee = (n: number) => `₹${n.toFixed(2)}`;
 
 export function Billing({
   user,
@@ -75,6 +74,8 @@ export function Billing({
   const [drawer, setDrawer] = useState<CashSessionDto | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const { t, locale, money: rupee } = useT();
+  const itemName = (i: MenuItemDto) => i.nameTranslations?.[locale] ?? i.name;
 
   const loadDrawer = useCallback(() => {
     void api.cashCurrent(outlet.id).then(setDrawer).catch(() => setDrawer(null));
@@ -193,7 +194,7 @@ export function Billing({
         setActiveOrder(updated);
       } else {
         if (orderType === "DINE_IN" && !tableId) {
-          setError("Pick a table for dine-in orders.");
+          setError(t("pos.pickTable"));
           setBusy(false);
           return;
         }
@@ -210,7 +211,7 @@ export function Billing({
       setCart([]);
       await refreshOrders();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not send KOT");
+      setError(err instanceof Error ? err.message : t("pos.kotFailed"));
     } finally {
       setBusy(false);
     }
@@ -229,7 +230,7 @@ export function Billing({
 
   const cancelOrder = async () => {
     if (!activeOrder) return;
-    if (!confirm(`Cancel order${activeOrder.tableName ? " on " + activeOrder.tableName : ""}?`)) return;
+    if (!confirm(activeOrder.tableName ? t("pos.confirmCancelTable", { table: activeOrder.tableName }) : t("pos.confirmCancel"))) return;
     setBusy(true);
     try {
       await api.cancel(activeOrder.id);
@@ -289,7 +290,7 @@ export function Billing({
           <span className="rail-role">{user.roleName}</span>
           <button className={`drawer-chip ${drawer ? "open" : "closed"}`} onClick={() => setDrawerOpen(true)}>
             <span className="drawer-dot" />
-            {drawer ? `Drawer ₹${drawer.expectedCash.toFixed(0)}` : "Drawer closed"}
+            {drawer ? t("pos.drawerOpen", { amount: rupee(drawer.expectedCash, 0) }) : t("pos.drawerClosed")}
           </button>
         </div>
       </aside>
@@ -298,13 +299,13 @@ export function Billing({
         <div className="menu-head">
           <input
             className="search"
-            placeholder="Search item or shortcode…"
+            placeholder={t("pos.searchPlaceholder")}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
           <div className="open-orders">
-            <span className="oo-label">Running</span>
-            {openOrders.length === 0 && <span className="oo-empty">No open tables</span>}
+            <span className="oo-label">{t("pos.running")}</span>
+            {openOrders.length === 0 && <span className="oo-empty">{t("pos.noOpenTables")}</span>}
             {openOrders.map((o) => (
               <button
                 key={o.id}
@@ -312,7 +313,7 @@ export function Billing({
                 onClick={() => openExisting(o.id)}
                 title={rupee(o.total)}
               >
-                {o.tableName ?? o.orderType.replace("_", " ").toLowerCase()}
+                {o.tableName ?? t(`orderType.${o.orderType}` as const)}
               </button>
             ))}
           </div>
@@ -327,14 +328,14 @@ export function Billing({
                 disabled={!combo.inStock}
                 onClick={() => setDialogCombo(combo)}
               >
-                <span className="combo-tag">COMBO</span>
+                <span className="combo-tag">{t("common.combo")}</span>
                 <span className={`veg-dot ${combo.isVeg ? "veg" : "nonveg"}`} />
                 <span className="item-name">{combo.name}</span>
                 <span className="item-foot">
-                  <span className="item-code">{combo.slots.length} picks</span>
+                  <span className="item-code">{t("pos.comboPicks", { count: combo.slots.length })}</span>
                   <span className="item-price">{rupee(combo.price)}</span>
                 </span>
-                {!combo.inStock && <span className="oos-tag">86'd</span>}
+                {!combo.inStock && <span className="oos-tag">{t("common.outOfStock")}</span>}
               </button>
             ))}
           {(searchHits ?? activeCat?.items ?? []).map((item) => (
@@ -345,55 +346,55 @@ export function Billing({
               onClick={() => quickAdd(item)}
             >
               <span className={`veg-dot ${item.isVeg ? "veg" : "nonveg"}`} />
-              <span className="item-name">{item.name}</span>
+              <span className="item-name">{itemName(item)}</span>
               <span className="item-foot">
                 <span className="item-code">{item.shortCode}</span>
                 <span className="item-price">
                   {item.variations.length ? `${rupee(item.variations[0].price)}+` : rupee(item.price)}
                 </span>
               </span>
-              {!item.inStock && <span className="oos-tag">86'd</span>}
+              {!item.inStock && <span className="oos-tag">{t("common.outOfStock")}</span>}
             </button>
           ))}
-          {searchHits?.length === 0 && <p className="empty-search">No items match “{search}”.</p>}
+          {searchHits?.length === 0 && <p className="empty-search">{t("pos.noMatch", { query: search })}</p>}
         </div>
       </main>
 
       <section className="bill-pane">
         <div className="bill-head">
           <div className="order-type-tabs">
-            {(["DINE_IN", "TAKEAWAY", "DELIVERY"] as const).map((t) => (
+            {(["DINE_IN", "TAKEAWAY", "DELIVERY"] as const).map((ot) => (
               <button
-                key={t}
-                className={`ot-tab ${orderType === t ? "active" : ""}`}
+                key={ot}
+                className={`ot-tab ${orderType === ot ? "active" : ""}`}
                 disabled={!!activeOrder}
                 onClick={() => {
-                  setOrderType(t);
-                  if (t !== "DINE_IN") setTableId(null);
+                  setOrderType(ot);
+                  if (ot !== "DINE_IN") setTableId(null);
                 }}
               >
-                {t === "DINE_IN" ? "Dine-in" : t === "TAKEAWAY" ? "Takeaway" : "Delivery"}
+                {t(`orderType.${ot}` as const)}
               </button>
             ))}
           </div>
           {activeOrder ? (
             <div className="bill-ctx">
               <span className="ctx-main">
-                {activeOrder.tableName ?? activeOrder.orderType.replace("_", " ")}
+                {activeOrder.tableName ?? t(`orderType.${activeOrder.orderType}` as const)}
               </span>
-              <span className="ctx-sub">Bill running · {activeOrder.kots.length} KOT(s)</span>
+              <span className="ctx-sub">{t("pos.billRunning", { count: activeOrder.kots.length })}</span>
             </div>
           ) : orderType === "DINE_IN" ? (
             <TablePicker areas={areas} tableId={tableId} onPick={setTableId} />
           ) : (
             <div className="cust-fields">
               <input
-                placeholder="Customer name"
+                placeholder={t("pos.customerName")}
                 value={customerName}
                 onChange={(e) => setCustomerName(e.target.value)}
               />
               <input
-                placeholder="Phone"
+                placeholder={t("pos.phone")}
                 value={customerPhone}
                 onChange={(e) => setCustomerPhone(e.target.value)}
               />
@@ -404,7 +405,7 @@ export function Billing({
         <div className="bill-lines">
           {committed.length > 0 && (
             <div className="line-group">
-              <span className="group-label">Sent to kitchen</span>
+              <span className="group-label">{t("pos.sentToKitchen")}</span>
               {committed.map((i) =>
                 i.isComboComponent ? (
                   <div key={i.id} className="bill-line committed combo-comp">
@@ -416,11 +417,11 @@ export function Billing({
                   <div key={i.id} className="bill-line committed">
                     <span className="bl-qty">{i.quantity}×</span>
                     <span className="bl-name">
-                      {i.comboName && <span className="combo-badge">COMBO</span>} {i.itemName}
+                      {i.comboName && <span className="combo-badge">{t("common.combo")}</span>} {i.itemName}
                       {i.variationName && <em> · {i.variationName}</em>}
                       {i.addonNames.length > 0 && <small>{i.addonNames.join(", ")}</small>}
                       {i.note && <small className="bl-note">“{i.note}”</small>}
-                      {i.kotNumber != null && <span className="kot-tag">KOT {i.kotNumber}</span>}
+                      {i.kotNumber != null && <span className="kot-tag">{t("pos.kotTag", { number: i.kotNumber })}</span>}
                     </span>
                     <span className="bl-amt">{rupee(i.lineTotal)}</span>
                   </div>
@@ -431,7 +432,7 @@ export function Billing({
 
           {cart.length > 0 && (
             <div className="line-group">
-              <span className="group-label new">New — not yet sent</span>
+              <span className="group-label new">{t("pos.newNotSent")}</span>
               {cart.map((l) => (
                 <div key={l.key} className="bill-line">
                   <span className="bl-stepper">
@@ -442,7 +443,7 @@ export function Billing({
                   <span className="bl-name">
                     {l.kind === "combo" ? (
                       <>
-                        <span className="combo-badge">COMBO</span> {l.name}
+                        <span className="combo-badge">{t("common.combo")}</span> {l.name}
                         <small>{l.componentNames.join(" · ")}</small>
                       </>
                     ) : (
@@ -461,10 +462,10 @@ export function Billing({
 
           {committed.length === 0 && cart.length === 0 && (
             <div className="bill-empty">
-              <p>Tap items to start a bill.</p>
+              <p>{t("pos.tapToStart")}</p>
               {lastBill && (
                 <div className="last-bill">
-                  <span>Last bill settled</span>
+                  <span>{t("pos.lastBill")}</span>
                   <strong>
                     {lastBill.billNumber} · {rupee(lastBill.total)}
                   </strong>
@@ -478,35 +479,35 @@ export function Billing({
           {error && <p className="form-error">{error}</p>}
           <div className="totals">
             <div className="tot-row">
-              <span>New items</span>
+              <span>{t("pos.newItems")}</span>
               <span>{rupee(cartSubtotal)}</span>
             </div>
             {activeOrder && (
               <div className="tot-row">
-                <span>Running total (incl. tax)</span>
+                <span>{t("pos.runningTotal")}</span>
                 <span>{rupee(activeOrder.total)}</span>
               </div>
             )}
           </div>
           <div className="bill-buttons">
             <button className="btn-ghost" onClick={startNew} disabled={busy}>
-              New
+              {t("pos.new")}
             </button>
             {activeOrder && user.permissions.some((p) => p === "*" || p === "orders.cancel") && (
               <button className="btn-ghost danger" onClick={cancelOrder} disabled={busy}>
-                Void
+                {t("pos.void")}
               </button>
             )}
             <button className="btn-kot" onClick={sendKot} disabled={busy || cart.length === 0}>
-              {busy ? "…" : activeOrder ? "Add KOT" : "Send KOT"}
+              {busy ? "…" : activeOrder ? t("pos.addKot") : t("pos.sendKot")}
             </button>
             <button
               className="btn-primary"
               onClick={() => setSettleOpen(true)}
               disabled={!canSettle || busy}
-              title={cart.length > 0 ? "Send pending items first" : undefined}
+              title={cart.length > 0 ? t("pos.sendPendingFirst") : undefined}
             >
-              Settle {activeOrder ? rupee(activeOrder.total) : ""}
+              {t("pos.settle", { amount: activeOrder ? rupee(activeOrder.total) : "" })}
             </button>
           </div>
         </div>

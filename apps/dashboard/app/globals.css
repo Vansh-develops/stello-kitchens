@@ -3108,3 +3108,16 @@ select:focus-visible {
   .saas-invoice { position: absolute; inset: 0; box-shadow: none; border: 0; }
   .saas-invoice .modal-foot, .saas-invoice .modal-x { display: none; }
 }
+
+/* Language switcher (POS / KDS / console chrome, login) */
+.lang-switch {
+  background: transparent;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  padding: 4px 6px;
+  color: inherit;
+  font: inherit;
+  font-size: 12px;
+  max-width: 120px;
+}
+.lang-switch option { color: #0f172a; }

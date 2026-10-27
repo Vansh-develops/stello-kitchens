@@ -3,8 +3,7 @@
 import { useEffect, useState } from "react";
 import type { CashSessionDto, CashSessionReportDto } from "@stello/shared";
 import { posApi as api } from "@/lib/pos-api";
-
-const rupee = (n: number) => `₹${n.toFixed(2)}`;
+import { useT } from "@/lib/i18n";
 
 export function CashDrawer({
   outletId,
@@ -20,6 +19,7 @@ export function CashDrawer({
   const [report, setReport] = useState<CashSessionReportDto | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const { t, money: rupee } = useT();
 
   // forms
   const [openingFloat, setOpeningFloat] = useState("2000");
@@ -44,7 +44,7 @@ export function CashDrawer({
       await load();
       onChanged();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Action failed");
+      setError(err instanceof Error ? err.message : t("common.actionFailed"));
     } finally {
       setBusy(false);
     }
@@ -71,24 +71,24 @@ export function CashDrawer({
     <div className="modal-scrim" onClick={onClose}>
       <div className="modal settle-modal" onClick={(e) => e.stopPropagation()}>
         <header className="modal-head">
-          <h2>Cash drawer</h2>
+          <h2>{t("drawer.title")}</h2>
           <button className="modal-x" onClick={onClose}>✕</button>
         </header>
 
         <div className="modal-body">
-          {!loaded && <p className="drawer-hint">Loading…</p>}
+          {!loaded && <p className="drawer-hint">{t("common.loading")}</p>}
 
           {loaded && report && (
             <div className="drawer-report">
-              <p className="drawer-hint">Drawer closed. Summary:</p>
+              <p className="drawer-hint">{t("drawer.closedSummary")}</p>
               <div className="drawer-lines">
-                <div><span>Opening float</span><span>{rupee(report.session.openingFloat)}</span></div>
-                <div><span>Cash sales</span><span>{rupee(report.session.cashSales)}</span></div>
-                <div><span>Pay-outs + expenses</span><span>−{rupee(report.session.payOuts + report.session.expenses)}</span></div>
-                <div className="dl-strong"><span>Expected in drawer</span><span>{rupee(report.session.expectedCash)}</span></div>
-                <div><span>Counted</span><span>{rupee(report.session.countedCash ?? 0)}</span></div>
+                <div><span>{t("drawer.openingFloat")}</span><span>{rupee(report.session.openingFloat)}</span></div>
+                <div><span>{t("drawer.cashSales")}</span><span>{rupee(report.session.cashSales)}</span></div>
+                <div><span>{t("drawer.payoutsExpenses")}</span><span>−{rupee(report.session.payOuts + report.session.expenses)}</span></div>
+                <div className="dl-strong"><span>{t("drawer.expected")}</span><span>{rupee(report.session.expectedCash)}</span></div>
+                <div><span>{t("drawer.counted")}</span><span>{rupee(report.session.countedCash ?? 0)}</span></div>
                 <div className={`dl-strong ${Math.abs(report.session.variance ?? 0) > 0.01 ? "dl-off" : "dl-ok"}`}>
-                  <span>Variance</span><span>{rupee(report.session.variance ?? 0)}</span>
+                  <span>{t("drawer.variance")}</span><span>{rupee(report.session.variance ?? 0)}</span>
                 </div>
               </div>
             </div>
@@ -96,40 +96,40 @@ export function CashDrawer({
 
           {loaded && !report && !session && (
             <div className="drawer-open-form">
-              <p className="drawer-hint">No drawer is open. Start a shift with the opening float.</p>
+              <p className="drawer-hint">{t("drawer.noneOpen")}</p>
               <label className="drawer-field">
-                Opening float (₹)
+                {t("drawer.openingFloatInput")}
                 <input type="number" value={openingFloat} onChange={(e) => setOpeningFloat(e.target.value)} />
               </label>
-              <button className="btn-primary grow" onClick={open} disabled={busy}>Open drawer</button>
+              <button className="btn-primary grow" onClick={open} disabled={busy}>{t("drawer.open")}</button>
             </div>
           )}
 
           {loaded && !report && session && (
             <>
               <div className="drawer-lines">
-                <div><span>Opening float</span><span>{rupee(session.openingFloat)}</span></div>
-                <div><span>Cash sales</span><span>{rupee(session.cashSales)}</span></div>
-                {session.payIns > 0 && <div><span>Pay-ins</span><span>{rupee(session.payIns)}</span></div>}
-                {session.payOuts > 0 && <div><span>Pay-outs</span><span>−{rupee(session.payOuts)}</span></div>}
-                {session.expenses > 0 && <div><span>Expenses</span><span>−{rupee(session.expenses)}</span></div>}
-                <div className="dl-strong"><span>Expected in drawer</span><span>{rupee(session.expectedCash)}</span></div>
+                <div><span>{t("drawer.openingFloat")}</span><span>{rupee(session.openingFloat)}</span></div>
+                <div><span>{t("drawer.cashSales")}</span><span>{rupee(session.cashSales)}</span></div>
+                {session.payIns > 0 && <div><span>{t("drawer.payIns")}</span><span>{rupee(session.payIns)}</span></div>}
+                {session.payOuts > 0 && <div><span>{t("drawer.payOuts")}</span><span>−{rupee(session.payOuts)}</span></div>}
+                {session.expenses > 0 && <div><span>{t("drawer.expenses")}</span><span>−{rupee(session.expenses)}</span></div>}
+                <div className="dl-strong"><span>{t("drawer.expected")}</span><span>{rupee(session.expectedCash)}</span></div>
               </div>
 
               <div className="drawer-section">
-                <span className="drawer-label">Record expense / pay-out</span>
+                <span className="drawer-label">{t("drawer.recordExpense")}</span>
                 <div className="drawer-expense">
-                  <input type="number" placeholder="Amount" value={expense.amount} onChange={(e) => setExpense((p) => ({ ...p, amount: e.target.value }))} />
-                  <input placeholder="Category" value={expense.category} onChange={(e) => setExpense((p) => ({ ...p, category: e.target.value }))} />
-                  <button className="btn-ghost" onClick={addExpense} disabled={busy || !expense.amount}>Add</button>
+                  <input type="number" placeholder={t("drawer.amount")} value={expense.amount} onChange={(e) => setExpense((p) => ({ ...p, amount: e.target.value }))} />
+                  <input placeholder={t("drawer.category")} value={expense.category} onChange={(e) => setExpense((p) => ({ ...p, category: e.target.value }))} />
+                  <button className="btn-ghost" onClick={addExpense} disabled={busy || !expense.amount}>{t("common.add")}</button>
                 </div>
               </div>
 
               <div className="drawer-section">
-                <span className="drawer-label">Close drawer</span>
+                <span className="drawer-label">{t("drawer.close")}</span>
                 <div className="drawer-close">
-                  <input type="number" placeholder="Counted cash (₹)" value={countedCash} onChange={(e) => setCountedCash(e.target.value)} />
-                  <button className="btn-primary" onClick={close} disabled={busy || countedCash === ""}>Count &amp; close</button>
+                  <input type="number" placeholder={t("drawer.countedPlaceholder")} value={countedCash} onChange={(e) => setCountedCash(e.target.value)} />
+                  <button className="btn-primary" onClick={close} disabled={busy || countedCash === ""}>{t("drawer.countClose")}</button>
                 </div>
               </div>
             </>

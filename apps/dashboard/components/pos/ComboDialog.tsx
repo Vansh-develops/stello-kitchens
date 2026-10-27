@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import type { ComboDto } from "@stello/shared";
+import { useT } from "@/lib/i18n";
 
 // What a configured combo contributes to the cart.
 export type ComboLine = {
@@ -12,8 +13,6 @@ export type ComboLine = {
   unitPrice: number;
   note?: string;
 };
-
-const rupee = (n: number) => `₹${n.toFixed(2)}`;
 
 export function ComboDialog({
   combo,
@@ -35,6 +34,7 @@ export function ComboDialog({
   });
   const [quantity, setQuantity] = useState(1);
   const [note, setNote] = useState("");
+  const { t, money: rupee } = useT();
 
   const { unitPrice, componentNames } = useMemo(() => {
     let price = combo.price;
@@ -86,7 +86,7 @@ export function ComboDialog({
                   >
                     {o.name}
                     {o.priceDelta > 0 && <em>+{rupee(o.priceDelta)}</em>}
-                    {!o.inStock && <em>86'd</em>}
+                    {!o.inStock && <em>{t("common.outOfStock")}</em>}
                   </button>
                 ))}
               </div>
@@ -94,10 +94,10 @@ export function ComboDialog({
           ))}
 
           <div className="opt-group">
-            <span className="opt-label">Note</span>
+            <span className="opt-label">{t("common.note")}</span>
             <input
               className="note-input"
-              placeholder="e.g. no onion, less spicy"
+              placeholder={t("common.notePlaceholder")}
               value={note}
               onChange={(e) => setNote(e.target.value)}
             />
@@ -111,7 +111,7 @@ export function ComboDialog({
             <button onClick={() => setQuantity((q) => q + 1)}>+</button>
           </div>
           <button className="btn-primary grow" onClick={submit}>
-            Add · {rupee(unitPrice * quantity)}
+            {t("pos.item.add", { amount: rupee(unitPrice * quantity) })}
           </button>
         </footer>
       </div>
