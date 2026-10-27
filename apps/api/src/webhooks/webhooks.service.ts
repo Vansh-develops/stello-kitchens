@@ -41,7 +41,7 @@ export class WebhooksService implements OnModuleInit, OnModuleDestroy {
   constructor(private readonly prisma: PrismaService) {}
 
   onModuleInit() {
-    this.unsubscribe = domainEvents.subscribe((e) => this.onEvent(e));
+    this.unsubscribe = domainEvents.subscribe(async (e) => void (await this.onEvent(e)));
     if (this.workerEnabled()) {
       const every = Number(process.env.WEBHOOK_WORKER_INTERVAL_MS || 5000);
       this.timer = setInterval(() => void this.processDue(), every);

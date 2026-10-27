@@ -482,7 +482,8 @@ export class OrdersService {
       });
     });
     const settled = await this.getOne(user, orderId);
-    emitDomainEvent("order.settled", user.tenantId, settled.outletId, { orderId });
+    const { outletId } = await this.requireOrder(user, orderId);
+    emitDomainEvent("order.settled", user.tenantId, outletId, { orderId });
     return settled;
   }
 

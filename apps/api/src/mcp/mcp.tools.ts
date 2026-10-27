@@ -9,6 +9,26 @@ const outletId = z.string().optional().describe("Outlet id (see list_outlets). O
 
 type ToolResult = { content: { type: "text"; text: string }[]; isError?: boolean };
 
+/**
+ * The SDK's registerTool generics (zod-compat shape inference) make tsc's
+ * type checker blow up on this codebase's zod v3. Register through a loose
+ * signature instead and re-parse arguments with the same zod shape, so handlers
+ * stay typed and the SDK still validates input from `inputSchema` at runtime.
+ */
+type Shape = Record<string, z.ZodTypeAny>;
+interface LooseServer {
+  registerTool(name: string, config: Record<string, unknown>, cb: (args: unknown) => Promise<ToolResult>): unknown;
+}
+function tool<S extends Shape>(
+  server: McpServer,
+  name: string,
+  config: { title: string; description: string; inputSchema?: S; annotations?: Record<string, boolean> },
+  handler: (args: z.infer<z.ZodObject<S>>) => Promise<unknown>,
+) {
+  const schema = z.object(config.inputSchema ?? ({} as S));
+  (server as unknown as LooseServer).registerTool(name, config, (args) => run(() => handler(schema.parse(args ?? {}))));
+}
+
 async function run(fn: () => Promise<unknown>): Promise<ToolResult> {
   try {
     const value = await fn();
@@ -46,15 +66,17 @@ export function buildMcpServer(api: PublicApiService, p: AuthUser): McpServer {
   };
 
   if (allowed("list_outlets")) {
-    server.registerTool(
+    tool(
+      server,
       "list_outlets",
       { title: "List outlets", description: "Outlets this API key can access.", annotations: { readOnlyHint: true } },
-      () => run(() => api.outlets(p)),
+      () => api.outlets(p),
     );
   }
 
   if (allowed("list_orders")) {
-    server.registerTool(
+    tool(
+      server,
       "list_orders",
       {
         title: "List orders",
@@ -69,12 +91,13 @@ export function buildMcpServer(api: PublicApiService, p: AuthUser): McpServer {
         },
         annotations: { readOnlyHint: true },
       },
-      (args) => run(() => api.listOrders(p, args)),
+      (args) => api.listOrders(p, args),
     );
   }
 
   if (allowed("get_order")) {
-    server.registerTool(
+    tool(
+      server,
       "get_order",
       {
         title: "Get order",
@@ -82,12 +105,13 @@ export function buildMcpServer(api: PublicApiService, p: AuthUser): McpServer {
         inputSchema: { orderId: z.string() },
         annotations: { readOnlyHint: true },
       },
-      (args) => run(() => api.getOrder(p, args.orderId)),
+      (args) => api.getOrder(p, args.orderId),
     );
   }
 
   if (allowed("sales_summary")) {
-    server.registerTool(
+    tool(
+      server,
       "sales_summary",
       {
         title: "Sales summary",
@@ -95,12 +119,13 @@ export function buildMcpServer(api: PublicApiService, p: AuthUser): McpServer {
         inputSchema: { outletId, from: date.optional(), to: date.optional() },
         annotations: { readOnlyHint: true },
       },
-      (args) => run(() => api.salesSummary(p, args.outletId, args.from, args.to)),
+      (args) => api.salesSummary(p, args.outletId, args.from, args.to),
     );
   }
 
   if (allowed("top_items")) {
-    server.registerTool(
+    tool(
+      server,
       "top_items",
       {
         title: "Top items",
@@ -108,12 +133,13 @@ export function buildMcpServer(api: PublicApiService, p: AuthUser): McpServer {
         inputSchema: { outletId, from: date.optional(), to: date.optional(), limit: z.number().int().min(1).max(12).optional() },
         annotations: { readOnlyHint: true },
       },
-      (args) => run(() => api.topItems(p, args.outletId, args.from, args.to, args.limit ?? 10)),
+      (args) => api.topItems(p, args.outletId, args.from, args.to, args.limit ?? 10),
     );
   }
 
   if (allowed("list_items")) {
-    server.registerTool(
+    tool(
+      server,
       "list_items",
       {
         title: "List menu items",
@@ -121,12 +147,13 @@ export function buildMcpServer(api: PublicApiService, p: AuthUser): McpServer {
         inputSchema: { outletId, search: z.string().max(80).optional() },
         annotations: { readOnlyHint: true },
       },
-      (args) => run(() => api.items(p, args.outletId, args.search)),
+      (args) => api.items(p, args.outletId, args.search),
     );
   }
 
   if (allowed("set_item_availability")) {
-    server.registerTool(
+    tool(
+      server,
       "set_item_availability",
       {
         title: "86 / restore an item",
@@ -134,12 +161,13 @@ export function buildMcpServer(api: PublicApiService, p: AuthUser): McpServer {
         inputSchema: { outletId, itemId: z.string(), inStock: z.boolean() },
         annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true },
       },
-      (args) => run(() => api.setAvailability(p, args.outletId, args.itemId, args.inStock)),
+      (args) => api.setAvailability(p, args.outletId, args.itemId, args.inStock),
     );
   }
 
   if (allowed("stock_levels")) {
-    server.registerTool(
+    tool(
+      server,
       "stock_levels",
       {
         title: "Stock levels",
@@ -147,7 +175,7 @@ export function buildMcpServer(api: PublicApiService, p: AuthUser): McpServer {
         inputSchema: { outletId, lowOnly: z.boolean().optional() },
         annotations: { readOnlyHint: true },
       },
-      (args) => run(() => api.stock(p, args.outletId, args.lowOnly ?? false)),
+      (args) => api.stock(p, args.outletId, args.lowOnly ?? false),
     );
   }
 
