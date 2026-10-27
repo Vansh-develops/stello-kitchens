@@ -100,37 +100,55 @@ export class InventoryService {
   async receiveStock(user: AuthUser, outletId: string, id: string, input: ReceiveStockInput) {
     this.assertOutlet(user, outletId);
     const result = await this.prisma.$transaction(async (tx) => {
-      const material = await this.lockMaterial(tx, user, outletId, id);
       if (input.vendorId && !await tx.vendor.findFirst({ where: { id: input.vendorId, tenantId: user.tenantId, outletId, deletedAt: null } })) {
         throw new BadRequestException("Vendor not found in this outlet");
       }
-      const oldQty = D(material.stockQty);
-      const oldCost = D(material.costPerUnit);
-      const newQty = oldQty + input.quantity;
-      // Weighted average of existing stock value + received value.
-      const blendedCost =
-        newQty > 0 ? (oldQty * oldCost + input.quantity * input.unitCost) / newQty : input.unitCost;
-
-      await tx.rawMaterial.update({
-        where: { id },
-        data: { stockQty: newQty, costPerUnit: blendedCost },
-      });
-      await tx.stockMovement.create({
-        data: {
-          tenantId: user.tenantId,
-          outletId,
-          rawMaterialId: id,
-          type: "RECEIPT",
-          quantity: input.quantity,
-          unitCost: input.unitCost,
-          vendorId: input.vendorId ?? null,
-          createdById: user.id,
-        },
-      });
-      return { id, stockQty: newQty, costPerUnit: Math.round(blendedCost * 10000) / 10000 };
+      return this.applyReceiptTx(tx, user, outletId, id, input);
     });
     this.realtime.notifyOutlet(outletId);
     return result;
+  }
+
+  /**
+   * The locked receiving path, inside a caller-owned transaction: lock the
+   * material, blend the weighted-average cost and write the RECEIPT movement.
+   * Shared by direct receiving and PO goods-receipt notes.
+   */
+  async applyReceiptTx(
+    tx: Prisma.TransactionClient,
+    user: AuthUser,
+    outletId: string,
+    id: string,
+    input: ReceiveStockInput & { refType?: string; refId?: string; reason?: string },
+  ) {
+    const material = await this.lockMaterial(tx, user, outletId, id);
+    const oldQty = D(material.stockQty);
+    const oldCost = D(material.costPerUnit);
+    const newQty = oldQty + input.quantity;
+    // Weighted average of existing stock value + received value.
+    const blendedCost =
+      newQty > 0 ? (oldQty * oldCost + input.quantity * input.unitCost) / newQty : input.unitCost;
+
+    await tx.rawMaterial.update({
+      where: { id },
+      data: { stockQty: newQty, costPerUnit: blendedCost },
+    });
+    await tx.stockMovement.create({
+      data: {
+        tenantId: user.tenantId,
+        outletId,
+        rawMaterialId: id,
+        type: "RECEIPT",
+        quantity: input.quantity,
+        unitCost: input.unitCost,
+        vendorId: input.vendorId ?? null,
+        refType: input.refType ?? null,
+        refId: input.refId ?? null,
+        reason: input.reason ?? null,
+        createdById: user.id,
+      },
+    });
+    return { id, stockQty: newQty, costPerUnit: Math.round(blendedCost * 10000) / 10000 };
   }
 
   async recordWastage(user: AuthUser, outletId: string, id: string, input: WastageInput) {

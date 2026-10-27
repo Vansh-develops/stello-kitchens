@@ -9,3 +9,4 @@ export * from "./edge";
 export * from "./billing";
 export * from "./printing";
 export * from "./foh";
+export * from "./procurement";

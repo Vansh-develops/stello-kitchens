@@ -32,6 +32,7 @@ import { BillingSettingsTab } from "./BillingSettingsTab";
 import { PrintersTab } from "./PrintersTab";
 import { FloorPlanEditor } from "./foh/FloorPlanEditor";
 import { ReservationsBoard } from "./foh/ReservationsBoard";
+import { InventoryHub } from "./InventoryHub";
 
 const rupee = (n: number) => `₹${n.toFixed(0)}`;
 type Tab =
@@ -465,7 +466,7 @@ export function Console({
         </div>
       )}
 
-      {tab === "inventory" && <InventoryTab outletId={outlet.id} />}
+      {tab === "inventory" && <InventoryHub outletId={outlet.id} />}
       {tab === "recipes" && <RecipesTab outletId={outlet.id} />}
       {tab === "online" && <AggregatorsTab outletId={outlet.id} />}
       {tab === "customers" && <CustomersTab outletId={outlet.id} />}

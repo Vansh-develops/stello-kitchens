@@ -12,6 +12,7 @@ import type {
 } from "@stello/shared";
 import { api } from "@/lib/api";
 import { CustomReport } from "./CustomReport";
+import { MenuEngineering } from "./procurement/MenuEngineering";
 
 const money = (n: number) => `₹${n.toLocaleString("en-IN", { maximumFractionDigits: 0 })}`;
 const money2 = (n: number) => `₹${n.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -248,6 +249,7 @@ export function ReportsTab({ outletId }: { outletId: string }) {
           </div>
         )}
       </div>
+      <MenuEngineering outletId={outletId} />
     </div>
   );
 }

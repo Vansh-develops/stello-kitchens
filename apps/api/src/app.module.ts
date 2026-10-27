@@ -38,6 +38,7 @@ import { BillingModule } from "./billing/billing.module";
 import { PrintingModule } from "./printing/printing.module";
 import { FohModule } from "./foh/foh.module";
 import { MediaModule } from "./media/media.module";
+import { ProcurementModule } from "./procurement/procurement.module";
 
 @Module({
   imports: [
@@ -80,6 +81,7 @@ import { MediaModule } from "./media/media.module";
     PrintingModule,
     FohModule,
     MediaModule,
+    ProcurementModule,
   ],
   providers: [
     // ThrottlerGuard first so rate limiting applies even to unauthenticated
