@@ -219,6 +219,7 @@ model Item {
   availableStart String? // "HH:MM" local; null = all day (e.g. breakfast till 11:00)
   availableEnd   String?
   deletedAt      DateTime?
+  imageUrl       String? // public URL of the dish photo (local disk or S3-compatible storage)
 
   category      MenuCategory       @relation(fields: [categoryId], references: [id])
   variations    ItemVariation[]
@@ -1521,4 +1522,166 @@ model PrintJob {
   @@index([tenantId, outletId, status, createdAt])
   @@index([orderId])
   @@map("print_jobs")
+}
+
+// ── Front of house ─────────────────────────────────────────────────────────
+
+// Per-area floor canvas for the visual floor plan (logical units, not pixels).
+model FloorPlan {
+  id        String   @id @default(cuid())
+  tenantId  String
+  outletId  String
+  areaId    String   @unique
+  width     Int      @default(1000)
+  height    Int      @default(700)
+  updatedAt DateTime @updatedAt
+
+  placements TablePlacement[]
+
+  @@index([tenantId, outletId])
+  @@map("floor_plans")
+}
+
+// Where a dining table sits on its area's floor plan.
+model TablePlacement {
+  id          String @id @default(cuid())
+  tenantId    String
+  outletId    String
+  floorPlanId String
+  tableId     String @unique
+  x           Int
+  y           Int
+  width       Int
+  height      Int
+  rotation    Int    @default(0) // degrees, 0..359
+  shape       String @default("SQUARE") // ROUND | SQUARE | RECT
+
+  floorPlan FloorPlan @relation(fields: [floorPlanId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, outletId])
+  @@map("table_placements")
+}
+
+model Reservation {
+  id              String    @id @default(cuid())
+  tenantId        String
+  outletId        String
+  guestName       String
+  phone           String
+  partySize       Int
+  startAt         DateTime
+  durationMinutes Int       @default(90)
+  status          String    @default("BOOKED") // BOOKED | CONFIRMED | SEATED | NO_SHOW | CANCELLED
+  source          String    @default("PHONE") // PHONE | WALK_IN | WEB | AGGREGATOR | OTHER
+  notes           String?
+  customerId      String? // CRM customer matched by phone
+  createdById     String?
+  seatedAt        DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  tables ReservationTable[]
+
+  @@index([tenantId, outletId, startAt])
+  @@map("reservations")
+}
+
+model ReservationTable {
+  reservationId String
+  tableId       String
+
+  reservation Reservation @relation(fields: [reservationId], references: [id], onDelete: Cascade)
+
+  @@id([reservationId, tableId])
+  @@index([tableId])
+  @@map("reservation_tables")
+}
+
+model WaitlistEntry {
+  id            String    @id @default(cuid())
+  tenantId      String
+  outletId      String
+  guestName     String
+  phone         String?
+  partySize     Int
+  quotedMinutes Int       @default(15)
+  status        String    @default("WAITING") // WAITING | NOTIFIED | SEATED | LEFT
+  notes         String?
+  tableId       String?
+  customerId    String?
+  notifiedAt    DateTime?
+  seatedAt      DateTime?
+  createdAt     DateTime  @default(now())
+
+  @@index([tenantId, outletId, status])
+  @@map("waitlist_entries")
+}
+
+// A diner (or staff) request for service at a table.
+model ServerCall {
+  id               String    @id @default(cuid())
+  tenantId         String
+  outletId         String
+  tableId          String
+  type             String // WAITER | WATER | BILL
+  source           String    @default("DINER") // DINER | STAFF
+  status           String    @default("OPEN") // OPEN | ACKNOWLEDGED | RESOLVED
+  createdById      String?
+  acknowledgedById String?
+  acknowledgedAt   DateTime?
+  resolvedById     String?
+  resolvedAt       DateTime?
+  createdAt        DateTime  @default(now())
+
+  @@index([tenantId, outletId, status])
+  @@index([tableId, status])
+  @@map("server_calls")
+}
+
+// A waiter's section: either a whole area or a single table.
+model WaiterAssignment {
+  id        String   @id @default(cuid())
+  tenantId  String
+  outletId  String
+  userId    String
+  areaId    String?
+  tableId   String?
+  createdAt DateTime @default(now())
+
+  @@index([outletId, userId])
+  @@index([tenantId, outletId])
+  @@map("waiter_assignments")
+}
+
+// The bill for a running order was requested/printed (floor shows "bill printed").
+model BillRequest {
+  id            String   @id @default(cuid())
+  tenantId      String
+  outletId      String
+  orderId       String   @unique
+  tableId       String?
+  requestedById String?
+  createdAt     DateTime @default(now())
+
+  @@index([tenantId, outletId])
+  @@map("bill_requests")
+}
+
+// A customer-facing display paired to a POS. The display holds `token` (secret);
+// staff pair it by typing the short `pairingCode` shown on screen.
+model CfdSession {
+  id          String    @id @default(cuid())
+  tenantId    String?
+  outletId    String?
+  token       String    @unique
+  pairingCode String    @unique
+  pairedById  String?
+  pairedAt    DateTime?
+  state       Json?
+  expiresAt   DateTime
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([tenantId, outletId])
+  @@map("cfd_sessions")
 }

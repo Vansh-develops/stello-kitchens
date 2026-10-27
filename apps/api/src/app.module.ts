@@ -36,6 +36,8 @@ import { GiftCardsModule } from "./gift-cards/gift-cards.module";
 import { EdgeModule } from "./edge/edge.module";
 import { BillingModule } from "./billing/billing.module";
 import { PrintingModule } from "./printing/printing.module";
+import { FohModule } from "./foh/foh.module";
+import { MediaModule } from "./media/media.module";
 
 @Module({
   imports: [
@@ -76,6 +78,8 @@ import { PrintingModule } from "./printing/printing.module";
     EdgeModule,
     BillingModule,
     PrintingModule,
+    FohModule,
+    MediaModule,
   ],
   providers: [
     // ThrottlerGuard first so rate limiting applies even to unauthenticated

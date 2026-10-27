@@ -48,6 +48,7 @@ export interface MenuItemDto {
   addonGroups: MenuAddonGroupDto[];
   availableStart?: string | null; // "HH:MM" outlet-local sale window; null = all day
   availableEnd?: string | null;
+  imageUrl?: string | null;
 }
 
 export interface ComboSlotOptionDto {
@@ -247,6 +248,7 @@ export interface AdminItemDto {
   variations: { id: string; name: string; price: number }[];
   addonGroupIds: string[];
   channels: ItemChannelConfigDto[];
+  imageUrl?: string | null;
 }
 
 export interface AdminCategoryDto {

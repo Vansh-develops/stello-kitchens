@@ -36,7 +36,8 @@ export function Menu({ mode, token }: { mode: "table" | "kiosk"; token: string }
   const [requestToken, setRequestToken] = useState<string | null>(null);
   const [status, setStatus] = useState<"PENDING" | "ACCEPTED" | "REJECTED">("PENDING");
   const [tokenNumber, setTokenNumber] = useState<number | null>(null);
-  const [waiterPaged, setWaiterPaged] = useState(false);
+  const [paged, setPaged] = useState<"WAITER" | "WATER" | "BILL" | null>(null);
+  const [pageError, setPageError] = useState(false);
 
   useEffect(() => {
     (mode === "table" ? api.tableMenu(token) : api.kioskMenu(token))
@@ -196,14 +197,33 @@ export function Menu({ mode, token }: { mode: "table" | "kiosk"; token: string }
         </div>
         <h1>What are you craving?</h1>
         {mode === "table" && (
-          <button
-            className="waiter"
-            disabled={waiterPaged}
-            onClick={() => api.callWaiter(token).then(() => setWaiterPaged(true)).catch(() => {})}
-          >
-            {waiterPaged ? "A server is on the way ✓" : "Call a server"}
-          </button>
+          <div className="call-row" role="group" aria-label="Call a server">
+            {(
+              [
+                ["WAITER", "🙋 Call server"],
+                ["WATER", "💧 Water"],
+                ["BILL", "🧾 Bill"],
+              ] as const
+            ).map(([type, label]) => (
+              <button
+                key={type}
+                className={paged === type ? "waiter sent" : "waiter"}
+                onClick={() =>
+                  api
+                    .callServer(token, type)
+                    .then(() => {
+                      setPaged(type);
+                      setPageError(false);
+                    })
+                    .catch(() => setPageError(true))
+                }
+              >
+                {paged === type ? "On the way ✓" : label}
+              </button>
+            ))}
+          </div>
         )}
+        {pageError && <p className="call-error">Couldn’t reach the staff — please wave to a server.</p>}
       </header>
 
       <nav className="cat-rail">
@@ -249,6 +269,7 @@ export function Menu({ mode, token }: { mode: "table" | "kiosk"; token: string }
             {c.items.map((it) => (
               <article key={it.id} className={it.inStock ? "item" : "item off"}>
                 <div className="item-main">
+                  {it.imageUrl && <img className="item-photo" src={it.imageUrl} alt="" loading="lazy" />}
                   <span className={it.isVeg ? "veg dot" : "nonveg dot"} aria-hidden />
                   <div>
                     <h3>{it.name}</h3>

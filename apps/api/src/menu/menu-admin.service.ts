@@ -86,6 +86,7 @@ export class MenuAdminService {
             availableEnd: i.availableEnd,
             variations: i.variations.map((v) => ({ id: v.id, name: v.name, price: Number(v.price) })),
             addonGroupIds: i.addonGroups.map((ag) => ag.addonGroupId),
+            imageUrl: i.imageUrl,
             channels: channels.map((ch) => ({
               channelId: ch.id,
               price: priceByChannel.has(ch.id) ? Number(priceByChannel.get(ch.id)!.price) : null,

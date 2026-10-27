@@ -6,5 +6,6 @@ import { LoggingNotificationProvider, NOTIFICATION_PROVIDER } from "./notificati
 @Module({
   controllers: [CrmController, PublicFeedbackController],
   providers: [CrmService, { provide: NOTIFICATION_PROVIDER, useClass: LoggingNotificationProvider }],
+  exports: [NOTIFICATION_PROVIDER],
 })
 export class CrmModule {}

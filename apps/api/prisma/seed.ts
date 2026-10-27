@@ -673,6 +673,84 @@ async function main() {
   }
 
   await seedHrAccounting(tenant.id, outlet1.id);
+  // ── Front of house: hosts can take reservations; a Waiter role runs /captain ──
+  await prisma.role.update({
+    where: { id: cashierRole.id },
+    data: { permissions: { push: ["reservations.manage"] } },
+  });
+  const waiterRole = await prisma.role.create({
+    data: { tenantId: tenant.id, name: "Waiter", permissions: ["orders.create", "captain.operate", "reservations.manage"] },
+  });
+  const waiter = await prisma.user.create({
+    data: {
+      tenantId: tenant.id,
+      email: "waiter@demo.com",
+      passwordHash,
+      name: "Meena Captain",
+      roleId: waiterRole.id,
+      userOutlets: { create: [{ outletId: outlet1.id }] },
+    },
+  });
+  await prisma.waiterAssignment.create({
+    data: { tenantId: tenant.id, outletId: outlet1.id, userId: waiter.id, areaId: groundFloor.id },
+  });
+  // Visual floor plans: ground floor in two rows, rooftop with round tables.
+  const groundTables = await prisma.diningTable.findMany({ where: { areaId: groundFloor.id }, orderBy: { name: "asc" } });
+  const groundPlan = await prisma.floorPlan.create({
+    data: { tenantId: tenant.id, outletId: outlet1.id, areaId: groundFloor.id, width: 1000, height: 600 },
+  });
+  for (const [i, t] of groundTables.entries()) {
+    const big = t.seats > 4;
+    await prisma.tablePlacement.create({
+      data: {
+        tenantId: tenant.id,
+        outletId: outlet1.id,
+        floorPlanId: groundPlan.id,
+        tableId: t.id,
+        x: 60 + (i % 4) * 230,
+        y: i < 4 ? 80 : 340,
+        width: big ? 160 : 100,
+        height: 100,
+        shape: big ? "RECT" : "SQUARE",
+      },
+    });
+  }
+  const roofTables = await prisma.diningTable.findMany({ where: { areaId: rooftop.id }, orderBy: { name: "asc" } });
+  const roofPlan = await prisma.floorPlan.create({
+    data: { tenantId: tenant.id, outletId: outlet1.id, areaId: rooftop.id, width: 800, height: 500 },
+  });
+  for (const [i, t] of roofTables.entries()) {
+    await prisma.tablePlacement.create({
+      data: {
+        tenantId: tenant.id,
+        outletId: outlet1.id,
+        floorPlanId: roofPlan.id,
+        tableId: t.id,
+        x: 80 + (i % 2) * 380,
+        y: i < 2 ? 70 : 290,
+        width: 110,
+        height: 110,
+        shape: "ROUND",
+      },
+    });
+  }
+  const tonight = new Date();
+  tonight.setHours(20, 0, 0, 0);
+  await prisma.reservation.create({
+    data: {
+      tenantId: tenant.id,
+      outletId: outlet1.id,
+      guestName: "Ishan Mehta",
+      phone: "9810011111",
+      partySize: 4,
+      startAt: tonight,
+      source: "PHONE",
+      notes: "Anniversary — window side",
+      customerId: (await prisma.customer.findFirst({ where: { outletId: outlet1.id, phone: "9810011111" } }))?.id,
+      tables: { create: [{ tableId: groundTables[0].id }] },
+    },
+  });
+  console.log("  front of house: floor plans, 1 reservation, waiter@demo.com (Waiter) — password123");
   console.log(`  materials: ${materialDefs.length} raw materials, ${Object.keys(recipes).length} recipes`);
   console.log(`  crm: ${couponDefs.length} coupons, ${customerDefs.length} customers`);
   // Offline edge POS: demo PINs for PIN login on an edge terminal (owner 1234, cashier 1111).

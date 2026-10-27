@@ -6,6 +6,7 @@ import type { BillPreviewDto, CustomerLookupDto, GiftCardBalanceDto, OrderDto, P
 import { posApi as api } from "@/lib/pos-api";
 import { hrApi } from "@/lib/hr-api";
 import "../hr/hr.css";
+import { publishCfdPayment } from "@/lib/cfd-mirror";
 
 const rupee = (n: number) => `₹${n.toFixed(2)}`;
 const MODES: PaymentMode[] = ["CASH", "CARD", "UPI", "WALLET"];
@@ -40,6 +41,8 @@ export function SettleDialog({
   const [gcInfo, setGcInfo] = useState<GiftCardBalanceDto | null>(null);
   const [gcMsg, setGcMsg] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // Leaving the settle dialog takes the QR off the customer display.
+  useEffect(() => () => publishCfdPayment(null), []);
   const [busy, setBusy] = useState(false);
 
   // Customer / offers
@@ -176,6 +179,7 @@ export function SettleDialog({
   const showUpiQr = async () => {
     if (qrDataUrl) {
       setQrDataUrl(null);
+      publishCfdPayment(null);
       return;
     }
     try {
@@ -183,6 +187,7 @@ export function SettleDialog({
       const png = await QRCode.toDataURL(qr.upiString, { margin: 1, width: 180, color: { dark: "#14110f", light: "#f4ede2" } });
       setQrDataUrl(png);
       setQrVpa(qr.payeeVpa);
+      publishCfdPayment({ upiString: qr.upiString, amount: qr.amount, payeeVpa: qr.payeeVpa });
     } catch {
       setError("Could not generate UPI QR");
     }

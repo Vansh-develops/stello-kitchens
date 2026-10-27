@@ -2,8 +2,11 @@ import { describe, it, expect } from "vitest";
 import { surfaceAccess } from "./access";
 
 describe("surfaceAccess", () => {
-  it("owner (*) gets all three, primary console", () => {
-    expect(surfaceAccess(["*"])).toEqual({ allowed: ["console", "pos", "kds"], primary: "console" });
+  it("owner (*) gets every surface, primary console", () => {
+    expect(surfaceAccess(["*"])).toEqual({ allowed: ["console", "pos", "kds", "captain"], primary: "console" });
+  });
+  it("waiter (captain.operate) → captain only", () => {
+    expect(surfaceAccess(["orders.create", "captain.operate"])).toEqual({ allowed: ["captain"], primary: "captain" });
   });
   it("cashier (orders.settle) → POS only", () => {
     expect(surfaceAccess(["orders.settle"])).toEqual({ allowed: ["pos"], primary: "pos" });

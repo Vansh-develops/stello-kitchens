@@ -28,4 +28,6 @@ export const api = {
   status: (requestToken: string) => req<OrderRequestStatusDto>(`/request/${requestToken}`),
   board: (token: string) => req<TokenBoardDto>(`/board/${token}`),
   callWaiter: (token: string) => req<{ tableName: string }>(`/t/${token}/call-waiter`, { method: "POST" }),
+  callServer: (token: string, type: "WAITER" | "WATER" | "BILL") =>
+    req<{ tableName: string; callId: string }>(`/t/${token}/server-call`, { method: "POST", body: JSON.stringify({ type }) }),
 };

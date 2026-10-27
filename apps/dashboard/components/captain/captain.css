@@ -1,0 +1,52 @@
+/* Captain / waiter mode — phone-first, one-thumb layout. */
+.pos-root.captain { min-height: calc(100vh - 54px); max-width: 720px; margin: 0 auto; position: relative; }
+.cap-floor { padding: 14px 14px 96px; display: flex; flex-direction: column; gap: 10px; }
+.cap-title { margin: 0; font-size: 22px; font-weight: 600; }
+.cap-order { display: flex; flex-direction: column; min-height: calc(100vh - 54px); padding-bottom: 180px; }
+.cap-head { position: sticky; top: 0; z-index: 5; display: flex; align-items: center; gap: 12px; padding: 10px 14px; background: var(--panel); border-bottom: 1px solid var(--line); }
+.cap-head strong { display: block; font-size: 20px; }
+.cap-head small { color: var(--muted); font-size: 12.5px; }
+.cap-back { font-size: 30px; line-height: 1; width: 40px; height: 40px; border-radius: 10px; background: var(--panel-2) !important; }
+.cap-user { margin-left: auto; font-size: 12px; color: var(--muted); }
+.cap-tabs { display: flex; gap: 6px; padding: 10px 14px 0; }
+.cap-tabs button { flex: 1; padding: 10px; border-radius: 10px; background: var(--panel-2) !important; font-weight: 600; color: var(--muted) !important; }
+.cap-tabs button.on { background: var(--ink) !important; color: var(--bg) !important; }
+.cap-flash { margin: 10px 14px 0; padding: 10px 12px; border-radius: 10px; font-size: 14px; }
+.cap-flash.ok { background: color-mix(in srgb, var(--good) 14%, var(--panel)); color: var(--good); }
+.cap-flash.err { background: color-mix(in srgb, var(--crit) 14%, var(--panel)); color: var(--crit); }
+.cap-menu { padding: 10px 14px; display: flex; flex-direction: column; gap: 10px; }
+.cap-search { width: 100%; padding: 12px 14px; border-radius: 12px; border: 1px solid var(--line); background: var(--panel); font-size: 15px; color: var(--ink); }
+.cap-cats { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 2px; scrollbar-width: none; }
+.cap-cats button { flex: none; padding: 8px 14px; border-radius: 999px; background: var(--panel-2) !important; color: var(--muted) !important; font-weight: 500; white-space: nowrap; }
+.cap-cats button.on { background: var(--accent) !important; color: var(--accent-ink) !important; }
+.cap-items { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.cap-items li { display: flex; gap: 8px; align-items: stretch; }
+.cap-items li.oos { opacity: 0.5; }
+.cap-item { flex: 1; display: grid; grid-template-columns: 56px 1fr auto; gap: 12px; align-items: center; text-align: left; padding: 8px; border-radius: 12px; background: var(--panel) !important; border: 1px solid var(--line) !important; }
+.cap-ph { width: 56px; height: 56px; border-radius: 10px; object-fit: cover; background: var(--panel-2); display: grid; place-items: center; font-weight: 700; color: var(--faint); font-size: 20px; }
+.cap-ph.combo { font-size: 10px; letter-spacing: 0.08em; color: var(--accent); }
+.cap-name { font-weight: 500; font-size: 15px; }
+.cap-name small { display: block; color: var(--muted); font-size: 12px; font-weight: 400; }
+.cap-price { font-weight: 600; font-variant-numeric: tabular-nums; }
+.cap-plus { width: 52px; border-radius: 12px; background: var(--accent) !important; color: var(--accent-ink) !important; font-size: 26px; font-weight: 600; }
+.cap-empty { color: var(--muted); padding: 20px 14px; text-align: center; list-style: none; }
+.cap-running { padding: 10px 14px; display: flex; flex-direction: column; gap: 10px; }
+.cap-kot { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; }
+.cap-kot h3 { margin: 0 0 6px; font-size: 14px; }
+.cap-kot h3 small { color: var(--muted); font-weight: 400; }
+.cap-line { display: grid; grid-template-columns: 32px 1fr; gap: 6px; padding: 4px 0; font-size: 14.5px; }
+.cap-line em { color: var(--muted); font-style: normal; }
+.cap-line small { display: block; color: var(--warn); }
+.cap-total { display: flex; flex-direction: column; gap: 6px; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 12px; }
+.cap-total div { display: flex; justify-content: space-between; color: var(--muted); }
+.cap-total .grand { color: var(--ink); font-weight: 700; font-size: 18px; }
+.cap-cart { position: fixed; left: 50%; transform: translateX(-50%); bottom: 0; width: min(720px, 100%); background: var(--panel); border-top: 1px solid var(--line); box-shadow: 0 -10px 30px rgba(15, 23, 42, 0.12); padding: 10px 14px calc(10px + env(safe-area-inset-bottom)); z-index: 20; }
+.cap-cart ul { list-style: none; margin: 0 0 8px; padding: 0; max-height: 32vh; overflow: auto; }
+.cap-cart li { display: grid; grid-template-columns: auto 1fr auto; gap: 10px; align-items: center; padding: 6px 0; border-bottom: 1px solid var(--line); font-size: 14px; }
+.cap-cname small { display: block; color: var(--muted); font-size: 12px; }
+.cap-step { display: inline-flex; align-items: center; gap: 8px; }
+.cap-step button { width: 30px; height: 30px; border-radius: 8px; background: var(--panel-2) !important; font-size: 18px; }
+.cap-send { width: 100%; padding: 14px !important; font-size: 16px !important; border-radius: 12px !important; }
+.captain .live-floor.compact .lf-grid { grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); }
+.captain .call-stack { top: auto; bottom: 16px; right: 12px; }
+.captain .cap-order ~ .call-stack { bottom: 190px; }
