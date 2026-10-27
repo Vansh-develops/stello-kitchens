@@ -9,6 +9,8 @@ export interface AuthUser {
   permissions: string[];
   outletIds: string[];
   isPlatformAdmin: boolean;
+  /** Set when the caller is a tenant API key rather than a person. */
+  apiKeyId?: string;
 }
 
 export interface LoginResponse {

@@ -2,7 +2,7 @@
 
 import { Suspense, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { api, setToken } from "@/lib/api";
+import { api } from "@/lib/api";
 import { useSession } from "@/components/SessionProvider";
 
 export default function SignupVerifyPage() {
@@ -33,10 +33,8 @@ function SignupVerifyForm() {
     }
     (async () => {
       try {
-        const res = await api.verifySignup(token);
-        // Same mechanism SessionProvider.login() uses internally: stash the
-        // token where the api client reads it, then let the session refetch.
-        setToken(res.accessToken);
+        await api.verifySignup(token);
+        // The API set the httpOnly session cookie; just refetch the session.
         await refresh();
         router.replace("/onboarding");
       } catch (err) {

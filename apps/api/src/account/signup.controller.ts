@@ -1,11 +1,12 @@
-import { Body, Controller, NotFoundException, Post } from "@nestjs/common";
+import { Body, Controller, NotFoundException, Post, Req, Res } from "@nestjs/common";
+import type { Request, Response } from "express";
 import { Throttle } from "@nestjs/throttler";
-import { JwtService } from "@nestjs/jwt";
 import { SignupSchema, VerifyTokenSchema, type SignupInput, type VerifyTokenInput } from "@stello/shared";
 import { SignupService } from "./signup.service";
 import { AuthService } from "../auth/auth.service";
 import { ZodValidationPipe } from "../common/zod.pipe";
 import { Public } from "../common/decorators";
+import { SessionService } from "../session/session.service";
 
 function assertSignupEnabled(): void {
   if (process.env.SIGNUP_PUBLIC_ENABLED !== "true") throw new NotFoundException();
@@ -16,7 +17,7 @@ export class SignupController {
   constructor(
     private readonly svc: SignupService,
     private readonly auth: AuthService,
-    private readonly jwt: JwtService,
+    private readonly sessions: SessionService,
   ) {}
 
   @Public()
@@ -31,11 +32,14 @@ export class SignupController {
   @Public()
   @Throttle({ default: { limit: 10, ttl: 60000 } })
   @Post("signup/verify")
-  async verify(@Body(new ZodValidationPipe(VerifyTokenSchema)) body: VerifyTokenInput) {
+  async verify(
+    @Body(new ZodValidationPipe(VerifyTokenSchema)) body: VerifyTokenInput,
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+  ) {
     assertSignupEnabled();
-    const { ownerId, tenantId } = await this.svc.verify(body.token);
+    const { ownerId } = await this.svc.verify(body.token);
     const user = await this.auth.resolveUser(ownerId);
-    const accessToken = await this.jwt.signAsync({ sub: ownerId, tenantId });
-    return { accessToken, user };
+    return this.sessions.issue(req, res, user);
   }
 }

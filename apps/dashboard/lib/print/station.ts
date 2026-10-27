@@ -247,8 +247,7 @@ export function usePrintStation(outletId: string, enabled = true): PrintStation 
   // Realtime nudge + slow poll (also covers the fallback window).
   useEffect(() => {
     if (!enabled || !printers.length) return;
-    const token = typeof window !== "undefined" ? localStorage.getItem("stello.token") : null;
-    const socket: Socket = io(socketOrigin(), { path: "/socket.io", transports: ["websocket", "polling"], auth: { token } });
+    const socket: Socket = io(socketOrigin(), { path: "/socket.io", transports: ["websocket", "polling"], withCredentials: true });
     socket.on("connect", () => socket.emit("join", { outletId }));
     socket.on("print:queued", (msg: { outletId: string }) => msg.outletId === outletId && kick());
     const poll = setInterval(kick, 10_000);

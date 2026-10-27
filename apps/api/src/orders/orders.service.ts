@@ -41,6 +41,7 @@ type SplitContext = {
 };
 type PunchOptions = { source: PriceSource; offline?: boolean; at?: Date };
 import { orderEvents } from "../common/order-events";
+import { emitDomainEvent } from "../events/domain-events";
 
 const orderInclude = {
   table: true,
@@ -104,6 +105,7 @@ export class OrdersService {
     });
     this.realtime.notifyOutlet(input.outletId);
     await orderEvents.emit({ type: "kot.created", tenantId: user.tenantId, outletId: input.outletId, orderId, userId: user.id });
+    emitDomainEvent("order.created", user.tenantId, input.outletId, { orderId, source: "pos" });
     return this.getOne(user, orderId);
   }
 
@@ -122,6 +124,7 @@ export class OrdersService {
     const result = await this.prisma.$transaction((tx) => this.ingestAggregatorOrderTx(tx, params));
     this.realtime.notifyOutlet(params.outletId);
     await orderEvents.emit({ type: "kot.created", tenantId: params.tenantId, outletId: params.outletId, orderId: result.orderId, userId: null });
+    emitDomainEvent("order.created", params.tenantId, params.outletId, { orderId: result.orderId, source: "aggregator" });
     return result;
   }
 
@@ -217,6 +220,7 @@ export class OrdersService {
     });
     this.realtime.notifyOutlet(params.outletId);
     await orderEvents.emit({ type: "kot.created", tenantId: params.tenantId, outletId: params.outletId, orderId, userId: null });
+    emitDomainEvent("order.created", params.tenantId, params.outletId, { orderId, source: "scan" });
     const order = await this.prisma.order.findUniqueOrThrow({
       where: { id: orderId },
       include: { kots: { orderBy: { kotNumber: "desc" }, take: 1 } },
@@ -352,6 +356,7 @@ export class OrdersService {
     });
     this.realtime.notifyOutlet(order.outletId);
     await orderEvents.emit({ type: "kot.created", tenantId: user.tenantId, outletId: order.outletId, orderId, userId: user.id });
+    emitDomainEvent("stock.changed", user.tenantId, order.outletId, { orderId: order.id });
     return this.getOne(user, orderId);
   }
 
@@ -503,6 +508,7 @@ export class OrdersService {
     });
     this.realtime.notifyOutlet(settledOutletId);
     await orderEvents.emit({ type: "order.settled", tenantId: user.tenantId, outletId: settledOutletId, orderId, userId: user.id });
+    emitDomainEvent("order.settled", user.tenantId, settledOutletId, { orderId });
     return this.getOne(user, orderId);
   }
 
@@ -635,6 +641,7 @@ export class OrdersService {
     });
     this.realtime.notifyOutlet(order.outletId);
     await orderEvents.emit({ type: "order.cancelled", tenantId: user.tenantId, outletId: order.outletId, orderId, userId: user.id });
+    emitDomainEvent("order.cancelled", user.tenantId, order.outletId, { orderId: order.id });
     return this.getOne(user, orderId);
   }
 

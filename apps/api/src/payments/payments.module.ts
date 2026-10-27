@@ -6,5 +6,6 @@ import { MockRazorpayGateway, PAYMENT_GATEWAY } from "./payment.gateway";
 @Module({
   controllers: [CashController],
   providers: [CashService, { provide: PAYMENT_GATEWAY, useClass: MockRazorpayGateway }],
+  exports: [CashService],
 })
 export class PaymentsModule {}

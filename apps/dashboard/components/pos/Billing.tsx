@@ -153,13 +153,12 @@ export function Billing({
 
   // Real-time: other terminals park/resume/move/split bills — refetch on signal.
   useEffect(() => {
-    const authToken = typeof window !== "undefined" ? localStorage.getItem("stello.token") : null;
     const socketOrigin =
       process.env.NEXT_PUBLIC_SOCKET_ORIGIN ??
       (typeof window !== "undefined" && ["localhost", "127.0.0.1"].includes(window.location.hostname)
         ? `${window.location.protocol}//${window.location.hostname}:3001`
         : undefined);
-    const socket: Socket = io(socketOrigin, { path: "/socket.io", transports: ["websocket", "polling"], auth: { token: authToken } });
+    const socket: Socket = io(socketOrigin, { path: "/socket.io", transports: ["websocket", "polling"], withCredentials: true });
     socket.on("connect", () => socket.emit("join", { outletId: outlet.id }));
     socket.on("kds:changed", (msg: { outletId: string }) => {
       if (msg.outletId === outlet.id) void refreshOrders().catch(() => undefined);

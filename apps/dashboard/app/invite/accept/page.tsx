@@ -2,7 +2,7 @@
 
 import { Suspense, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { api, setToken } from "@/lib/api";
+import { api } from "@/lib/api";
 import { useSession } from "@/components/SessionProvider";
 
 export default function InviteAcceptPage() {
@@ -37,10 +37,8 @@ function InviteAcceptForm() {
     }
     setBusy(true);
     try {
-      const res = await api.acceptInvite(token, name, password);
-      // Same mechanism SessionProvider.login() uses internally: stash the
-      // token where the api client reads it, then let the session refetch.
-      setToken(res.accessToken);
+      await api.acceptInvite(token, name, password);
+      // The API set the httpOnly session cookie; just refetch the session.
       await refresh();
       router.replace("/");
     } catch (err) {

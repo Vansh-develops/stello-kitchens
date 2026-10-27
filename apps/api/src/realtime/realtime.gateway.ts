@@ -9,6 +9,15 @@ import {
 import { JwtService } from "@nestjs/jwt";
 import type { Server, Socket } from "socket.io";
 import { PrismaService } from "../prisma/prisma.service";
+import { SESSION_COOKIE } from "@stello/shared";
+import { parseCookies } from "../session/cookies";
+
+/** Origins allowed to open a cookie-authenticated socket (null = any, dev only). */
+function allowedSocketOrigins(): string[] | null {
+  const configured = process.env.CORS_ORIGINS?.split(",").map((o) => o.trim()).filter(Boolean);
+  if (configured?.length) return configured;
+  return process.env.NODE_ENV === "production" ? ["https://kitchens.stellotechs.com"] : null;
+}
 
 /**
  * Cloud real-time layer for the KDS and dashboards. Clients join a room per
@@ -18,7 +27,8 @@ import { PrismaService } from "../prisma/prisma.service";
  * The offline LAN transport (the ~2s in-kitchen path) arrives with the edge
  * client; this gateway is the online path.
  *
- * Auth: the socket handshake must carry a valid user JWT (`auth.token`). The
+ * Auth: the handshake must carry a valid user JWT (`auth.token`, or the httpOnly
+ * session cookie from a browser on an allowed Origin). The
  * connection is rejected otherwise, and a client may only join outlet rooms
  * within its own tenant — without this any client could subscribe to any
  * outlet's ticket stream (a cross-tenant leak).
@@ -42,9 +52,19 @@ export class RealtimeGateway implements OnGatewayConnection {
 
   async handleConnection(client: Socket) {
     try {
-      const token = client.handshake.auth?.token as string | undefined;
+      // Bearer clients pass `auth.token`; browsers ride the httpOnly session
+      // cookie. A cookie is ambient, so for cookie auth the Origin must be one
+      // of ours (blocks cross-site WebSocket hijacking).
+      let token = client.handshake.auth?.token as string | undefined;
+      if (!token) {
+        token = parseCookies(client.handshake.headers.cookie)[SESSION_COOKIE];
+        const origins = allowedSocketOrigins();
+        const origin = client.handshake.headers.origin;
+        if (token && origins && (!origin || !origins.includes(origin))) throw new Error("origin not allowed");
+      }
       if (!token) throw new Error("missing token");
-      const payload = await this.jwt.verifyAsync<{ sub: string; tenantId: string; tokenVersion?: number }>(token);
+      const payload = await this.jwt.verifyAsync<{ sub: string; tenantId: string; tokenVersion?: number; purpose?: string }>(token);
+      if (payload.purpose) throw new Error("not a session token");
       const user = await this.prisma.user.findFirst({ where: { id: payload.sub, tenantId: payload.tenantId, isActive: true }, select: { id: true, tenantId: true, tokenVersion: true, tenant: { select: { status: true } } } });
       if (!user || user.tenant.status === "SUSPENDED" || payload.tokenVersion !== user.tokenVersion) throw new Error("inactive user or tenant");
       client.data.tenantId = payload.tenantId;

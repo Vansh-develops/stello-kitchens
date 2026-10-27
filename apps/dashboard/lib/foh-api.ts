@@ -14,7 +14,7 @@ import type {
   WaitlistEntryDto,
   WaitlistInput,
 } from "@stello/shared";
-import { request } from "./api";
+import { apiFetch, request } from "./api";
 
 const json = (method: string, body?: unknown): RequestInit => ({
   method,
@@ -72,12 +72,7 @@ export const fohApi = {
   uploadItemImage: async (outletId: string, itemId: string, file: Blob, filename: string) => {
     const form = new FormData();
     form.append("file", file, filename);
-    const token = typeof window !== "undefined" ? localStorage.getItem("stello.token") : null;
-    const res = await fetch(`/api/v1/outlets/${outletId}/menu/items/${itemId}/image`, {
-      method: "POST",
-      body: form,
-      headers: token ? { Authorization: `Bearer ${token}` } : {},
-    });
+    const res = await apiFetch(`/outlets/${outletId}/menu/items/${itemId}/image`, { method: "POST", body: form });
     const body = await res.json().catch(() => null);
     if (!res.ok) throw new Error(body?.message ?? `Upload failed (${res.status})`);
     return body as { id: string; imageUrl: string; width: number; height: number };

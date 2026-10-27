@@ -33,6 +33,11 @@ import { PrintersTab } from "./PrintersTab";
 import { FloorPlanEditor } from "./foh/FloorPlanEditor";
 import { ReservationsBoard } from "./foh/ReservationsBoard";
 import { InventoryHub } from "./InventoryHub";
+import { RolesTab } from "./platform/RolesTab";
+import { AuditTab } from "./platform/AuditTab";
+import { IntegrationsTab } from "./platform/IntegrationsTab";
+import { SecurityTab } from "./platform/SecurityTab";
+import { useSession } from "./SessionProvider";
 
 const rupee = (n: number) => `₹${n.toFixed(0)}`;
 type Tab =
@@ -59,7 +64,11 @@ type Tab =
   | "billing"
   | "printers"
   | "floor"
-  | "reservations";
+  | "reservations"
+  | "roles"
+  | "audit"
+  | "integrations"
+  | "security";
 
 export function Console({
   user,
@@ -68,6 +77,7 @@ export function Console({
   user: AuthUser;
   outlet: OutletDto;
 }) {
+  const { outlets } = useSession();
   const [menu, setMenu] = useState<AdminMenuDto | null>(null);
   const [tab, setTab] = useState<Tab>("menu");
   const [selectedCat, setSelectedCat] = useState<string | null>(null);
@@ -155,6 +165,10 @@ export function Console({
               "printers",
               "floor",
               "reservations",
+              "roles",
+              "audit",
+              "integrations",
+              "security",
             ] as const
           ).map((t) => {
             const labels: Record<string, string> = {
@@ -182,6 +196,10 @@ export function Console({
               printers: "Printers",
               floor: "Floor plan",
               reservations: "Reservations",
+              roles: "Roles & staff",
+              audit: "Audit log",
+              integrations: "API & webhooks",
+              security: "Security",
             };
             return (
               <button key={t} className={`top-tab ${tab === t ? "active" : ""}`} onClick={() => setTab(t)}>
@@ -487,6 +505,10 @@ export function Console({
       {tab === "printers" && <PrintersTab outletId={outlet.id} />}
       {tab === "floor" && <FloorPlanEditor outletId={outlet.id} />}
       {tab === "reservations" && <ReservationsBoard outletId={outlet.id} />}
+      {tab === "roles" && <RolesTab user={user} />}
+      {tab === "audit" && <AuditTab user={user} />}
+      {tab === "integrations" && <IntegrationsTab user={user} outlets={outlets} />}
+      {tab === "security" && <SecurityTab user={user} />}
 
       {itemDialog && (
         <ItemDialog

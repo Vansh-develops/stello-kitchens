@@ -39,6 +39,12 @@ import { PrintingModule } from "./printing/printing.module";
 import { FohModule } from "./foh/foh.module";
 import { MediaModule } from "./media/media.module";
 import { ProcurementModule } from "./procurement/procurement.module";
+import { ApiKeysModule } from "./api-keys/api-keys.module";
+import { RolesModule } from "./roles/roles.module";
+import { AuditModule } from "./audit/audit.module";
+import { WebhooksModule } from "./webhooks/webhooks.module";
+import { McpModule } from "./mcp/mcp.module";
+import { ReportExportModule } from "./report-export/report-export.module";
 
 @Module({
   imports: [
@@ -82,6 +88,12 @@ import { ProcurementModule } from "./procurement/procurement.module";
     FohModule,
     MediaModule,
     ProcurementModule,
+    ApiKeysModule,
+    RolesModule,
+    AuditModule,
+    WebhooksModule,
+    McpModule,
+    ReportExportModule,
   ],
   providers: [
     // ThrottlerGuard first so rate limiting applies even to unauthenticated

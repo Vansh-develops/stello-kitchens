@@ -21,6 +21,7 @@ import type {
 import { Prisma } from "@prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
 import { RealtimeGateway } from "../realtime/realtime.gateway";
+import { emitDomainEvent } from "../events/domain-events";
 
 const D = (n: Prisma.Decimal | number) => (typeof n === "number" ? n : Number(n));
 
@@ -172,6 +173,7 @@ export class InventoryService {
       return { id, stockQty: newQty };
     });
     this.realtime.notifyOutlet(outletId);
+    emitDomainEvent("stock.changed", user.tenantId, outletId, { rawMaterialId: id });
     return result;
   }
 

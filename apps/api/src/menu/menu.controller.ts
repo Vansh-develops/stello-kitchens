@@ -4,6 +4,7 @@ import { PrismaService } from "../prisma/prisma.service";
 import { RealtimeGateway } from "../realtime/realtime.gateway";
 import { CombosService } from "../combos/combos.service";
 import { CurrentUser, RequirePermission } from "../common/decorators";
+import { emitDomainEvent } from "../events/domain-events";
 
 @Controller("outlets/:outletId/menu")
 export class MenuController {
@@ -95,6 +96,7 @@ export class MenuController {
       data: { inStock: !!body.inStock },
     });
     this.realtime.notifyOutlet(outletId);
+    emitDomainEvent("item.availability", user.tenantId, outletId, { itemId: item.id, name: item.name, inStock: item.inStock });
     return { id: item.id, inStock: item.inStock };
   }
 }

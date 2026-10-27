@@ -30,11 +30,11 @@ export function useOutletSocket(outletId: string, handlers: Handlers): boolean {
   const [connected, setConnected] = useState(false);
 
   useEffect(() => {
-    const token = typeof window !== "undefined" ? localStorage.getItem("stello.token") : null;
     const socket: Socket = io(socketOrigin(), {
       path: "/socket.io",
       transports: ["websocket", "polling"],
-      auth: { token },
+      // Authenticated by the httpOnly session cookie (same-site with the API).
+      withCredentials: true,
     });
     socket.on("connect", () => {
       setConnected(true);
