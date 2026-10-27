@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import QRCode from "qrcode";
 import type { CustomerLookupDto, OrderDto, PaymentMode } from "@stello/shared";
 import { posApi as api } from "@/lib/pos-api";
+import { RazorpayCollect } from "./RazorpayCollect";
 
 const rupee = (n: number) => `₹${n.toFixed(2)}`;
 const MODES: PaymentMode[] = ["CASH", "CARD", "UPI", "WALLET"];
@@ -306,6 +307,13 @@ export function SettleDialog({
               </div>
             )}
           </div>
+
+          <RazorpayCollect
+            outletId={outletId}
+            orderId={order.id}
+            amount={remaining > 0.01 ? remaining : payable}
+            onPaid={(amt) => setSplit((prev) => ({ ...prev, UPI: Math.round((prev.UPI + amt) * 100) / 100 }))}
+          />
 
           <div className={`remaining ${Math.abs(remaining) < 0.01 ? "settled" : ""}`}>
             {remaining > 0.01 ? (

@@ -25,6 +25,8 @@ import { PrepTab } from "./PrepTab";
 import { FleetTab } from "./FleetTab";
 import { AppearanceTab } from "./AppearanceTab";
 import { InviteStaffTab } from "./InviteStaffTab";
+import { IntegrationsTab } from "./IntegrationsTab";
+import { LowStockToaster } from "./LowStockToaster";
 
 const rupee = (n: number) => `₹${n.toFixed(0)}`;
 type Tab =
@@ -44,7 +46,8 @@ type Tab =
   | "prep"
   | "fleet"
   | "invite"
-  | "settings";
+  | "settings"
+  | "integrations";
 
 export function Console({
   user,
@@ -133,6 +136,7 @@ export function Console({
               "fleet",
               "invite",
               "settings",
+              "integrations",
             ] as const
           ).map((t) => {
             const labels: Record<string, string> = {
@@ -153,6 +157,7 @@ export function Console({
               fleet: "Fleet",
               invite: "Invite staff",
               settings: "Settings",
+              integrations: "Integrations",
             };
             return (
               <button key={t} className={`top-tab ${tab === t ? "active" : ""}`} onClick={() => setTab(t)}>
@@ -167,6 +172,7 @@ export function Console({
       </header>
 
       {error && <div className="banner-error" onClick={() => setError(null)}>{error} — dismiss</div>}
+      <LowStockToaster outletId={outlet.id} />
 
       {tab === "menu" && (
         <div className="menu-layout">
@@ -451,6 +457,7 @@ export function Console({
       {tab === "fleet" && <FleetTab outletId={outlet.id} />}
       {tab === "invite" && <InviteStaffTab />}
       {tab === "settings" && <AppearanceTab outlet={outlet} />}
+      {tab === "integrations" && <IntegrationsTab outletId={outlet.id} />}
 
       {itemDialog && (
         <ItemDialog
