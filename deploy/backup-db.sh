@@ -27,15 +27,29 @@ PGDB="${POSTGRES_DB:-stello}"
 mkdir -p "$BACKUP_DIR"; chmod 700 "$BACKUP_DIR"
 TS="$(date +%Y%m%d-%H%M%S)"
 OUT="$BACKUP_DIR/stello-$TS.sql.gz"
+TMP="$OUT.partial"
+# A failed run must never leave a file behind: an empty "snapshot" looks like a
+# backup and would push a real one out of the retention window.
+trap 'rm -f "$TMP" "$TMP.enc"' EXIT
 
 echo "[backup $(date -Is)] dumping database '$PGDB' ..."
-"${COMPOSE[@]}" exec -T -e PGPASSWORD="${POSTGRES_PASSWORD:-}" postgres \
+if ! "${COMPOSE[@]}" exec -T -e PGPASSWORD="${POSTGRES_PASSWORD:-}" postgres \
   pg_dump -U "$PGUSER" -d "$PGDB" --no-owner --clean --if-exists \
-  | gzip -9 > "$OUT"
+  | gzip -9 > "$TMP"; then
+  echo "[backup] FAILED: pg_dump did not complete (is the postgres container running?)" >&2
+  exit 1
+fi
+# pg_dump writes this trailer only after a complete dump.
+if ! gunzip -c "$TMP" | tail -n 5 | grep -q "PostgreSQL database dump complete"; then
+  echo "[backup] FAILED: dump is incomplete" >&2
+  exit 1
+fi
+mv "$TMP" "$OUT"
 
 # Encrypt at rest if a passphrase is configured (recommended).
 if [ -n "${BACKUP_PASSPHRASE:-}" ]; then
-  openssl enc -aes-256-cbc -pbkdf2 -salt -pass "pass:${BACKUP_PASSPHRASE}" -in "$OUT" -out "$OUT.enc"
+  openssl enc -aes-256-cbc -pbkdf2 -salt -pass "pass:${BACKUP_PASSPHRASE}" -in "$OUT" -out "$TMP.enc"
+  mv "$TMP.enc" "$OUT.enc"
   rm -f "$OUT"; OUT="$OUT.enc"
   echo "[backup] encrypted (AES-256)."
 else
@@ -44,8 +58,9 @@ fi
 chmod 600 "$OUT"
 echo "[backup] wrote $OUT ($(du -h "$OUT" | cut -f1))"
 
-# Retention: delete everything older than the newest $RETENTION snapshots.
-mapfile -t OLD < <(ls -1t "$BACKUP_DIR"/stello-*.sql.gz* 2>/dev/null | tail -n +$((RETENTION + 1)) || true)
+# Retention: delete everything older than the newest $RETENTION snapshots. Only
+# reached after a verified dump, so a run of failures never prunes good backups.
+mapfile -t OLD < <(ls -1t "$BACKUP_DIR"/stello-*.sql.gz "$BACKUP_DIR"/stello-*.sql.gz.enc 2>/dev/null | tail -n +$((RETENTION + 1)) || true)
 for f in "${OLD[@]:-}"; do [ -n "$f" ] && { rm -f "$f"; echo "[backup] pruned $(basename "$f")"; }; done
 
 echo "[backup] done — $(ls -1 "$BACKUP_DIR"/stello-*.sql.gz* 2>/dev/null | wc -l) snapshots retained."
